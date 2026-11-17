@@ -1,0 +1,43 @@
+CREATE TABLE payment (
+    id BINARY(32) NOT NULL PRIMARY KEY,
+    tenant_id BIGINT UNSIGNED NOT NULL,
+    reference VARCHAR(255) NOT NULL,
+    currency VARCHAR(8) NOT NULL,
+    amount BIGINT UNSIGNED NOT NULL,
+    tax BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    status VARCHAR(24) NOT NULL,
+    created TIMESTAMP NOT NULL,
+    expires TIMESTAMP NOT NULL,
+    paid_at TIMESTAMP NULL DEFAULT NULL,
+    description VARCHAR(255) NULL,
+    customer_ref VARCHAR(128) NULL,
+    customer_email VARCHAR(255) NULL,
+    metadata TEXT NULL,
+    methods TEXT NULL,
+    idempotency_key VARCHAR(128) NULL,
+    success_url VARCHAR(512) NULL,
+    cancel_url VARCHAR(512) NULL,
+    CONSTRAINT fk_payment_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    UNIQUE KEY ux_payment_idempotency (tenant_id, idempotency_key),
+    KEY ix_payment_reference (tenant_id, reference),
+    KEY ix_payment_status_expires (status, expires)
+);
+
+CREATE TABLE webhook_delivery (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    tenant_id BIGINT UNSIGNED NOT NULL,
+    payment_id BINARY(32) NOT NULL,
+    event_id CHAR(32) NOT NULL,
+    event_type VARCHAR(48) NOT NULL,
+    body MEDIUMTEXT NOT NULL,
+    attempts INT UNSIGNED NOT NULL DEFAULT 0,
+    created TIMESTAMP NOT NULL,
+    next_attempt TIMESTAMP NOT NULL,
+    delivered_at TIMESTAMP NULL DEFAULT NULL,
+    abandoned_at TIMESTAMP NULL DEFAULT NULL,
+    last_error VARCHAR(512) NULL,
+    CONSTRAINT fk_webhook_delivery_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT fk_webhook_delivery_payment FOREIGN KEY (payment_id) REFERENCES payment (id),
+    UNIQUE KEY ux_webhook_delivery_event (event_id),
+    KEY ix_webhook_delivery_due (delivered_at, abandoned_at, next_attempt)
+);

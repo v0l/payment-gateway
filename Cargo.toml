@@ -13,13 +13,17 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
+async-trait = "0.1"
 axum = "0.8"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "time", "sync"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.8", default-features = false, features = ["mysql", "chrono", "migrate", "runtime-tokio", "json", "macros"] }
 chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
+hmac = "0.12"
 hex = "0.4"
 rand = "0.8"
 aes-gcm = "0.10"
@@ -27,7 +31,13 @@ subtle = "2"
 log = "0.4"
 env_logger = "0.11"
 url = "2"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+payments-rs = { version = "0.10.0", features = ["method-lnd", "method-lnd-onchain", "method-revolut", "method-stripe", "tls-ring", "mock"], default-features = false }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+lightning-invoice = { version = "0.34", features = ["std"] }
+wiremock = "0.6"
+bitcoin = "0.32"

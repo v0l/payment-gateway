@@ -1,12 +1,14 @@
 use super::{ApiError, ApiResult, AppState, bearer};
 use crate::crypto::{hash_api_key, new_api_key, new_webhook_secret};
-use crate::db::{self, NewProviderConfig, ProviderConfigRow};
-use axum::extract::{FromRequestParts, Path, State};
+use crate::db::{self, DeliveryRow, NewProviderConfig, ProviderConfigRow, TenantSettings};
+use crate::model::{METHODS, normalize_origins};
+use axum::extract::{FromRequestParts, Path, Query, State};
 use axum::http::request::Parts;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use subtle::ConstantTimeEq;
 
 pub struct AdminAuth;
@@ -27,6 +29,8 @@ impl FromRequestParts<AppState> for AdminAuth {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/tenants", post(create_tenant).get(list_tenants))
+        .route("/tenants/{id}", get(get_tenant))
+        .route("/tenants/{id}/settings", post(update_settings))
         .route("/tenants/{id}/enabled", post(set_enabled))
         .route("/tenants/{id}/rotate-key", post(rotate_key))
         .route(
@@ -37,7 +41,8 @@ pub fn router() -> Router<AppState> {
             "/tenants/{id}/providers/{provider_id}/enabled",
             post(set_provider_enabled),
         )
-        .route("/tenants/{id}", get(get_tenant))
+        .route("/deliveries", get(list_deliveries))
+        .route("/deliveries/{id}/replay", post(replay_delivery))
 }
 
 #[derive(Serialize)]
@@ -46,15 +51,28 @@ struct TenantView {
     name: String,
     webhook_url: Option<String>,
     enabled: bool,
+    display_name: Option<String>,
+    logo_url: Option<String>,
+    accent_color: Option<String>,
+    allowed_origins: Vec<String>,
+    default_success_url: Option<String>,
+    default_cancel_url: Option<String>,
 }
 
 impl From<db::Tenant> for TenantView {
     fn from(t: db::Tenant) -> Self {
+        let allowed_origins = t.origins();
         Self {
             id: t.id,
             name: t.name,
             webhook_url: t.webhook_url,
             enabled: t.enabled,
+            display_name: t.display_name,
+            logo_url: t.logo_url,
+            accent_color: t.accent_color,
+            allowed_origins,
+            default_success_url: t.default_success_url,
+            default_cancel_url: t.default_cancel_url,
         }
     }
 }
@@ -72,10 +90,15 @@ struct CreatedTenant {
     webhook_secret: String,
 }
 
-fn valid_webhook_url(url: &str) -> bool {
+fn valid_url(url: &str) -> bool {
     url::Url::parse(url)
         .map(|u| matches!(u.scheme(), "http" | "https") && u.host().is_some())
         .unwrap_or(false)
+}
+
+fn valid_color(c: &str) -> bool {
+    let c = c.strip_prefix('#').unwrap_or("");
+    matches!(c.len(), 3 | 6) && c.chars().all(|ch| ch.is_ascii_hexdigit())
 }
 
 async fn create_tenant(
@@ -86,16 +109,14 @@ async fn create_tenant(
     if req.name.trim().is_empty() {
         return Err(ApiError::bad_request("name required"));
     }
-    if let Some(u) = &req.webhook_url {
-        if !valid_webhook_url(u) {
-            return Err(ApiError::bad_request("invalid webhook_url"));
-        }
+    if req.webhook_url.as_deref().is_some_and(|u| !valid_url(u)) {
+        return Err(ApiError::bad_request("invalid webhook_url"));
     }
     let api_key = new_api_key();
     let webhook_secret = new_webhook_secret();
-    let sealed = s.sealer.seal(webhook_secret.as_bytes())?;
+    let sealed = s.service.sealer.seal(webhook_secret.as_bytes())?;
     let id = db::insert_tenant(
-        &s.pool,
+        s.pool(),
         req.name.trim(),
         &hash_api_key(&api_key),
         req.webhook_url.as_deref(),
@@ -111,7 +132,7 @@ async fn create_tenant(
 
 async fn list_tenants(_: AdminAuth, State(s): State<AppState>) -> ApiResult<Vec<TenantView>> {
     Ok(Json(
-        db::list_tenants(&s.pool)
+        db::list_tenants(s.pool())
             .await?
             .into_iter()
             .map(Into::into)
@@ -124,10 +145,66 @@ async fn get_tenant(
     State(s): State<AppState>,
     Path(id): Path<u64>,
 ) -> ApiResult<TenantView> {
-    db::get_tenant(&s.pool, id)
+    db::get_tenant(s.pool(), id)
         .await?
         .map(|t| Json(t.into()))
         .ok_or_else(ApiError::not_found)
+}
+
+#[derive(Deserialize)]
+struct SettingsInput {
+    webhook_url: Option<String>,
+    display_name: Option<String>,
+    logo_url: Option<String>,
+    accent_color: Option<String>,
+    #[serde(default)]
+    allowed_origins: Vec<String>,
+    default_success_url: Option<String>,
+    default_cancel_url: Option<String>,
+}
+
+async fn update_settings(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+    Json(req): Json<SettingsInput>,
+) -> ApiResult<TenantView> {
+    for u in [
+        &req.webhook_url,
+        &req.logo_url,
+        &req.default_success_url,
+        &req.default_cancel_url,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if !valid_url(u) {
+            return Err(ApiError::bad_request(format!("invalid url {u}")));
+        }
+    }
+    if req.accent_color.as_deref().is_some_and(|c| !valid_color(c)) {
+        return Err(ApiError::bad_request(
+            "accent_color must be #rgb or #rrggbb",
+        ));
+    }
+    if req.display_name.as_deref().is_some_and(|n| n.len() > 128) {
+        return Err(ApiError::bad_request("display_name too long"));
+    }
+    let origins = normalize_origins(&req.allowed_origins.join(" "))
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let settings = TenantSettings {
+        webhook_url: req.webhook_url,
+        display_name: req.display_name,
+        logo_url: req.logo_url,
+        accent_color: req.accent_color,
+        allowed_origins: (!origins.is_empty()).then(|| origins.join(" ")),
+        default_success_url: req.default_success_url,
+        default_cancel_url: req.default_cancel_url,
+    };
+    if !db::update_tenant_settings(s.pool(), id, &settings).await? {
+        return Err(ApiError::not_found());
+    }
+    get_tenant(AdminAuth, State(s), Path(id)).await
 }
 
 #[derive(Deserialize)]
@@ -141,7 +218,7 @@ async fn set_enabled(
     Path(id): Path<u64>,
     Json(req): Json<SetEnabled>,
 ) -> ApiResult<Value> {
-    if db::set_tenant_enabled(&s.pool, id, req.enabled).await? {
+    if db::set_tenant_enabled(s.pool(), id, req.enabled).await? {
         Ok(Json(serde_json::json!({ "enabled": req.enabled })))
     } else {
         Err(ApiError::not_found())
@@ -154,21 +231,12 @@ async fn rotate_key(
     Path(id): Path<u64>,
 ) -> ApiResult<Value> {
     let api_key = new_api_key();
-    if db::rotate_tenant_key(&s.pool, id, &hash_api_key(&api_key)).await? {
+    if db::rotate_tenant_key(s.pool(), id, &hash_api_key(&api_key)).await? {
         Ok(Json(serde_json::json!({ "api_key": api_key })))
     } else {
         Err(ApiError::not_found())
     }
 }
-
-const METHODS: &[&str] = &[
-    "lightning",
-    "onchain",
-    "stripe",
-    "revolut",
-    "paypal",
-    "fixedfloat",
-];
 
 #[derive(Deserialize)]
 struct CreateProvider {
@@ -193,15 +261,21 @@ async fn create_provider(
     if req.name.trim().is_empty() || req.provider_type.trim().is_empty() {
         return Err(ApiError::bad_request("name and provider_type required"));
     }
+    if req.provider_type == "mock" && !s.allow_mock {
+        return Err(ApiError::bad_request("mock providers are disabled"));
+    }
     if req.fee_rate.is_some_and(|r| !(0.0..=100.0).contains(&r)) {
         return Err(ApiError::bad_request("fee_rate must be 0-100"));
     }
-    if db::get_tenant(&s.pool, id).await?.is_none() {
+    if db::get_tenant(s.pool(), id).await?.is_none() {
         return Err(ApiError::not_found());
     }
-    let sealed = s.sealer.seal(&serde_json::to_vec(&req.config).map_err(anyhow::Error::from)?)?;
+    let sealed = s
+        .service
+        .sealer
+        .seal(&serde_json::to_vec(&req.config).map_err(anyhow::Error::from)?)?;
     let provider_id = db::insert_provider_config(
-        &s.pool,
+        s.pool(),
         NewProviderConfig {
             tenant_id: id,
             method: &req.method,
@@ -214,7 +288,10 @@ async fn create_provider(
         },
     )
     .await?;
-    Ok(Json(serde_json::json!({ "id": provider_id })))
+    Ok(Json(serde_json::json!({
+        "id": provider_id,
+        "hook_url": s.service.hook_url(id, provider_id),
+    })))
 }
 
 async fn list_providers(
@@ -222,7 +299,7 @@ async fn list_providers(
     State(s): State<AppState>,
     Path(id): Path<u64>,
 ) -> ApiResult<Vec<ProviderConfigRow>> {
-    Ok(Json(db::list_provider_configs(&s.pool, id, false).await?))
+    Ok(Json(db::list_provider_configs(s.pool(), id, false).await?))
 }
 
 async fn set_provider_enabled(
@@ -231,8 +308,35 @@ async fn set_provider_enabled(
     Path((id, provider_id)): Path<(u64, u64)>,
     Json(req): Json<SetEnabled>,
 ) -> ApiResult<Value> {
-    if db::set_provider_config_enabled(&s.pool, id, provider_id, req.enabled).await? {
+    if db::set_provider_config_enabled(s.pool(), id, provider_id, req.enabled).await? {
+        s.service.registry.invalidate(provider_id);
         Ok(Json(serde_json::json!({ "enabled": req.enabled })))
+    } else {
+        Err(ApiError::not_found())
+    }
+}
+
+async fn list_deliveries(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    Query(q): Query<HashMap<String, String>>,
+) -> ApiResult<Vec<DeliveryRow>> {
+    let tenant = q.get("tenant_id").and_then(|t| t.parse().ok());
+    let undelivered = q
+        .get("undelivered")
+        .is_some_and(|v| v == "1" || v == "true");
+    Ok(Json(
+        db::list_deliveries(s.pool(), tenant, undelivered).await?,
+    ))
+}
+
+async fn replay_delivery(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> ApiResult<Value> {
+    if db::replay_delivery(s.pool(), id, chrono::Utc::now()).await? {
+        Ok(Json(serde_json::json!({ "queued": true })))
     } else {
         Err(ApiError::not_found())
     }

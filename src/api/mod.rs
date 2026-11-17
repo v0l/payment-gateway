@@ -1,19 +1,26 @@
 mod admin;
+mod public;
 mod tenant;
 
-use crate::crypto::Sealer;
+use crate::service::{Error, Service};
 use axum::Router;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use serde_json::json;
-use sqlx::MySqlPool;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub pool: MySqlPool,
-    pub sealer: Sealer,
+    pub service: Arc<Service>,
     pub admin_token: String,
+    pub allow_mock: bool,
+}
+
+impl AppState {
+    pub fn pool(&self) -> &sqlx::MySqlPool {
+        &self.service.pool
+    }
 }
 
 pub struct ApiError(pub StatusCode, pub String);
@@ -30,11 +37,17 @@ impl ApiError {
     }
 }
 
-impl From<anyhow::Error> for ApiError {
-    fn from(e: anyhow::Error) -> Self {
-        match e.downcast::<sqlx::Error>() {
-            Ok(e) => e.into(),
-            Err(e) => {
+impl From<Error> for ApiError {
+    fn from(e: Error) -> Self {
+        match e {
+            Error::NotFound => Self::not_found(),
+            Error::Invalid(m) => Self(StatusCode::BAD_REQUEST, m),
+            Error::Conflict(m) => Self(StatusCode::CONFLICT, m),
+            Error::Upstream(m) => {
+                log::warn!("upstream error: {m}");
+                Self(StatusCode::BAD_GATEWAY, m)
+            }
+            Error::Internal(e) => {
                 log::error!("{e:#}");
                 Self(StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
             }
@@ -42,15 +55,15 @@ impl From<anyhow::Error> for ApiError {
     }
 }
 
+impl From<anyhow::Error> for ApiError {
+    fn from(e: anyhow::Error) -> Self {
+        Error::from(e).into()
+    }
+}
+
 impl From<sqlx::Error> for ApiError {
     fn from(e: sqlx::Error) -> Self {
-        if let sqlx::Error::Database(d) = &e {
-            if d.is_unique_violation() {
-                return Self(StatusCode::CONFLICT, "already exists".into());
-            }
-        }
-        log::error!("{e:#}");
-        Self(StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
+        Error::from(e).into()
     }
 }
 
@@ -67,6 +80,7 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(|| async { "ok" }))
         .nest("/admin", admin::router())
         .nest("/v1", tenant::router())
+        .merge(public::router())
         .with_state(state)
 }
 

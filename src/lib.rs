@@ -2,3 +2,8 @@ pub mod api;
 pub mod config;
 pub mod crypto;
 pub mod db;
+pub mod model;
+pub mod providers;
+pub mod rates;
+pub mod service;
+pub mod worker;
