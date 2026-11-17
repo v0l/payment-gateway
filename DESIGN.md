@@ -76,6 +76,16 @@ POST /hook/{tenant}/{provider_config_id}      stripe, revolut
 
 Admin API (separate admin token) for tenants, provider configs, delivery inspection and manual replays.
 
+## Integration modes
+
+All three sit on the same payment object, so a tenant can mix them.
+
+1. **Pure API**: the app creates the payment, creates attempts, renders its own UI, and learns the result from the webhook or by polling.
+2. **Hosted page (redirect)**: create with `success_url` and `cancel_url`. The response includes `pay_url` (`https://<gateway>/pay/{id}`). The gateway page shows the amount, a method picker, the bolt11 QR or address or a handoff to Stripe/Revolut checkout, live status, and then redirects to `success_url` with `payment_id` and a signed `sig`. The app must still confirm via webhook or `GET`, never trust the redirect alone.
+3. **Embed (iframe)**: the same page at `/embed/{id}`, with CSP `frame-ancestors` limited to the tenant's `allowed_origins`. It posts `pgw:ready`, `pgw:resize`, `pgw:paid`, `pgw:expired` and `pgw:cancelled` to the parent. A small `gateway.js` opens the frame and exposes `onPaid`. Stripe and Revolut hosted checkouts refuse framing, so for fiat the embed redirects the top window (or uses Stripe Elements later).
+
+The payment id is 32 random bytes and acts as the capability for the public endpoints (`GET /pay/{id}/state`, `POST /pay/{id}/attempts`, `GET /pay/{id}/events` as SSE). They expose only what the page needs, never provider config or tenant metadata. Tenants set branding (name, logo, accent colour), `allowed_origins` and default `success_url`/`cancel_url` in the admin API. The page is static assets embedded in the binary and has no tenant-specific build.
+
 ## Outbound webhooks
 
 `POST tenant.webhook_url` with `X-Gateway-Signature: t=<unix>,v1=<hmac sha256 of "t.body">` and `X-Gateway-Event-Id`. Events: `payment.paid`, `payment.expired`, `payment.cancelled`, `refund.completed`, `attempt.failed`. Retries with exponential backoff for 3 days. Receivers must be idempotent on event id. Tenants can always poll `GET /v1/payments/{id}`.
@@ -92,6 +102,7 @@ Admin API (separate admin token) for tenants, provider configs, delivery inspect
 
 1. Skeleton: workspace, config, migrations, tenants and API keys, admin API, health, CI
 2. Core payment model, create and get, expiry worker, outbound webhook delivery
+2b. Public pay page: tenant branding and allowed origins, `pay_url`, `/pay/{id}` page with method picker and live status over SSE, `/embed/{id}` with postMessage and CSP, `gateway.js`, signed redirect, tests for origin enforcement and redirect signing
 3. Lightning (LND): attempts, settlement stream, tests against a mock `LightningNode`
 4. Stripe: checkout attempts, webhook verification, settlement
 5. YALR integration: YALR credit top up using lightning and Stripe, behind a small client crate
