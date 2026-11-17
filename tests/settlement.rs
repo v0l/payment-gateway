@@ -516,3 +516,24 @@ async fn provider_webhook_for_another_tenants_provider_is_not_found() {
     .await;
     assert_eq!(r.status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn invoice_settled_while_no_watcher_was_running_is_still_paid() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    let (id, hash, _) = ln_attempt(&h, &t, 1000).await;
+    mock(&h, ln).mark_settled(&hash);
+
+    let _workers =
+        payment_gateway::worker::spawn(h.service.clone(), std::time::Duration::from_millis(100));
+    for _ in 0..60 {
+        if get_payment(&h, &t, &id).await["status"] == "paid" {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    assert_eq!(get_payment(&h, &t, &id).await["status"], "paid");
+    h.service.deliver_due().await.unwrap();
+    assert_eq!(t.receiver.types(), vec!["payment.paid"]);
+}

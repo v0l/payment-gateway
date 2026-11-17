@@ -14,13 +14,42 @@ use serde_json::{Value, json};
 use std::path::Path;
 use std::sync::Arc;
 
+#[async_trait]
+pub trait InvoiceLookup: Send + Sync {
+    async fn is_settled(&self, payment_hash: &[u8]) -> Result<bool>;
+}
+
+struct LndLookup(Arc<LndNode>);
+
+#[async_trait]
+impl InvoiceLookup for LndLookup {
+    async fn is_settled(&self, payment_hash: &[u8]) -> Result<bool> {
+        let mut client = self.0.client();
+        let invoice = client
+            .lightning()
+            .lookup_invoice(fedimint_tonic_lnd::lnrpc::PaymentHash {
+                r_hash: payment_hash.to_vec(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        Ok(invoice.state == fedimint_tonic_lnd::lnrpc::invoice::InvoiceState::Settled as i32)
+    }
+}
+
 pub struct LightningProvider {
     node: Arc<dyn LightningNode>,
+    lookup: Option<Arc<dyn InvoiceLookup>>,
 }
 
 impl LightningProvider {
     pub fn new(node: Arc<dyn LightningNode>) -> Self {
-        Self { node }
+        Self { node, lookup: None }
+    }
+
+    pub fn with_lookup(mut self, lookup: Arc<dyn InvoiceLookup>) -> Self {
+        self.lookup = Some(lookup);
+        self
     }
 
     pub async fn lnd(config: &Value) -> Result<Self> {
@@ -37,7 +66,8 @@ impl LightningProvider {
             Path::new(field("macaroon_path")?),
         )
         .await?;
-        Ok(Self::new(Arc::new(node)))
+        let node = Arc::new(node);
+        Ok(Self::new(node.clone()).with_lookup(Arc::new(LndLookup(node))))
     }
 }
 
@@ -116,6 +146,22 @@ impl Provider for LightningProvider {
             }
         }
         Err(anyhow!("invoice stream ended"))
+    }
+
+    async fn reconcile(&self, attempt: &AttemptRow) -> Result<Option<ProviderEvent>> {
+        let Some(lookup) = &self.lookup else {
+            return Ok(None);
+        };
+        if !lookup.is_settled(&hex::decode(&attempt.lookup)?).await? {
+            return Ok(None);
+        }
+        Ok(Some(ProviderEvent::Paid {
+            lookup: attempt.lookup.clone(),
+            reference: attempt.lookup.clone(),
+            amount: None,
+            confirmed: true,
+            saved: None,
+        }))
     }
 
     async fn refund(&self, _attempt: &AttemptRow, req: RefundRequest) -> Result<RefundOutcome> {

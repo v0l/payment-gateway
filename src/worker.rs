@@ -59,6 +59,9 @@ pub fn spawn(service: Arc<Service>, tick: Duration) -> Workers {
                     for cfg in configs {
                         if matches!(cfg.method.as_str(), "lightning" | "onchain") {
                             start_watcher(s.clone(), cfg.id, watching.clone(), &watcher_handles);
+                            if let Err(e) = s.reconcile_provider(cfg.id).await {
+                                log::warn!("reconcile provider {} failed: {e:?}", cfg.id);
+                            }
                         }
                         if matches!(cfg.method.as_str(), "stripe" | "revolut") {
                             setup_hooks(&s, &cfg).await;

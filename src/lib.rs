@@ -5,5 +5,6 @@ pub mod db;
 pub mod model;
 pub mod providers;
 pub mod rates;
+pub mod sandbox;
 pub mod service;
 pub mod worker;

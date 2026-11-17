@@ -1082,6 +1082,26 @@ impl Service {
         }
     }
 
+    pub async fn reconcile_provider(&self, provider_id: u64) -> Result<usize> {
+        let provider = self
+            .registry
+            .get(provider_id)
+            .await
+            .map_err(|e| Error::Upstream(format!("{e:#}")))?;
+        let mut settled = 0;
+        for attempt in db::pending_attempts_of_provider(&self.pool, provider_id).await? {
+            match provider.reconcile(&attempt).await {
+                Ok(Some(event)) => {
+                    self.apply_event(provider_id, event).await?;
+                    settled += 1;
+                }
+                Ok(None) => {}
+                Err(e) => log::warn!("reconcile attempt {} failed: {e:#}", attempt.id),
+            }
+        }
+        Ok(settled)
+    }
+
     pub async fn deliver_due(&self) -> Result<usize> {
         let now = Utc::now();
         let due = db::due_deliveries(&self.pool, now).await?;

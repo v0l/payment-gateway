@@ -116,6 +116,10 @@ pub trait Provider: Send + Sync {
         bail!("{} does not accept webhooks", self.method())
     }
 
+    async fn reconcile(&self, _attempt: &AttemptRow) -> Result<Option<ProviderEvent>> {
+        Ok(None)
+    }
+
     async fn receive_address(&self, _amount_msat: u64) -> Result<String> {
         bail!("{} cannot hand out receive addresses", self.method())
     }

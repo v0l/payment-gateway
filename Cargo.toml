@@ -33,6 +33,7 @@ env_logger = "0.11"
 url = "2"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+fedimint-tonic-lnd = { version = "0.4", default-features = false, features = ["lightningrpc"] }
 payments-rs = { version = "0.10.0", features = ["method-lnd", "method-lnd-onchain", "method-revolut", "method-stripe", "tls-ring", "mock"], default-features = false }
 
 [dev-dependencies]

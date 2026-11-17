@@ -970,3 +970,38 @@ pub async fn claim_delivery(
     .await?;
     Ok(r.rows_affected() == 1)
 }
+
+pub async fn tenant_by_name(pool: &MySqlPool, name: &str) -> Result<Option<Tenant>> {
+    Ok(
+        sqlx::query_as(&format!("select {TENANT_COLS} from tenant where name = ?"))
+            .bind(name)
+            .fetch_optional(pool)
+            .await?,
+    )
+}
+
+pub async fn recent_payments(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    limit: u32,
+) -> Result<Vec<PaymentRow>> {
+    Ok(sqlx::query_as(&format!(
+        "select {PAYMENT_COLS} from payment where tenant_id = ? order by created desc limit ?"
+    ))
+    .bind(tenant_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?)
+}
+
+pub async fn pending_attempts_of_provider(
+    pool: &MySqlPool,
+    provider_id: u64,
+) -> Result<Vec<AttemptRow>> {
+    Ok(sqlx::query_as(&format!(
+        "select {ATTEMPT_COLS} from payment_attempt where provider_config_id = ? and status = 'pending' order by id limit 500"
+    ))
+    .bind(provider_id)
+    .fetch_all(pool)
+    .await?)
+}

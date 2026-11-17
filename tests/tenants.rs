@@ -145,6 +145,7 @@ async fn mock_providers_are_refused_when_mocks_are_disabled() {
         service: h.service.clone(),
         admin_token: ADMIN.into(),
         allow_mock: false,
+        sandbox: None,
     });
     let (s, _) = call(
         &app,

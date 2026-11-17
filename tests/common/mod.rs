@@ -64,6 +64,7 @@ pub async fn harness() -> Harness {
         service: service.clone(),
         admin_token: ADMIN.into(),
         allow_mock: true,
+        sandbox: None,
     });
     Harness {
         app,

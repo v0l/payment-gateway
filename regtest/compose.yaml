@@ -1,0 +1,66 @@
+name: pgw-regtest
+services:
+  bitcoind:
+    image: ruimarinho/bitcoin-core:24
+    command:
+      - -regtest=1
+      - -server=1
+      - -txindex=1
+      - -fallbackfee=0.0002
+      - -rpcuser=regtest
+      - -rpcpassword=regtest
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+      - -zmqpubrawblock=tcp://0.0.0.0:28332
+      - -zmqpubrawtx=tcp://0.0.0.0:28333
+    ports:
+      - "127.0.0.1:18443:18443"
+
+  lnd-gateway:
+    image: lightninglabs/lnd:v0.19.3-beta
+    depends_on: [bitcoind]
+    command: &lndargs
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:18443
+      - --bitcoind.rpcuser=regtest
+      - --bitcoind.rpcpass=regtest
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --noseedbackup
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --listen=0.0.0.0:9735
+      - --tlsextradomain=lnd-gateway
+      - --tlsextradomain=localhost
+      - --accept-keysend
+    volumes:
+      - gateway-data:/root/.lnd
+    ports:
+      - "127.0.0.1:10009:10009"
+
+  lnd-customer:
+    image: lightninglabs/lnd:v0.19.3-beta
+    depends_on: [bitcoind]
+    command:
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:18443
+      - --bitcoind.rpcuser=regtest
+      - --bitcoind.rpcpass=regtest
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --noseedbackup
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --listen=0.0.0.0:9735
+      - --tlsextradomain=lnd-customer
+      - --tlsextradomain=localhost
+    volumes:
+      - customer-data:/root/.lnd
+    ports:
+      - "127.0.0.1:10010:10009"
+
+volumes:
+  gateway-data:
+  customer-data:

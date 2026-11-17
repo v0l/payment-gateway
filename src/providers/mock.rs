@@ -53,6 +53,7 @@ pub struct MockProvider {
     pub fail_create: Mutex<bool>,
     pub fail_refund: Mutex<bool>,
     pub watch_starts: Mutex<Vec<Option<String>>>,
+    settled: Mutex<std::collections::HashSet<String>>,
 }
 
 impl MockProvider {
@@ -69,6 +70,7 @@ impl MockProvider {
             fail_create: Default::default(),
             fail_refund: Default::default(),
             watch_starts: Default::default(),
+            settled: Default::default(),
         }
     }
 
@@ -78,6 +80,10 @@ impl MockProvider {
             .unwrap()
             .push_back((event, cursor.map(str::to_string)));
         self.notify.notify_one();
+    }
+
+    pub fn mark_settled(&self, lookup: &str) {
+        self.settled.lock().unwrap().insert(lookup.to_string());
     }
 
     pub fn secret(&self) -> String {
@@ -205,6 +211,19 @@ impl Provider for MockProvider {
                 }),
             }],
         })
+    }
+
+    async fn reconcile(&self, attempt: &AttemptRow) -> Result<Option<ProviderEvent>> {
+        if self.settled.lock().unwrap().contains(&attempt.lookup) {
+            return Ok(Some(ProviderEvent::Paid {
+                lookup: attempt.lookup.clone(),
+                reference: attempt.lookup.clone(),
+                amount: None,
+                confirmed: true,
+                saved: None,
+            }));
+        }
+        Ok(None)
     }
 
     async fn receive_address(&self, _amount_msat: u64) -> Result<String> {

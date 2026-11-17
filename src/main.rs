@@ -28,11 +28,19 @@ async fn main() -> Result<()> {
         Arc::new(HttpRates::mempool()),
         config.public_url.clone(),
     );
+    let sandbox = match payment_gateway::sandbox::SandboxConfig::from_env()? {
+        Some(cfg) => Some(payment_gateway::sandbox::Sandbox::from_config(
+            cfg,
+            service.clone(),
+        )?),
+        None => None,
+    };
     let _workers = worker::spawn(service.clone(), Duration::from_secs(5));
     let state = AppState {
         service,
         admin_token: config.admin_token,
         allow_mock: config.allow_mock,
+        sandbox,
     };
     let listener = tokio::net::TcpListener::bind(&config.listen).await?;
     log::info!("listening on {}", config.listen);

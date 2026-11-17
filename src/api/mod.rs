@@ -1,5 +1,6 @@
 mod admin;
 mod public;
+mod sandbox;
 mod tenant;
 
 use crate::service::{Error, Service};
@@ -15,6 +16,7 @@ pub struct AppState {
     pub service: Arc<Service>,
     pub admin_token: String,
     pub allow_mock: bool,
+    pub sandbox: Option<Arc<crate::sandbox::Sandbox>>,
 }
 
 impl AppState {
@@ -81,6 +83,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/admin", admin::router())
         .nest("/v1", tenant::router())
         .merge(public::router())
+        .merge(sandbox::router())
         .with_state(state)
 }
 
