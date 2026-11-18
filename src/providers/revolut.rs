@@ -219,7 +219,7 @@ impl Provider for RevolutProvider {
             ))
             .bearer_auth(&self.token)
             .header("Revolut-Api-Version", &self.api_version)
-            .json(&json!({"amount": req.amount, "description": "refund"}))
+            .json(&json!({"amount": req.amount, "currency": req.currency, "description": "refund"}))
             .send()
             .await?;
         let status = rsp.status();

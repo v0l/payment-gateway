@@ -1,1 +1,73 @@
-{"id":"6516e61c-d279-a454-a019-c5c4b6d7e2a1","token":"tok_sandbox","type":"payment","state":"completed","created_at":"2025-03-01T10:00:00.000000Z","updated_at":"2025-03-01T10:02:00.000000Z","completed_at":"2025-03-01T10:02:00.000000Z","amount":2500,"currency":"EUR","outstanding_amount":0,"checkout_url":"https://sandbox-merchant.revolut.com/pay/tok_sandbox"}
+{
+  "id": "6afd9b84-9e9e-abd0-b75a-dfc48d58da5a",
+  "token": "34800291-a1af-428c-862c-48f31a2659e5",
+  "type": "payment",
+  "state": "completed",
+  "created_at": "2026-11-18T12:35:16.090426Z",
+  "updated_at": "2026-11-18T12:35:20.371839Z",
+  "amount": 2500,
+  "currency": "EUR",
+  "refunded_amount": 0,
+  "outstanding_amount": 0,
+  "capture_mode": "automatic",
+  "payments": [
+    {
+      "id": "6afd9b84-676a-a5d5-b493-16236c47dd1e",
+      "state": "completed",
+      "created_at": "2026-11-18T12:35:16.192957Z",
+      "updated_at": "2026-11-18T12:35:35.847311Z",
+      "token": "b51a6224-73a6-460d-9cca-4187535e24cb",
+      "amount": 2500,
+      "authorised_amount": 2500,
+      "currency": "EUR",
+      "settled_amount": 2452,
+      "settled_currency": "EUR",
+      "risk_level": "low",
+      "fees": [
+        {
+          "type": "acquiring",
+          "amount": 48,
+          "currency": "EUR"
+        }
+      ],
+      "payment_method": {
+        "type": "card",
+        "card_brand": "visa",
+        "funding": "debit",
+        "commercial": false,
+        "card_country_code": "GB",
+        "card_bin": "492942",
+        "card_last_four": "5709",
+        "card_expiry": "12/30",
+        "cardholder_name": "Test Person",
+        "checks": {
+          "three_ds": {
+            "eci": "05",
+            "state": "verified",
+            "version": 2
+          },
+          "cvv_verification": "not_processed",
+          "address": "n_a",
+          "postcode": "n_a",
+          "cardholder": "n_a"
+        },
+        "fingerprint": "adSgD4PMwMaitUCQpu+jx8QXw7N5liDmOctT71AaT1I=",
+        "network_transaction_id": "876329028932296",
+        "authorisation_code": "100000",
+        "capture_deadline": "2026-11-25T12:35:16.192957Z"
+      },
+      "payer": {
+        "email": "fixture@example.com"
+      }
+    }
+  ],
+  "enforce_challenge": "automatic",
+  "authorisation_type": "final",
+  "customer": {
+    "id": "77983df2-c772-4723-be01-30a1444a2df7",
+    "email": "fixture@example.com"
+  },
+  "merchant_order_data": {
+    "reference": "webhook-fixture"
+  }
+}
