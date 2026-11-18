@@ -1,6 +1,6 @@
 use super::{
-    AttemptRequest, CreatedAttempt, DisputeState, Provider, ProviderEvent, RefundOutcome, RefundRequest,
-    SavedMethodInfo,
+    AttemptRequest, CreatedAttempt, DisputeState, Provider, ProviderEvent, RefundOutcome,
+    RefundRequest, SavedMethodInfo,
 };
 use crate::db::{AttemptRow, SavedMethodRow};
 use anyhow::{Context, Result, anyhow, bail};
@@ -49,12 +49,17 @@ impl StripeProvider {
         path: &str,
         form: &[(String, String)],
     ) -> Result<Value> {
+        let method_is_get = method == reqwest::Method::GET;
         let mut req = self
             .client
             .request(method, format!("{}{path}", self.base))
             .bearer_auth(&self.secret_key);
         if !form.is_empty() {
-            req = req.form(form);
+            req = if method_is_get {
+                req.query(form)
+            } else {
+                req.form(form)
+            };
         }
         let rsp = req.send().await?;
         let status = rsp.status();

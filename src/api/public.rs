@@ -334,7 +334,10 @@ async fn hook(
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
     if body.len() > PROVIDER_HOOK_MAX_BYTES {
-        return Err(ApiError::new(StatusCode::PAYLOAD_TOO_LARGE, "webhook body too large".into()));
+        return Err(ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "webhook body too large".into(),
+        ));
     }
     let cfg = db::get_provider_config(s.pool(), provider)
         .await?

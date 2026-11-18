@@ -16,7 +16,11 @@ pub struct ProviderHealthRow {
 
 const HEALTH_COLS: &str = "provider_config_id, window_start, successes, errors, consecutive_failures, last_success_at, last_error_at, last_error";
 
-pub async fn claim_provider_event(pool: &MySqlPool, provider_id: u64, event_id: &str) -> Result<bool> {
+pub async fn claim_provider_event(
+    pool: &MySqlPool,
+    provider_id: u64,
+    event_id: &str,
+) -> Result<bool> {
     let r = sqlx::query(
         "insert ignore into provider_event (provider_config_id, event_id, created) values (?, ?, ?)",
     )
@@ -28,7 +32,11 @@ pub async fn claim_provider_event(pool: &MySqlPool, provider_id: u64, event_id: 
     Ok(r.rows_affected() > 0)
 }
 
-pub async fn release_provider_event(pool: &MySqlPool, provider_id: u64, event_id: &str) -> Result<()> {
+pub async fn release_provider_event(
+    pool: &MySqlPool,
+    provider_id: u64,
+    event_id: &str,
+) -> Result<()> {
     sqlx::query("delete from provider_event where provider_config_id = ? and event_id = ?")
         .bind(provider_id)
         .bind(event_id)

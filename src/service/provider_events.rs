@@ -134,8 +134,14 @@ impl Service {
         if existing.status != "pending" && existing.status != "completed" {
             return Ok(());
         }
-        db::finish_refund(&mut *tx, existing.id, "failed", Some(external_id), Some(reason))
-            .await?;
+        db::finish_refund(
+            &mut *tx,
+            existing.id,
+            "failed",
+            Some(external_id),
+            Some(reason),
+        )
+        .await?;
         let total: u64 = db::refunds_for_payment(&mut *tx, &pid)
             .await?
             .iter()
@@ -147,8 +153,13 @@ impl Service {
             t if t >= p.amount => "refunded",
             _ => "partially_refunded",
         };
-        db::set_payment_status(&mut *tx, &pid, &["paid", "partially_refunded", "refunded"], status)
-            .await?;
+        db::set_payment_status(
+            &mut *tx,
+            &pid,
+            &["paid", "partially_refunded", "refunded"],
+            status,
+        )
+        .await?;
         let tenant = self.tenant(p.tenant_id).await?;
         self.emit(
             &mut tx,

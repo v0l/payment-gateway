@@ -90,7 +90,9 @@ impl Service {
         }
         let now = Utc::now();
         let cutoff = now - Duration::seconds(super::notify::NOTIFY_INTERVAL_SECS);
-        if !db::claim_notification(&self.pool, cfg.tenant_id, OPERATOR_ALERT_KIND, now, cutoff).await? {
+        if !db::claim_notification(&self.pool, cfg.tenant_id, OPERATOR_ALERT_KIND, now, cutoff)
+            .await?
+        {
             return Ok(());
         }
         let detail: String = format!(

@@ -437,3 +437,18 @@ mod tests {
         assert_eq!(merged["min_confirmations"], 2);
     }
 }
+
+pub fn sanitize_test_error(error: &str, config: Option<&Value>) -> String {
+    let mut text = crate::logsafe::clean(error);
+    if let Some(obj) = config.and_then(Value::as_object) {
+        for (k, v) in obj {
+            if let Some(secret) = v.as_str()
+                && secret.len() >= 4
+                && (SECRET_KEYS.contains(&k.as_str()) || k == "cert")
+            {
+                text = text.replace(secret, "[redacted]");
+            }
+        }
+    }
+    text.chars().take(200).collect()
+}

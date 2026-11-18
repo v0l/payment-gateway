@@ -323,7 +323,9 @@ impl Provider for PayPalProvider {
                 let Some(order) = order_ref() else {
                     return Ok(vec![]);
                 };
-                let currency = resource["amount"]["currency_code"].as_str().unwrap_or("USD");
+                let currency = resource["amount"]["currency_code"]
+                    .as_str()
+                    .unwrap_or("USD");
                 Ok(vec![ProviderEvent::Paid {
                     lookup: order,
                     reference: resource["id"].as_str().unwrap_or_default().to_string(),
@@ -345,7 +347,9 @@ impl Provider for PayPalProvider {
                 let Some(lookup) = order_ref() else {
                     return Ok(vec![]);
                 };
-                let currency = resource["amount"]["currency_code"].as_str().unwrap_or("USD");
+                let currency = resource["amount"]["currency_code"]
+                    .as_str()
+                    .unwrap_or("USD");
                 Ok(vec![ProviderEvent::Refunded {
                     lookup,
                     external_id: resource["id"].as_str().context("refund id")?.to_string(),
@@ -354,9 +358,11 @@ impl Provider for PayPalProvider {
                         .and_then(|v| from_decimal(v, currency)),
                 }])
             }
-            "CUSTOMER.DISPUTE.CREATED" | "CUSTOMER.DISPUTE.RESOLVED" | "CUSTOMER.DISPUTE.UPDATED" => {
-                let Some(capture) = resource["disputed_transactions"][0]["seller_transaction_id"]
-                    .as_str()
+            "CUSTOMER.DISPUTE.CREATED"
+            | "CUSTOMER.DISPUTE.RESOLVED"
+            | "CUSTOMER.DISPUTE.UPDATED" => {
+                let Some(capture) =
+                    resource["disputed_transactions"][0]["seller_transaction_id"].as_str()
                 else {
                     return Ok(vec![]);
                 };
@@ -364,10 +370,12 @@ impl Provider for PayPalProvider {
                     return Ok(vec![]);
                 };
                 let state = match resource["status"].as_str() {
-                    Some("RESOLVED") => match resource["dispute_outcome"]["outcome_code"].as_str() {
-                        Some("RESOLVED_BUYER_FAVOUR") => DisputeState::Lost,
-                        _ => DisputeState::Won,
-                    },
+                    Some("RESOLVED") => {
+                        match resource["dispute_outcome"]["outcome_code"].as_str() {
+                            Some("RESOLVED_BUYER_FAVOUR") => DisputeState::Lost,
+                            _ => DisputeState::Won,
+                        }
+                    }
                     _ => DisputeState::Open,
                 };
                 Ok(vec![ProviderEvent::Dispute {
@@ -408,7 +416,11 @@ impl Provider for PayPalProvider {
 
     async fn test_connection(&self) -> Result<String> {
         self.token().await?;
-        let mode = if self.base == LIVE_BASE { "live" } else { "sandbox" };
+        let mode = if self.base == LIVE_BASE {
+            "live"
+        } else {
+            "sandbox"
+        };
         Ok(format!("Authenticated with PayPal ({mode})"))
     }
 }

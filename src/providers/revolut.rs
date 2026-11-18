@@ -1,6 +1,6 @@
 use super::{
-    AttemptRequest, CreatedAttempt, DisputeState, Provider, ProviderEvent, RefundOutcome, RefundRequest,
-    SavedMethodInfo,
+    AttemptRequest, CreatedAttempt, DisputeState, Provider, ProviderEvent, RefundOutcome,
+    RefundRequest, SavedMethodInfo,
 };
 use crate::db::{AttemptRow, SavedMethodRow};
 use anyhow::{Context, Result, anyhow, bail};
@@ -93,15 +93,28 @@ impl RevolutProvider {
         let status = rsp.status();
         let body: Value = rsp.json().await.unwrap_or(Value::Null);
         if !status.is_success() {
-            bail!("revolut {status}: {}", body["message"].as_str().unwrap_or("error"));
+            bail!(
+                "revolut {status}: {}",
+                body["message"].as_str().unwrap_or("error")
+            );
         }
         Ok(body)
     }
 
     async fn order_events(&self, event: &str, order_id: &str) -> Result<Vec<ProviderEvent>> {
-        let order = self
+        let order = match self
             .raw(reqwest::Method::GET, &format!("/api/orders/{order_id}"))
-            .await?;
+            .await
+        {
+            Ok(order) => order,
+            Err(_) if event != "ORDER_COMPLETED" => {
+                return Ok(vec![ProviderEvent::Failed {
+                    lookup: order_id.to_string(),
+                    reason: "order failed or cancelled".into(),
+                }]);
+            }
+            Err(e) => return Err(e),
+        };
         let state = order["state"].as_str().unwrap_or_default().to_lowercase();
         if order["type"].as_str() == Some("refund") {
             let Some(parent) = order["related_order_id"].as_str() else {
@@ -279,11 +292,13 @@ impl Provider for RevolutProvider {
                 lookup: order_id,
                 reason: "payment declined".into(),
             }]),
-            "DISPUTE_ACTION_REQUIRED" | "DISPUTE_UNDER_REVIEW" => Ok(vec![ProviderEvent::Dispute {
-                lookup: order_id,
-                state: DisputeState::Open,
-                reason: None,
-            }]),
+            "DISPUTE_ACTION_REQUIRED" | "DISPUTE_UNDER_REVIEW" => {
+                Ok(vec![ProviderEvent::Dispute {
+                    lookup: order_id,
+                    state: DisputeState::Open,
+                    reason: None,
+                }])
+            }
             "DISPUTE_WON" => Ok(vec![ProviderEvent::Dispute {
                 lookup: order_id,
                 state: DisputeState::Won,
@@ -301,8 +316,12 @@ impl Provider for RevolutProvider {
     fn event_id(&self, body: &[u8]) -> Option<String> {
         let v: Value = serde_json::from_slice(body).ok()?;
         let event = v["event"].as_str()?;
-        let order = v["order_id"].as_str().or_else(|| v["data"]["order_id"].as_str())?;
-        let dispute = v["dispute_id"].as_str().or_else(|| v["data"]["id"].as_str());
+        let order = v["order_id"]
+            .as_str()
+            .or_else(|| v["data"]["order_id"].as_str())?;
+        let dispute = v["dispute_id"]
+            .as_str()
+            .or_else(|| v["data"]["id"].as_str());
         Some(match dispute {
             Some(d) => format!("{event}:{order}:{d}"),
             None => format!("{event}:{order}"),
@@ -311,7 +330,10 @@ impl Provider for RevolutProvider {
 
     async fn test_connection(&self) -> Result<String> {
         let hooks = self.api.list_webhooks().await?;
-        Ok(format!("Connected to Revolut ({} webhooks registered)", hooks.len()))
+        Ok(format!(
+            "Connected to Revolut ({} webhooks registered)",
+            hooks.len()
+        ))
     }
 
     async fn list_saved(&self, customer_id: &str) -> Result<Vec<SavedMethodInfo>> {

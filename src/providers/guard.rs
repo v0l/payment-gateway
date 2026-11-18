@@ -18,8 +18,10 @@ pub struct Guarded {
     inner: Arc<dyn Provider>,
     metrics: Arc<Metrics>,
     timeout: Duration,
-    health: Option<(u64, Arc<OnceLock<Weak<dyn HealthRecorder>>>)>,
+    health: Option<(u64, HealthCell)>,
 }
+
+pub type HealthCell = Arc<OnceLock<Weak<dyn HealthRecorder>>>;
 
 const HEALTH_OPS: &[&str] = &[
     "create",
@@ -39,11 +41,7 @@ impl Guarded {
         }
     }
 
-    pub fn with_health(
-        mut self,
-        provider_id: u64,
-        recorder: Arc<OnceLock<Weak<dyn HealthRecorder>>>,
-    ) -> Self {
+    pub fn with_health(mut self, provider_id: u64, recorder: HealthCell) -> Self {
         self.health = Some((provider_id, recorder));
         self
     }

@@ -62,7 +62,10 @@ pub(super) async fn list_providers(
                     &s,
                     id,
                     p,
-                    health.iter().find(|h| h.provider_config_id == p.id).cloned(),
+                    health
+                        .iter()
+                        .find(|h| h.provider_config_id == p.id)
+                        .cloned(),
                     disabled.iter().find(|d| d.0 == p.id).map(|d| d.1),
                 )
             })
@@ -299,7 +302,7 @@ pub(super) async fn test_provider(
         Ok(m) => (true, m),
         Err(e) => (
             false,
-            sanitize_test_error(&format!("{e:#}"), config.as_ref()),
+            validate::sanitize_test_error(&format!("{e:#}"), config.as_ref()),
         ),
     };
     sess.event(Action::ProviderTested)
@@ -309,19 +312,4 @@ pub(super) async fn test_provider(
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(json!({"ok": ok, "message": message})))
-}
-
-pub fn sanitize_test_error(error: &str, config: Option<&Value>) -> String {
-    let mut text = crate::logsafe::clean(error);
-    if let Some(obj) = config.and_then(Value::as_object) {
-        for (k, v) in obj {
-            if let Some(secret) = v.as_str()
-                && secret.len() >= 4
-                && (validate::SECRET_KEYS.contains(&k.as_str()) || k == "cert")
-            {
-                text = text.replace(secret, "[redacted]");
-            }
-        }
-    }
-    text.chars().take(200).collect()
 }
