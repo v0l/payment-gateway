@@ -29,4 +29,11 @@ docker push "$registry_image:$commit"
 
 "${kubectl_ns[@]}" rollout restart deploy/payment-gateway
 "${kubectl_ns[@]}" rollout status deploy/payment-gateway --timeout=300s
-echo "deployed $commit"
+health_url="${HEALTH_URL:-https://pay-sandbox.apexstrata.ie/health}"
+for _ in $(seq 1 30); do
+    code="$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$health_url" || true)"
+    [ "$code" = 200 ] && break
+    sleep 2
+done
+[ "$code" = 200 ] || { echo "health check failed: $code" >&2; exit 1; }
+echo "deployed $commit, health $code"
