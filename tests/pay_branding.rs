@@ -301,7 +301,10 @@ fn every_translation_has_the_same_keys_and_none_is_unused() {
         }
         for v in other.values() {
             let s = v.as_str().unwrap();
-            assert!(!s.contains('\u{2014}') && !s.contains('\u{2013}'), "{lang}: {s}");
+            assert!(
+                !s.contains('\u{2014}') && !s.contains('\u{2013}'),
+                "{lang}: {s}"
+            );
         }
     }
     let js = std::fs::read_to_string(

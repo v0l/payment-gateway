@@ -26,6 +26,10 @@ function settings(pid) {
     body.appendChild(el("div", { class: "card" }, [field("Webhook URL (https)", f.webhook_url), field("Display name on pay page", f.display_name), field("Logo URL", f.logo_url), field("Accent colour", f.accent_color),
       field("Allowed embed origins", f.allowed_origins), field("Default success URL", f.default_success_url), field("Default cancel URL", f.default_cancel_url),
       field("Legal name (receipts)", f.legal_name), field("Address (receipts)", f.address), field("Tax ID (receipts)", f.tax_id), field("Support email (receipts)", f.support_email), btn, out]));
+    var brandingBox = el("div", { class: "card" });
+    body.appendChild(el("h3", { text: "Pay page branding" }));
+    body.appendChild(brandingBox);
+    renderBranding(pid, brandingBox);
     var limitsBox = el("div", { class: "card" });
     body.appendChild(el("h3", { text: "Limits and usage" }));
     body.appendChild(limitsBox);

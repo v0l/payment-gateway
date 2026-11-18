@@ -46,10 +46,19 @@ pub fn router() -> Router<AppState> {
             "/assets/tokens.css",
             get(|| async { asset(TOKENS_CSS, "text/css") }),
         )
-        .route("/assets/pay-i18n.js", get(|| async { asset(PAY_I18N_JS, "text/javascript") }))
+        .route(
+            "/assets/pay-i18n.js",
+            get(|| async { asset(PAY_I18N_JS, "text/javascript") }),
+        )
         .route("/assets/i18n/{file}", get(i18n_file))
-        .route("/favicon.ico", get(|| async { asset(FAVICON_SVG, "image/svg+xml") }))
-        .route("/favicon.svg", get(|| async { asset(FAVICON_SVG, "image/svg+xml") }))
+        .route(
+            "/favicon.ico",
+            get(|| async { asset(FAVICON_SVG, "image/svg+xml") }),
+        )
+        .route(
+            "/favicon.svg",
+            get(|| async { asset(FAVICON_SVG, "image/svg+xml") }),
+        )
         .route("/gateway.js", get(|| async { gateway_js() }))
         .route("/hook/{tenant}/{provider}", post(hook))
 }
