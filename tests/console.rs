@@ -1442,7 +1442,7 @@ async fn test_mode_projects_cannot_enable_the_mainnet_shared_provider() {
     let (_, op_listed) = c
         .req("GET", &format!("/projects/{id}/providers"), Value::Null)
         .await;
-    assert_eq!(op_listed[0]["platform_managed"], true);
+    assert_eq!(op_listed, json!([]));
     let (s, _) = c.req("GET", "/admin/shared", Value::Null).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
 }
