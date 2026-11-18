@@ -106,6 +106,7 @@ pub fn router() -> Router<AppState> {
             "/projects/{id}/providers/{pid}",
             post(update_provider).delete(remove_provider),
         )
+        .route("/projects/{id}/providers/{pid}/test", post(test_provider))
         .route(
             "/projects/{id}/providers/{pid}/enabled",
             post(set_provider_enabled),
@@ -187,6 +188,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/admin/audit", get(admin_audit))
         .route("/admin/accounts", get(admin_accounts))
+        .route("/admin/providers", get(admin_providers))
         .route("/admin/accounts/{id}/disabled", post(admin_disable))
         .route("/admin/invites", post(admin_invite))
         .route("/admin/projects/{id}/trusted", post(admin_trusted));

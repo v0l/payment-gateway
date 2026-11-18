@@ -198,3 +198,40 @@ pub async fn refund_by_external_id<'e, E: Executor<'e, Database = MySql>>(
     .fetch_optional(ex)
     .await?)
 }
+
+pub async fn tenant_auto_disabled(
+    pool: &MySqlPool,
+    tenant_id: u64,
+) -> Result<Vec<(u64, DateTime<Utc>)>> {
+    Ok(sqlx::query_as(
+        "select id, auto_disabled_at from provider_config where tenant_id = ? and auto_disabled_at is not null",
+    )
+    .bind(tenant_id)
+    .fetch_all(pool)
+    .await?)
+}
+
+#[derive(Clone, Debug, Serialize, FromRow)]
+pub struct ProviderOverviewRow {
+    pub id: u64,
+    pub tenant_id: u64,
+    pub method: String,
+    pub provider_type: String,
+    pub name: String,
+    pub enabled: bool,
+    pub auto_disabled_at: Option<DateTime<Utc>>,
+    pub successes: Option<u64>,
+    pub errors: Option<u64>,
+    pub consecutive_failures: Option<u32>,
+    pub last_error_at: Option<DateTime<Utc>>,
+    pub last_error: Option<String>,
+}
+
+pub async fn provider_overview(pool: &MySqlPool) -> Result<Vec<ProviderOverviewRow>> {
+    Ok(sqlx::query_as(
+        "select c.id, c.tenant_id, c.method, c.provider_type, c.name, c.enabled, c.auto_disabled_at, h.successes, h.errors, h.consecutive_failures, h.last_error_at, h.last_error \
+         from provider_config c left join provider_health h on h.provider_config_id = c.id order by c.tenant_id, c.id",
+    )
+    .fetch_all(pool)
+    .await?)
+}

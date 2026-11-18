@@ -202,4 +202,27 @@ impl Service {
         self.notify(&pid);
         Ok(())
     }
+
+    pub async fn capture_return(&self, payment_id: &PaymentId, token: &str) -> Result<()> {
+        let attempts = db::attempts_for_payment(&self.pool, payment_id).await?;
+        let Some(attempt) = attempts
+            .into_iter()
+            .find(|a| a.lookup == token && a.status == "pending")
+        else {
+            return Ok(());
+        };
+        let provider = self
+            .registry
+            .get(attempt.provider_config_id)
+            .await
+            .map_err(|e| Error::Upstream(format!("provider unavailable: {e:#}")))?;
+        let event = provider
+            .capture_return(&attempt)
+            .await
+            .map_err(|e| Error::Upstream(format!("capture failed: {e:#}")))?;
+        if let Some(event) = event {
+            self.apply_event(attempt.watch_provider_id, event).await?;
+        }
+        Ok(())
+    }
 }

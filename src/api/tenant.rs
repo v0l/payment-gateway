@@ -390,7 +390,17 @@ async fn delete_saved(
     Path(id): Path<u64>,
 ) -> ApiResult<Value> {
     let t = auth.require(SCOPE_SAVED_WRITE)?;
+    let saved = db::get_saved_method(s.pool(), t.id, id).await?;
     if db::disable_saved_method(s.pool(), t.id, id).await? {
+        if let Some(saved) = saved
+            && let Ok(provider) = s.service.registry.get(saved.provider_config_id).await
+            && let Err(e) = provider.remove_saved(&saved).await
+        {
+            log::warn!(
+                "provider side removal failed: {}",
+                crate::logsafe::clean(&format!("{e:#}"))
+            );
+        }
         Ok(Json(serde_json::json!({ "deleted": true })))
     } else {
         Err(ApiError::not_found())
