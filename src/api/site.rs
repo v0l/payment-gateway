@@ -18,7 +18,7 @@ macro_rules! pages {
 
 pages! {
     "guide" => ["index", "concepts", "quickstart-api", "quickstart-hosted", "quickstart-iframe", "webhooks", "going-live", "refunds-saved", "subscriptions", "custody", "errors", "faq", "reference"],
-    "operator" => ["index", "deploy", "lnd", "providers", "shared-providers", "backups", "platform-billing", "monitoring", "runbooks"],
+    "operator" => ["index", "deploy", "lnd", "providers", "shared-providers", "backups", "platform-billing", "console", "monitoring", "runbooks"],
     "legal" => ["index", "terms", "privacy", "acceptable-use", "custody"]
 }
 
