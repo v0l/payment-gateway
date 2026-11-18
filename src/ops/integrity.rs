@@ -97,10 +97,13 @@ pub async fn unreadable_sealed_values(
 ) -> Result<i64> {
     let mut bad = 0;
     for col in SEALED_COLUMNS {
-        let rows: Vec<(Vec<u8>,)> =
-            sqlx::query_as(&format!("select {} from {}", col.column, col.table))
-                .fetch_all(pool)
-                .await?;
+        let rows: Vec<(Vec<u8>,)> = sqlx::query_as(&format!(
+            "select {c} from {t} where {c} is not null",
+            c = col.column,
+            t = col.table
+        ))
+        .fetch_all(pool)
+        .await?;
         bad += rows.iter().filter(|(v,)| sealer.open(v).is_err()).count() as i64;
     }
     Ok(bad)

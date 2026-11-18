@@ -28,7 +28,7 @@ function api(method, path, body) {
   if (body !== undefined) { opts.headers["content-type"] = "application/json"; opts.body = JSON.stringify(body); }
   return fetch("/console/api" + path, opts).then(function (r) {
     return r.json().catch(function () { return {}; }).then(function (b) {
-      if (r.status === 401 && path !== "/login" && path !== "/signup") { me = null; csrf = ""; route(); }
+      if (r.status === 401 && path !== "/login" && path !== "/login/2fa" && path !== "/signup") { me = null; csrf = ""; route(); }
       if (!r.ok) { var e = new Error(b.error || "Request failed"); e.status = r.status; throw e; }
       return b;
     });

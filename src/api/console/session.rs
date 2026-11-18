@@ -1,4 +1,5 @@
 use super::*;
+use crate::twofactor;
 
 #[derive(Deserialize)]
 pub(super) struct Credentials {
@@ -12,6 +13,7 @@ pub(super) struct Me {
     email: String,
     is_operator: bool,
     csrf: String,
+    totp_enabled: bool,
     projects: Vec<accounts::ProjectRef>,
     notify: bool,
     mail_enabled: bool,
@@ -23,10 +25,36 @@ pub(super) async fn me_for(s: &AppState, sess: &Session) -> Result<Me, ApiError>
         email: sess.account.email.clone(),
         is_operator: sess.account.is_operator,
         csrf: sess.session.csrf.clone(),
+        totp_enabled: sess.account.totp_enabled,
         projects: accounts::projects_for_account(s.pool(), &sess.account).await?,
         notify: sess.account.notify,
         mail_enabled: s.service.mailer.enabled(),
     })
+}
+
+pub(super) fn session_response(
+    s: &AppState,
+    account: AccountRow,
+    token: String,
+    csrf: String,
+    projects: Vec<accounts::ProjectRef>,
+) -> Response {
+    let mut r = Json(Me {
+        id: account.id,
+        email: account.email,
+        is_operator: account.is_operator,
+        csrf,
+        totp_enabled: account.totp_enabled,
+        projects,
+        notify: account.notify,
+        mail_enabled: s.service.mailer.enabled(),
+    })
+    .into_response();
+    r.headers_mut().insert(
+        header::SET_COOKIE,
+        session_cookie(s, &token, accounts::SESSION_HOURS * 3600),
+    );
+    r
 }
 
 pub(super) async fn login(
@@ -66,6 +94,10 @@ pub(super) async fn login(
         return Err(ApiError::unauthorized_with("wrong email or password"));
     }
     let account = account.unwrap();
+    if account.totp_enabled {
+        let challenge = twofactor::create_challenge(s.pool(), account.id).await?;
+        return Ok(Json(json!({"two_factor": true, "challenge": challenge})).into_response());
+    }
     s.login_limiter.clear(&ek);
     accounts::touch_login(s.pool(), account.id).await?;
     let (token, csrf) = accounts::create_session(s.pool(), account.id).await?;
@@ -74,21 +106,7 @@ pub(super) async fn login(
         .record(s.pool(), &origin)
         .await;
     let projects = accounts::projects_for_account(s.pool(), &account).await?;
-    let body = Me {
-        id: account.id,
-        email: account.email,
-        is_operator: account.is_operator,
-        csrf,
-        projects,
-        notify: account.notify,
-        mail_enabled: s.service.mailer.enabled(),
-    };
-    let mut r = Json(body).into_response();
-    r.headers_mut().insert(
-        header::SET_COOKIE,
-        session_cookie(&s, &token, accounts::SESSION_HOURS * 3600),
-    );
-    Ok(r)
+    Ok(session_response(&s, account, token, csrf, projects))
 }
 
 pub(super) async fn logout(
@@ -254,6 +272,7 @@ pub(super) async fn signup(
         email: account.email,
         is_operator: account.is_operator,
         csrf,
+        totp_enabled: account.totp_enabled,
         projects,
         notify: account.notify,
         mail_enabled: s.service.mailer.enabled(),

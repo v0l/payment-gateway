@@ -4,6 +4,8 @@ use payment_gateway::audit::Actor;
 use payment_gateway::config::{Config, encryption_keys_from_env};
 use payment_gateway::crypto::Sealer;
 use payment_gateway::db;
+use payment_gateway::lease::{Lease, SystemClock, WORKERS_LEASE};
+use payment_gateway::logging;
 use payment_gateway::ops::{self, privacy::Subject, retention::RetentionPolicy};
 use payment_gateway::providers::{DefaultFactory, Registry};
 use payment_gateway::rates::HttpRates;
@@ -14,7 +16,12 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    logging::init(
+        &std::env::var("LOG_LEVEL")
+            .or_else(|_| std::env::var("RUST_LOG"))
+            .unwrap_or_else(|_| "info".into()),
+        std::env::var("LOG_FORMAT").map_or(true, |f| f != "text"),
+    );
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         None | Some("serve") => serve().await,
@@ -94,9 +101,49 @@ fn privacy_args(args: &[String]) -> Result<(u64, Subject)> {
     Ok((tenant, subject))
 }
 
+async fn termination() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let term = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut s) => {
+                s.recv().await;
+            }
+            Err(_) => futures::future::pending::<()>().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let term = futures::future::pending::<()>();
+    tokio::select! {
+        _ = ctrl_c => {}
+        _ = term => {}
+    }
+}
+
 async fn serve() -> Result<()> {
-    let config = Config::from_env()?;
-    let pool = db::connect(&config.database_url).await?;
+    let config = match Config::from_env() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("{e:#}");
+            std::process::exit(2);
+        }
+    };
+    logging::init(&config.log_level, config.log_json);
+    logging::register_secret(&config.admin_token);
+    if let Some(t) = &config.metrics_token {
+        logging::register_secret(t);
+    }
+    for (_, key) in &config.encryption_keys {
+        logging::register_secret(&hex::encode(key));
+    }
+    let pool = db::connect_with(
+        &config.database_url,
+        config.db_max_connections,
+        config.db_acquire_timeout,
+    )
+    .await?;
     let sealer = Sealer::with_keys(&config.encryption_keys)?;
     let registry = Registry::new(
         pool.clone(),
@@ -119,6 +166,13 @@ async fn serve() -> Result<()> {
         });
     }
     let mailer = payment_gateway::mailer::from_env()?;
+    let lease = Arc::new(Lease::new(
+        pool.clone(),
+        WORKERS_LEASE,
+        &config.instance_id,
+        config.lease_ttl,
+        Arc::new(SystemClock),
+    ));
     let service = Service::with_mailer(
         pool,
         sealer,
@@ -134,14 +188,53 @@ async fn serve() -> Result<()> {
         )?),
         None => None,
     };
-    let _workers = worker::spawn(service.clone(), Duration::from_secs(5));
-    let state = AppState::new(service, config.admin_token, config.allow_mock, sandbox);
+    let gateway_ops = api::ops::Ops {
+        metrics_token: config.metrics_token.clone(),
+        body_limit: config.body_limit,
+        request_timeout: config.request_timeout,
+        instance: config.instance_id.clone(),
+        ..Default::default()
+    };
+    let _ = gateway_ops.lease.set(lease.clone());
+    let mut state = AppState::new(
+        service.clone(),
+        config.admin_token.clone(),
+        config.allow_mock,
+        sandbox,
+    )
+    .with_ops(gateway_ops);
+    state.operator_2fa_grace = config.operator_2fa_grace;
+    let shutdown_state = state.ops.clone();
+
+    let leader = tokio::spawn(worker::lead(
+        service.clone(),
+        config.worker_tick,
+        lease,
+        shutdown_state.shutdown.subscribe(),
+    ));
+
     let listener = tokio::net::TcpListener::bind(&config.listen).await?;
-    log::info!("listening on {}", config.listen);
-    axum::serve(listener, api::router(state))
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await?;
+    log::info!("listening on {} as {}", config.listen, config.instance_id);
+    let drain = shutdown_state.clone();
+    let serve = axum::serve(listener, api::router(state)).with_graceful_shutdown(async move {
+        termination().await;
+        log::info!("shutdown requested, draining");
+        drain.begin_shutdown();
+    });
+    let serve = tokio::spawn(async move { serve.await });
+    let mut shutdown = shutdown_state.shutdown.subscribe();
+    let _ = shutdown.wait_for(|down| *down).await;
+
+    let grace = config.shutdown_grace;
+    if tokio::time::timeout(grace, async {
+        let _ = serve.await;
+        let _ = leader.await;
+    })
+    .await
+    .is_err()
+    {
+        log::error!("shutdown grace of {grace:?} exceeded, exiting");
+    }
+    log::info!("stopped");
     Ok(())
 }

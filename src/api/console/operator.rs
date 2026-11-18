@@ -14,7 +14,7 @@ pub(super) async fn admin_accounts(
     sess: Session,
     State(s): State<AppState>,
 ) -> ApiResult<Vec<AccountView>> {
-    sess.operator()?;
+    sess.operator(&s)?;
     Ok(Json(
         accounts::list_accounts(s.pool())
             .await?
@@ -38,7 +38,7 @@ pub(super) async fn admin_disable(
     Path(id): Path<u64>,
     Json(e): Json<Enabled>,
 ) -> ApiResult<Value> {
-    sess.operator()?;
+    sess.operator(&s)?;
     if id == sess.account.id {
         return Err(ApiError::bad_request("you cannot disable yourself"));
     }
@@ -70,7 +70,7 @@ pub(super) async fn admin_invite(
     headers: HeaderMap,
     Json(i): Json<OperatorInvite>,
 ) -> ApiResult<Value> {
-    sess.operator()?;
+    sess.operator(&s)?;
     let email = accounts::normalize_email(&i.email)
         .ok_or_else(|| ApiError::bad_request("invalid email"))?;
     if accounts::account_by_email(s.pool(), &email)
@@ -122,7 +122,7 @@ pub(super) async fn admin_trusted(
     Path(id): Path<u64>,
     Json(t): Json<Trusted>,
 ) -> ApiResult<Value> {
-    sess.operator()?;
+    sess.operator(&s)?;
     if !db::set_tenant_trusted(s.pool(), id, t.trusted).await? {
         return Err(ApiError::not_found());
     }

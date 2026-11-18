@@ -238,7 +238,11 @@ async fn events(
             Err(_) => Some(Ok(Event::default().event("change").data("resync"))),
         }
     });
-    Ok(Sse::new(initial.chain(live)).keep_alive(KeepAlive::default()))
+    let mut shutdown = s.ops.shutdown.subscribe();
+    let stop = async move {
+        let _ = shutdown.wait_for(|down| *down).await;
+    };
+    Ok(Sse::new(initial.chain(live).take_until(stop)).keep_alive(KeepAlive::default()))
 }
 
 async fn qr(
@@ -284,6 +288,7 @@ async fn hook(
         .await?
         .filter(|c| c.tenant_id == tenant && c.enabled)
         .ok_or_else(ApiError::not_found)?;
+    crate::logging::set_tenant(tenant);
     let handler = s.service.registry.get(cfg.id).await?;
     let map: HashMap<String, String> = headers
         .iter()

@@ -841,6 +841,29 @@ impl payment_gateway::providers::ProviderFactory for FakeLndFactory {
     }
 }
 
+struct StalledNode;
+
+#[async_trait]
+impl LightningNode for StalledNode {
+    async fn add_invoice(&self, _req: AddInvoiceRequest) -> anyhow::Result<AddInvoiceResponse> {
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        unreachable!()
+    }
+    async fn cancel_invoice(&self, _id: &[u8]) -> anyhow::Result<()> {
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        Ok(())
+    }
+    async fn pay_invoice(&self, _req: PayInvoiceRequest) -> anyhow::Result<PayInvoiceResponse> {
+        unreachable!()
+    }
+    async fn subscribe_invoices(
+        &self,
+        _from: Option<Vec<u8>>,
+    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = InvoiceUpdate> + Send>>> {
+        unreachable!()
+    }
+}
+
 #[tokio::test]
 async fn shared_lnd_lightning_flow_settles_through_the_fake_node_and_posts_the_ledger() {
     use payment_gateway::crypto::Sealer;
@@ -955,5 +978,26 @@ async fn shared_lnd_lightning_flow_settles_through_the_fake_node_and_posts_the_l
             .await
             .unwrap()
             .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn stalled_lnd_node_times_out_behind_the_guard() {
+    let metrics = Arc::new(payment_gateway::metrics::Metrics::default());
+    let provider = payment_gateway::providers::guard::Guarded::new(
+        Arc::new(LightningProvider::new(Arc::new(StalledNode))),
+        metrics.clone(),
+        std::time::Duration::from_millis(200),
+    );
+    let started = std::time::Instant::now();
+    let err = provider.create(request(1000, "BTC")).await.unwrap_err();
+    assert!(err.to_string().contains("timed out"), "{err}");
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    let text = metrics.render();
+    assert!(
+        text.contains(
+            "gateway_provider_calls_total{method=\"lightning\",op=\"create\",outcome=\"timeout\"} 1"
+        ),
+        "{text}"
     );
 }

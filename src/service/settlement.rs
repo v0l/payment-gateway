@@ -117,6 +117,7 @@ impl Service {
         amount: Option<u64>,
         confirmed: bool,
     ) -> Result<()> {
+        let settle_started = std::time::Instant::now();
         let probe = db::get_attempt(&self.pool, attempt_id)
             .await?
             .ok_or(Error::NotFound)?;
@@ -190,6 +191,12 @@ impl Service {
             }
         }
         tx.commit().await?;
+        self.metrics.inc("gateway_settlements_total", &[]);
+        self.metrics.observe(
+            "gateway_settlement_duration_seconds",
+            &[],
+            settle_started.elapsed().as_secs_f64(),
+        );
         self.notify(&pid);
         for other in to_cancel {
             self.cancel_at_provider(&other).await;

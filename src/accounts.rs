@@ -101,6 +101,7 @@ pub struct AccountRow {
     pub created: DateTime<Utc>,
     pub last_login: Option<DateTime<Utc>>,
     pub notify: bool,
+    pub totp_enabled: bool,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -138,7 +139,7 @@ pub struct ProjectRef {
 }
 
 const ACCOUNT_COLS: &str =
-    "id, email, password_hash, is_operator, disabled, created, last_login, notify";
+    "id, email, password_hash, is_operator, disabled, created, last_login, notify, totp_enabled";
 
 pub async fn insert_account<'e, E: Executor<'e, Database = MySql>>(
     ex: E,

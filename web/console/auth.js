@@ -14,7 +14,10 @@ function loginPage() {
   var email = el("input", { type: "email", autocomplete: "username", required: true });
   var pw = el("input", { type: "password", autocomplete: "current-password", required: true });
   authPage("Payment gateway", "Sign in to your console. Accounts are by invite.", [field("Email", email), field("Password", pw)], "Sign in", function () {
-    return api("POST", "/login", { email: email.value, password: pw.value }).then(function (m) { me = m; csrf = m.csrf; go("#/"); route(); });
+    return api("POST", "/login", { email: email.value, password: pw.value }).then(function (m) {
+      if (m.two_factor) return secondStepPage(m.challenge);
+      me = m; csrf = m.csrf; go("#/"); route();
+    });
   });
   root.querySelector(".auth").appendChild(el("p", { class: "muted" }, [el("a", { text: "Forgot your password?", href: "#/reset" })]));
 }
@@ -56,3 +59,18 @@ function invitePage(token) {
   });
 }
 
+
+function secondStepPage(challenge) {
+  var code = el("input", { type: "text", inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8, required: true });
+  authPage("Two factor code", "Enter the 6 digit code from your authenticator app.", [field("Code", code)], "Verify", function () {
+    return api("POST", "/login/2fa", { challenge: challenge, code: code.value }).then(function (m) { me = m; csrf = m.csrf; go("#/"); route(); });
+  });
+  root.querySelector(".auth").appendChild(el("p", { class: "muted" }, [el("a", { href: "#", text: "Use a recovery code instead", onclick: function (ev) { ev.preventDefault(); recoveryStepPage(challenge); } })]));
+}
+
+function recoveryStepPage(challenge) {
+  var code = el("input", { type: "text", autocomplete: "off", required: true, placeholder: "xxxx-xxxx-xxxx-xxxx" });
+  authPage("Recovery code", "Each recovery code works once.", [field("Recovery code", code)], "Verify", function () {
+    return api("POST", "/login/2fa", { challenge: challenge, recovery_code: code.value }).then(function (m) { me = m; csrf = m.csrf; go("#/"); route(); });
+  });
+}

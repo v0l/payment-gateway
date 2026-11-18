@@ -49,6 +49,12 @@ pub enum Action {
     SharedMethodDisabled,
     SharedFeeOverridden,
     AllowNegativeChanged,
+    TwoFactorEnabled,
+    TwoFactorDisabled,
+    TwoFactorRecoveryRegenerated,
+    TwoFactorRecoveryUsed,
+    TwoFactorLoginFailed,
+    ProjectRequire2faChanged,
 }
 
 impl Action {
@@ -97,6 +103,12 @@ impl Action {
             Self::SharedMethodDisabled => "shared_method.disabled",
             Self::SharedFeeOverridden => "shared_fee.overridden",
             Self::AllowNegativeChanged => "balance.allow_negative_changed",
+            Self::TwoFactorEnabled => "2fa.enabled",
+            Self::TwoFactorDisabled => "2fa.disabled",
+            Self::TwoFactorRecoveryRegenerated => "2fa.recovery_regenerated",
+            Self::TwoFactorRecoveryUsed => "2fa.recovery_used",
+            Self::TwoFactorLoginFailed => "login.2fa_failed",
+            Self::ProjectRequire2faChanged => "project.require_2fa_changed",
         }
     }
 }

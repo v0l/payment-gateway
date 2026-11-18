@@ -16,7 +16,47 @@ GATEWAY_LISTEN=0.0.0.0:8080                       # optional
 GATEWAY_ALLOW_MOCK=1                              # tests only, never in production
 ```
 
-Migrations run on start. One process runs the API, the provider watchers (LND streams), the expiry sweep and the webhook sender, so run a single replica.
+Migrations run on start. Every replica serves the API. Background work (provider watchers, expiry sweep, webhook sender, reconcile) runs only on the replica holding the `workers` lease in the `worker_lease` table. The lease is renewed every third of its TTL and taken over after it expires, so rolling deploys with more than one replica are safe. On SIGTERM or ctrl-c the process stops accepting, finishes in-flight requests and settlements, releases the lease and exits.
+
+## Configuration
+
+All variables are validated at start and every problem is reported at once (exit code 2). `DATABASE_URL`, `GATEWAY_ENCRYPTION_KEY`, `GATEWAY_ADMIN_TOKEN` and `METRICS_TOKEN` also accept a `_FILE` variant naming a file that holds the value (for mounted secrets).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `DATABASE_URL` | required | MySQL or MariaDB URL |
+| `GATEWAY_ENCRYPTION_KEY` | required | 64 hex chars, seals secrets at rest |
+| `GATEWAY_ADMIN_TOKEN` | required | admin API token, at least 24 chars |
+| `METRICS_TOKEN` | unset | extra bearer token accepted by `/metrics` only |
+| `GATEWAY_PUBLIC_URL` | required | base URL for pay pages and provider webhooks |
+| `GATEWAY_LISTEN` | `0.0.0.0:8080` | listen address |
+| `GATEWAY_ALLOW_MOCK` | off | enable the mock provider, tests only |
+| `GATEWAY_OPERATOR_2FA_GRACE` | off | let operator accounts without 2FA sign in during rollout |
+| `LOG_LEVEL` | `info` | error, warn, info, debug, trace (falls back to `RUST_LOG`) |
+| `LOG_FORMAT` | `json` | `json` or `text` |
+| `GATEWAY_BODY_LIMIT_BYTES` | `1048576` | request body limit on every route |
+| `GATEWAY_REQUEST_TIMEOUT_SECS` | `60` | per request timeout (SSE streams excluded) |
+| `DB_ACQUIRE_TIMEOUT_SECS` | `10` | wait for a free DB connection |
+| `DB_MAX_CONNECTIONS` | `10` | pool size |
+| `SHUTDOWN_GRACE_SECS` | `25` | time allowed to drain on SIGTERM |
+| `LEASE_TTL_SECS` | `30` | worker lease lifetime |
+| `WORKER_TICK_SECS` | `5` | background loop interval |
+| `GATEWAY_INSTANCE_ID` | hostname | name shown in the lease and logs |
+
+The regtest sandbox is enabled by its own `SANDBOX_*` variables. Provider HTTP calls and LND calls time out after 45 seconds; the rates client after 15.
+
+## Operations
+
+```
+GET /health    liveness, always cheap
+GET /ready     200 when the DB answers, migrations are applied and the process is not draining; 503 otherwise
+GET /metrics   Prometheus text, bearer admin token or METRICS_TOKEN
+GET /status    operator status (JSON, or HTML with Accept: text/html), bearer admin token
+```
+
+Logs are one JSON object per line with `ts`, `level`, `msg`, `request_id` and `tenant_id` when known. Send `x-request-id` and it is used and echoed back, otherwise one is generated. Known secrets are redacted from log lines and webhook bodies are never logged.
+
+Metrics: `gateway_http_requests_total`, `gateway_http_request_duration_seconds`, `gateway_settlements_total`, `gateway_settlement_duration_seconds`, `gateway_webhook_deliveries_total{outcome}`, `gateway_webhook_pending`, `gateway_webhook_oldest_pending_age_seconds`, `gateway_provider_calls_total{method,op,outcome}`, `gateway_provider_call_duration_seconds`, `gateway_watcher_up{provider}`, `gateway_leader`, `gateway_db_pool_connections{state}`.
 
 ## Keys, backups and data
 
@@ -34,6 +74,8 @@ curl -X POST $GW/admin/invites -H "Authorization: Bearer $ADMIN" -H 'content-typ
 ```
 
 Open the returned `invite_url`, choose a password, then create projects, add providers (credentials are write-only), watch payments and webhooks, refund, and invite teammates. Customer projects start in test mode until an operator lifts the limits from the project's Settings page.
+
+Two factor: each account can enrol a TOTP authenticator in Account settings (RFC 6238, SHA1, 6 digits, 30 s, one step of drift). Activation needs a valid code and returns 10 single use recovery codes, shown once and stored hashed. With 2FA on, `POST /console/api/login` returns `{"two_factor": true, "challenge": ...}` and no session; `POST /console/api/login/2fa` with `challenge` plus `code` or `recovery_code` creates it. A TOTP step cannot be used twice, and failed codes count against the login limiter. Disabling and regenerating recovery codes need the password and a current code. Owners can set `require_2fa` on a project (`POST /console/api/projects/{id}/require-2fa`), which blocks console access to it for members without 2FA. Operators must have 2FA once `GATEWAY_OPERATOR_2FA_GRACE` is not `1`; set it to `1` while bootstrapping.
 
 ## Set up a tenant with the admin API
 

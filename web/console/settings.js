@@ -24,6 +24,16 @@ function settings(pid) {
     body.appendChild(el("h3", { text: "Limits and usage" }));
     body.appendChild(limitsBox);
     renderLimits(pid, limitsBox);
+    if (p.role === "owner") {
+      var req = el("input", { type: "checkbox" });
+      req.checked = !!p.require_2fa;
+      var reqOut = el("div");
+      req.addEventListener("change", function () {
+        api("POST", "/projects/" + pid + "/require-2fa", { required: req.checked }).then(function () { msg(reqOut, "Saved."); }).catch(function (e) { req.checked = !req.checked; msg(reqOut, e.message, true); });
+      });
+      body.appendChild(el("h3", { text: "Security" }));
+      body.appendChild(el("div", { class: "card" }, [el("label", {}, [req, " Require two factor for members of this project"]), reqOut]));
+    }
     var keyOut = el("div");
     var rows = [el("button", { text: "Rotate API key", onclick: function () {
       if (!confirm("The old key stops working immediately. Continue?")) return;

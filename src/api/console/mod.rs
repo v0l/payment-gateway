@@ -26,6 +26,7 @@ mod recovery;
 mod session;
 mod shared;
 mod team;
+mod twofactor;
 
 use activity::*;
 use balance::*;
@@ -38,6 +39,7 @@ use recovery::*;
 use session::*;
 use shared::*;
 use team::*;
+use twofactor::*;
 
 pub const COOKIE: &str = "pgw_session";
 const HTML: &str = include_str!("../../../web/console.html");
@@ -69,7 +71,14 @@ pub fn router() -> Router<AppState> {
         .route("/notifications", post(set_notifications))
         .route("/invite/{token}", get(invite_info))
         .route("/me", get(me))
+        .route("/login/2fa", post(login_second_step))
         .route("/password", post(change_password))
+        .route("/2fa", get(two_factor_status))
+        .route("/2fa/setup", post(two_factor_setup))
+        .route("/2fa/activate", post(two_factor_activate))
+        .route("/2fa/disable", post(two_factor_disable))
+        .route("/2fa/recovery-codes", post(two_factor_recovery_codes))
+        .route("/projects/{id}/require-2fa", post(set_require_2fa))
         .route("/projects", get(list_projects).post(create_project))
         .route("/projects/{id}", get(get_project))
         .route("/projects/{id}/settings", post(update_settings))
@@ -254,6 +263,12 @@ impl Session {
         let tenant = db::get_tenant(s.pool(), id)
             .await?
             .ok_or_else(ApiError::not_found)?;
+        if self.second_factor_missing(s, &tenant) {
+            return Err(ApiError::new(
+                StatusCode::FORBIDDEN,
+                "two factor authentication required: enable it in Account settings".into(),
+            ));
+        }
         let role = if self.account.is_operator {
             Role::Owner
         } else {
@@ -267,6 +282,7 @@ impl Session {
                 format!("needs {} access", min.as_str()),
             ));
         }
+        crate::logging::set_tenant(tenant.id);
         Ok((tenant, role))
     }
 
@@ -274,8 +290,21 @@ impl Session {
         Event::new(action, Actor::Account(self.account.id))
     }
 
-    fn operator(&self) -> Result<(), ApiError> {
-        if self.account.is_operator {
+    fn operator_needs_2fa(&self, s: &AppState) -> bool {
+        self.account.is_operator && !self.account.totp_enabled && !s.operator_2fa_grace
+    }
+
+    fn second_factor_missing(&self, s: &AppState, tenant: &Tenant) -> bool {
+        !self.account.totp_enabled && (tenant.require_2fa || self.operator_needs_2fa(s))
+    }
+
+    fn operator(&self, s: &AppState) -> Result<(), ApiError> {
+        if self.operator_needs_2fa(s) {
+            Err(ApiError::new(
+                StatusCode::FORBIDDEN,
+                "two factor authentication required: enable it in Account settings".into(),
+            ))
+        } else if self.account.is_operator {
             Ok(())
         } else {
             Err(ApiError::new(

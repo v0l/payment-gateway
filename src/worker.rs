@@ -10,6 +10,8 @@ type Handles = Arc<Mutex<Vec<JoinHandle<()>>>>;
 
 pub struct Workers {
     handles: Handles,
+    stop: tokio::sync::watch::Sender<bool>,
+    loops: usize,
 }
 
 impl Workers {
@@ -17,6 +19,23 @@ impl Workers {
         for h in self.handles.lock().unwrap().iter() {
             h.abort();
         }
+    }
+
+    pub async fn shutdown(&self, grace: Duration) {
+        let _ = self.stop.send(true);
+        let loops: Vec<JoinHandle<()>> = {
+            let mut all = self.handles.lock().unwrap();
+            all.drain(..self.loops).collect()
+        };
+        let _ = tokio::time::timeout(grace, futures::future::join_all(loops)).await;
+        self.abort();
+    }
+}
+
+async fn pause(stop: &mut tokio::sync::watch::Receiver<bool>, d: Duration) -> bool {
+    tokio::select! {
+        _ = tokio::time::sleep(d) => false,
+        _ = stop.changed() => true,
     }
 }
 
@@ -28,29 +47,37 @@ impl Drop for Workers {
 
 pub fn spawn(service: Arc<Service>, tick: Duration) -> Workers {
     let handles: Handles = Default::default();
+    let (stop, stop_rx) = tokio::sync::watch::channel(false);
 
     let s = service.clone();
+    let mut rx = stop_rx.clone();
     handles.lock().unwrap().push(tokio::spawn(async move {
         loop {
             if let Err(e) = s.expire_due().await {
                 log::error!("expiry run failed: {e:?}");
             }
-            tokio::time::sleep(tick).await;
+            if pause(&mut rx, tick).await {
+                break;
+            }
         }
     }));
 
     let s = service.clone();
+    let mut rx = stop_rx.clone();
     handles.lock().unwrap().push(tokio::spawn(async move {
         loop {
             if let Err(e) = s.deliver_due().await {
                 log::error!("webhook delivery failed: {e:?}");
             }
-            tokio::time::sleep(tick).await;
+            if pause(&mut rx, tick).await {
+                break;
+            }
         }
     }));
 
     let s = service.clone();
     let watcher_handles = handles.clone();
+    let mut rx = stop_rx;
     handles.lock().unwrap().push(tokio::spawn(async move {
         let watching: Arc<Mutex<HashSet<u64>>> = Default::default();
         loop {
@@ -89,11 +116,17 @@ pub fn spawn(service: Arc<Service>, tick: Duration) -> Workers {
                 }
                 Err(e) => log::error!("listing shared providers failed: {e:#}"),
             }
-            tokio::time::sleep(Duration::from_secs(30)).await;
+            if pause(&mut rx, Duration::from_secs(30)).await {
+                break;
+            }
         }
     }));
 
-    Workers { handles }
+    Workers {
+        handles,
+        stop,
+        loops: 3,
+    }
 }
 
 async fn setup_hooks(s: &Arc<Service>, cfg: &db::ProviderConfigRow) {
@@ -158,7 +191,12 @@ fn start_watcher(
             });
             log::info!("watching provider {provider_id}");
             let started = std::time::Instant::now();
+            let label = provider_id.to_string();
+            s.metrics
+                .set("gateway_watcher_up", &[("provider", &label)], 1.0);
             let result = provider.watch(sink, cursor).await;
+            s.metrics
+                .set("gateway_watcher_up", &[("provider", &label)], 0.0);
             if started.elapsed() > Duration::from_secs(60) {
                 backoff = Duration::from_secs(2);
                 s.provider_recovered(provider_id);
@@ -177,4 +215,52 @@ fn start_watcher(
         watching.lock().unwrap().remove(&provider_id);
     });
     handles.lock().unwrap().push(handle);
+}
+
+pub async fn lead(
+    service: Arc<Service>,
+    tick: Duration,
+    lease: Arc<crate::lease::Lease>,
+    mut shutdown: tokio::sync::watch::Receiver<bool>,
+) {
+    let renew_every = lease.ttl() / 3;
+    let mut workers: Option<Workers> = None;
+    loop {
+        match lease.acquire_or_renew().await {
+            Ok(true) => {
+                if workers.is_none() {
+                    log::info!("acquired worker lease as {}", lease.holder());
+                    workers = Some(spawn(service.clone(), tick));
+                }
+            }
+            Ok(false) => {
+                if let Some(w) = workers.take() {
+                    log::warn!("lost worker lease");
+                    w.abort();
+                }
+            }
+            Err(e) => {
+                log::error!("lease renewal failed: {e:#}");
+                if let Some(w) = workers.take() {
+                    w.abort();
+                }
+            }
+        }
+        service.metrics.set(
+            "gateway_leader",
+            &[],
+            if lease.is_held() { 1.0 } else { 0.0 },
+        );
+        tokio::select! {
+            _ = tokio::time::sleep(renew_every) => {}
+            _ = shutdown.changed() => break,
+        }
+    }
+    if let Some(w) = workers.take() {
+        w.shutdown(Duration::from_secs(20)).await;
+    }
+    if let Err(e) = lease.release().await {
+        log::error!("releasing lease failed: {e:#}");
+    }
+    service.metrics.set("gateway_leader", &[], 0.0);
 }

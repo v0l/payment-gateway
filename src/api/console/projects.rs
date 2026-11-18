@@ -6,6 +6,7 @@ pub(super) struct ProjectView {
     name: String,
     role: Role,
     trusted: bool,
+    require_2fa: bool,
     webhook_url: Option<String>,
     display_name: Option<String>,
     logo_url: Option<String>,
@@ -23,6 +24,7 @@ pub(super) fn project_view(t: Tenant, role: Role) -> ProjectView {
         name: t.name,
         role,
         trusted: t.trusted,
+        require_2fa: t.require_2fa,
         webhook_url: t.webhook_url,
         display_name: t.display_name,
         logo_url: t.logo_url,
@@ -207,7 +209,7 @@ pub(super) async fn set_limits(
     Path(id): Path<u64>,
     Json(input): Json<crate::limits::LimitsInput>,
 ) -> ApiResult<LimitsView> {
-    sess.operator()?;
+    sess.operator(&s)?;
     let t = db::get_tenant(s.pool(), id)
         .await?
         .ok_or_else(ApiError::not_found)?;

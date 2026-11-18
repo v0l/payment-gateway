@@ -99,6 +99,15 @@ pub async fn tenant_by_name(pool: &MySqlPool, name: &str) -> Result<Option<Tenan
     )
 }
 
+pub async fn set_tenant_require_2fa(pool: &MySqlPool, id: u64, required: bool) -> Result<bool> {
+    let r = sqlx::query("update tenant set require_2fa = ? where id = ?")
+        .bind(required)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(r.rows_affected() > 0)
+}
+
 pub async fn set_tenant_trusted(pool: &MySqlPool, id: u64, trusted: bool) -> Result<bool> {
     let r = sqlx::query("update tenant set trusted = ? where id = ?")
         .bind(trusted)

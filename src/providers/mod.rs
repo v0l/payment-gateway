@@ -1,5 +1,6 @@
 pub mod creds;
 pub mod fixedfloat;
+pub mod guard;
 pub mod lightning;
 pub mod mock;
 pub mod onchain;
@@ -181,6 +182,8 @@ pub struct Registry {
     factory: Arc<dyn ProviderFactory>,
     cache: Arc<Mutex<HashMap<u64, Arc<dyn Provider>>>>,
     build_lock: Arc<tokio::sync::Mutex<()>>,
+    pub metrics: Arc<crate::metrics::Metrics>,
+    pub call_timeout: std::time::Duration,
 }
 
 impl Registry {
@@ -191,6 +194,8 @@ impl Registry {
             factory,
             cache: Default::default(),
             build_lock: Default::default(),
+            metrics: Default::default(),
+            call_timeout: guard::DEFAULT_CALL_TIMEOUT,
         }
     }
 
@@ -234,7 +239,14 @@ impl Registry {
         if !trusted && let Some(url) = config.get("url").and_then(Value::as_str) {
             crate::ssrf::resolve_public(url).await?;
         }
-        let provider = self.factory.build(&row, config).await?;
+        let built = tokio::time::timeout(self.call_timeout, self.factory.build(&row, config))
+            .await
+            .map_err(|_| anyhow::anyhow!("building provider {id} timed out"))??;
+        let provider: Arc<dyn Provider> = Arc::new(guard::Guarded::new(
+            built,
+            self.metrics.clone(),
+            self.call_timeout,
+        ));
         self.cache.lock().unwrap().insert(id, provider.clone());
         Ok(provider)
     }

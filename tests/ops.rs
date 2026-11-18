@@ -41,6 +41,18 @@ async fn seed_secrets(h: &Harness, sealer: &Sealer, tenants: usize) {
         .unwrap();
 }
 
+async fn seed_totp_secret(h: &Harness, sealer: &Sealer) {
+    let id = payment_gateway::accounts::insert_account(&h.pool, "totp@example.com", "hash", false)
+        .await
+        .unwrap();
+    sqlx::query("update account set totp_secret = ?, totp_enabled = 1 where id = ?")
+        .bind(sealer.seal(b"totp-secret-bytes").unwrap())
+        .bind(id)
+        .execute(&h.pool)
+        .await
+        .unwrap();
+}
+
 async fn kid_counts(pool: &MySqlPool) -> Vec<(String, String, u64)> {
     sealed_kids(pool).await.unwrap()
 }
@@ -50,6 +62,7 @@ async fn rotation_moves_every_sealed_value_to_the_newest_key() {
     let h = harness().await;
     let k1 = sealer(&[("k1", 1)]);
     seed_secrets(&h, &k1, 5).await;
+    seed_totp_secret(&h, &k1).await;
 
     let k2 = sealer(&[("k2", 2), ("k1", 1)]);
     let report = rotate_keys(
@@ -63,7 +76,7 @@ async fn rotation_moves_every_sealed_value_to_the_newest_key() {
     )
     .await
     .unwrap();
-    assert_eq!(report.rotated(), 10);
+    assert_eq!(report.rotated(), 11);
     assert!(
         kid_counts(&h.pool)
             .await
@@ -75,7 +88,7 @@ async fn rotation_moves_every_sealed_value_to_the_newest_key() {
     let report = rotate_keys(&h.pool, &k3, &RotateOptions::default(), Actor::System)
         .await
         .unwrap();
-    assert_eq!(report.rotated(), 10);
+    assert_eq!(report.rotated(), 11);
     assert!(
         kid_counts(&h.pool)
             .await
@@ -94,6 +107,24 @@ async fn rotation_moves_every_sealed_value_to_the_newest_key() {
         .await
         .unwrap();
     assert_eq!(only_k3.open(&cfg).unwrap(), b"{\"macaroon\":\"m\"}");
+    let (totp,): (Vec<u8>,) =
+        sqlx::query_as("select totp_secret from account where totp_enabled = 1")
+            .fetch_one(&h.pool)
+            .await
+            .unwrap();
+    assert_eq!(only_k3.open(&totp).unwrap(), b"totp-secret-bytes");
+    assert_eq!(
+        integrity::unreadable_sealed_values(&h.pool, &only_k3)
+            .await
+            .unwrap(),
+        0
+    );
+    assert!(
+        kid_counts(&h.pool)
+            .await
+            .iter()
+            .any(|(col, kid, n)| col == "account.totp_secret" && kid == "k3" && *n == 1)
+    );
 
     let again = rotate_keys(&h.pool, &k3, &RotateOptions::default(), Actor::System)
         .await
@@ -1051,4 +1082,37 @@ async fn retention_purges_dead_account_tokens_and_old_throttle_rows_but_keeps_li
         .await,
         1
     );
+}
+
+#[tokio::test]
+async fn retention_purges_expired_login_challenges_but_keeps_live_ones() {
+    let h = harness().await;
+    let id = payment_gateway::accounts::insert_account(&h.pool, "c@example.com", "hash", false)
+        .await
+        .unwrap();
+    let now = Utc::now();
+    for (hash, expires) in [("old", -40i64), ("recent", -1), ("live", 5)] {
+        sqlx::query("insert into login_challenge (account_id, token_hash, created, expires) values (?, ?, ?, ?)")
+            .bind(id)
+            .bind(hash)
+            .bind(now - Duration::days(50))
+            .bind(now + Duration::days(expires))
+            .execute(&h.pool)
+            .await
+            .unwrap();
+    }
+    let policy = RetentionPolicy {
+        session_days: Some(7),
+        ..Default::default()
+    };
+    let r = retention::purge(&h.pool, &policy, now, Actor::System)
+        .await
+        .unwrap();
+    assert_eq!(r.login_challenges_deleted, 1);
+    let left: Vec<String> =
+        sqlx::query_scalar("select token_hash from login_challenge order by token_hash")
+            .fetch_all(&h.pool)
+            .await
+            .unwrap();
+    assert_eq!(left, vec!["live", "recent"]);
 }

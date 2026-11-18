@@ -74,6 +74,7 @@ pub struct Service {
     pub changes: broadcast::Sender<PaymentId>,
     pub mailer: Arc<dyn Mailer>,
     pub provider_failures: std::sync::Mutex<std::collections::HashMap<u64, u32>>,
+    pub metrics: Arc<crate::metrics::Metrics>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -141,6 +142,9 @@ impl Service {
         mailer: Arc<dyn Mailer>,
     ) -> Arc<Self> {
         let (changes, _) = broadcast::channel(1024);
+        let metrics: Arc<crate::metrics::Metrics> = Default::default();
+        let mut registry = registry;
+        registry.metrics = metrics.clone();
         Arc::new(Self {
             pool,
             sealer,
@@ -155,6 +159,7 @@ impl Service {
             changes,
             mailer,
             provider_failures: Default::default(),
+            metrics,
         })
     }
 
@@ -197,9 +202,11 @@ pub struct ProviderSink {
 #[async_trait]
 impl EventSink for ProviderSink {
     async fn event(&self, event: ProviderEvent, cursor: Option<String>) -> anyhow::Result<()> {
-        self.service
-            .apply_event(self.provider_id, event)
+        let service = self.service.clone();
+        let provider_id = self.provider_id;
+        tokio::spawn(async move { service.apply_event(provider_id, event).await })
             .await
+            .map_err(|e| anyhow!("{e:?}"))?
             .map_err(|e| anyhow!("{e:?}"))?;
         if let Some(c) = cursor {
             db::set_cursor(&self.service.pool, self.provider_id, &c).await?;

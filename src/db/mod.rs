@@ -30,6 +30,7 @@ pub struct Tenant {
     pub trusted: bool,
     #[sqlx(flatten)]
     pub limits: crate::limits::LimitOverrides,
+    pub require_2fa: bool,
 }
 
 impl Tenant {
@@ -185,13 +186,29 @@ pub async fn migrate(pool: &MySqlPool) -> Result<()> {
     Ok(())
 }
 
+pub fn expected_migrations() -> usize {
+    sqlx::migrate!("./migrations").migrations.len()
+}
+
 pub async fn connect(url: &str) -> Result<MySqlPool> {
-    let pool = MySqlPool::connect(url).await?;
+    connect_with(url, 10, std::time::Duration::from_secs(10)).await
+}
+
+pub async fn connect_with(
+    url: &str,
+    max_connections: u32,
+    acquire_timeout: std::time::Duration,
+) -> Result<MySqlPool> {
+    let pool = sqlx::mysql::MySqlPoolOptions::new()
+        .max_connections(max_connections)
+        .acquire_timeout(acquire_timeout)
+        .connect(url)
+        .await?;
     migrate(&pool).await?;
     Ok(pool)
 }
 
-const TENANT_COLS: &str = "id, name, api_key_hash, webhook_url, webhook_secret, enabled, display_name, logo_url, accent_color, allowed_origins, default_success_url, default_cancel_url, trusted, limit_payments_per_day, limit_pending_payments, limit_amount_per_payment, limit_volume_per_day, limit_providers, limit_webhook_endpoints, limit_attempts_per_payment";
+const TENANT_COLS: &str = "id, name, api_key_hash, webhook_url, webhook_secret, enabled, display_name, logo_url, accent_color, allowed_origins, default_success_url, default_cancel_url, trusted, limit_payments_per_day, limit_pending_payments, limit_amount_per_payment, limit_volume_per_day, limit_providers, limit_webhook_endpoints, limit_attempts_per_payment, require_2fa";
 const PROVIDER_COLS: &str = "id, tenant_id, method, provider_type, name, enabled, config, fee_rate, fee_base, fee_currency, shared_provider_id";
 const PAYMENT_COLS: &str = "id, tenant_id, reference, currency, amount, tax, status, created, expires, paid_at, description, customer_ref, customer_email, metadata, methods, idempotency_key, success_url, cancel_url";
 const ATTEMPT_COLS: &str = "id, payment_id, provider_config_id, watch_provider_id, method, option_key, base_amount, processing_fee, currency, charge_amount, charge_currency, rate, lookup, external_id, details, status, created, expires, paid_at, save_method, shared_provider_id, platform_fee_bps, platform_fee_base, platform_fee, platform_net";
