@@ -1,6 +1,7 @@
 mod common;
 use chrono::{Duration, Utc};
 use common::*;
+use payment_gateway::audit::Actor;
 use payment_gateway::crypto::Sealer;
 use payment_gateway::ops::integrity;
 use payment_gateway::ops::privacy::{self, Subject};
@@ -58,6 +59,7 @@ async fn rotation_moves_every_sealed_value_to_the_newest_key() {
             batch: 2,
             max_rows: None,
         },
+        Actor::System,
     )
     .await
     .unwrap();
@@ -70,7 +72,7 @@ async fn rotation_moves_every_sealed_value_to_the_newest_key() {
     );
 
     let k3 = sealer(&[("k3", 3), ("k2", 2)]);
-    let report = rotate_keys(&h.pool, &k3, &RotateOptions::default())
+    let report = rotate_keys(&h.pool, &k3, &RotateOptions::default(), Actor::System)
         .await
         .unwrap();
     assert_eq!(report.rotated(), 10);
@@ -93,7 +95,7 @@ async fn rotation_moves_every_sealed_value_to_the_newest_key() {
         .unwrap();
     assert_eq!(only_k3.open(&cfg).unwrap(), b"{\"macaroon\":\"m\"}");
 
-    let again = rotate_keys(&h.pool, &k3, &RotateOptions::default())
+    let again = rotate_keys(&h.pool, &k3, &RotateOptions::default(), Actor::System)
         .await
         .unwrap();
     assert_eq!(again.rotated(), 0);
@@ -113,6 +115,7 @@ async fn rotation_resumes_after_a_crash_halfway() {
             batch: 2,
             max_rows: Some(4),
         },
+        Actor::System,
     )
     .await
     .unwrap();
@@ -130,7 +133,7 @@ async fn rotation_resumes_after_a_crash_halfway() {
         assert_eq!(k2.open(&v).unwrap(), b"whsec");
     }
 
-    let second = rotate_keys(&h.pool, &k2, &RotateOptions::default())
+    let second = rotate_keys(&h.pool, &k2, &RotateOptions::default(), Actor::System)
         .await
         .unwrap();
     assert!(!second.stopped_early);
@@ -154,7 +157,7 @@ async fn rotation_stops_on_a_value_no_key_opens_and_changes_nothing_else() {
         .unwrap();
     let k2 = sealer(&[("k2", 2), ("k1", 1)]);
     assert!(
-        rotate_keys(&h.pool, &k2, &RotateOptions::default())
+        rotate_keys(&h.pool, &k2, &RotateOptions::default(), Actor::System)
             .await
             .is_err()
     );
@@ -180,7 +183,7 @@ async fn legacy_unprefixed_values_are_rotated() {
         .await
         .unwrap();
     let k2 = sealer(&[("k2", 2), ("default", 1)]);
-    let r = rotate_keys(&h.pool, &k2, &RotateOptions::default())
+    let r = rotate_keys(&h.pool, &k2, &RotateOptions::default(), Actor::System)
         .await
         .unwrap();
     assert_eq!(r.rotated(), 1);
@@ -330,7 +333,7 @@ async fn retention_purges_old_unpaid_but_never_paid_refunded_or_open() {
         unpaid_payment_days: Some(30),
         session_days: Some(7),
     };
-    let report = retention::purge(&h.pool, &policy, Utc::now())
+    let report = retention::purge(&h.pool, &policy, Utc::now(), Actor::System)
         .await
         .unwrap();
     assert_eq!(report.unpaid_payments_deleted, 1);
@@ -372,7 +375,7 @@ async fn retention_purges_old_unpaid_but_never_paid_refunded_or_open() {
     );
     assert!(integrity::check(&h.pool).await.unwrap().is_empty());
 
-    let again = retention::purge(&h.pool, &policy, Utc::now())
+    let again = retention::purge(&h.pool, &policy, Utc::now(), Actor::System)
         .await
         .unwrap();
     assert_eq!(again, retention::PurgeReport::default());
@@ -398,7 +401,7 @@ async fn retention_keeps_recent_rows_and_undelivered_bodies() {
         unpaid_payment_days: Some(3650),
         session_days: None,
     };
-    let report = retention::purge(&h.pool, &policy, Utc::now())
+    let report = retention::purge(&h.pool, &policy, Utc::now(), Actor::System)
         .await
         .unwrap();
     assert_eq!(report, retention::PurgeReport::default());
@@ -424,7 +427,7 @@ async fn retention_deletes_only_long_expired_sessions() {
         session_days: Some(7),
         ..Default::default()
     };
-    let r = retention::purge(&h.pool, &policy, Utc::now())
+    let r = retention::purge(&h.pool, &policy, Utc::now(), Actor::System)
         .await
         .unwrap();
     assert_eq!(r.sessions_deleted, 1);
@@ -448,7 +451,9 @@ async fn privacy_export_then_delete_anonymises_financial_records() {
     let theirs = new_payment(&h, &other, theirs).await;
 
     let subject = Subject::Email("a@example.com".into());
-    let export = privacy::export(&h.pool, t.id, &subject).await.unwrap();
+    let export = privacy::export(&h.pool, t.id, &subject, Actor::System)
+        .await
+        .unwrap();
     assert_eq!(export.payments.len(), 2);
     assert!(
         export
@@ -464,7 +469,9 @@ async fn privacy_export_then_delete_anonymises_financial_records() {
     );
 
     let before_paid = get_payment(&h, &t, &s.paid).await;
-    let report = privacy::delete(&h.pool, t.id, &subject).await.unwrap();
+    let report = privacy::delete(&h.pool, t.id, &subject, Actor::System)
+        .await
+        .unwrap();
     assert_eq!(report.payments_anonymised, 2);
     assert!(report.delivery_bodies_cleared >= 1);
 
@@ -487,15 +494,22 @@ async fn privacy_export_then_delete_anonymises_financial_records() {
     .await;
     assert_eq!(leaked, 0);
 
-    let untouched = privacy::export(&h.pool, other.id, &subject).await.unwrap();
-    assert_eq!(untouched.payments.len(), 1);
-    assert_eq!(untouched.payments[0].id, theirs["id"].as_str().unwrap());
-    let b = privacy::export(&h.pool, t.id, &Subject::Email("b@example.com".into()))
+    let untouched = privacy::export(&h.pool, other.id, &subject, Actor::System)
         .await
         .unwrap();
+    assert_eq!(untouched.payments.len(), 1);
+    assert_eq!(untouched.payments[0].id, theirs["id"].as_str().unwrap());
+    let b = privacy::export(
+        &h.pool,
+        t.id,
+        &Subject::Email("b@example.com".into()),
+        Actor::System,
+    )
+    .await
+    .unwrap();
     assert_eq!(b.payments.len(), 1);
     assert!(
-        privacy::export(&h.pool, t.id, &subject)
+        privacy::export(&h.pool, t.id, &subject, Actor::System)
             .await
             .unwrap()
             .payments
@@ -522,17 +536,19 @@ async fn privacy_delete_by_customer_ref_removes_saved_methods_in_that_project_on
     }
     let subject = Subject::CustomerRef("cust1".into());
     assert_eq!(
-        privacy::export(&h.pool, t.id, &subject)
+        privacy::export(&h.pool, t.id, &subject, Actor::System)
             .await
             .unwrap()
             .saved_methods
             .len(),
         1
     );
-    let r = privacy::delete(&h.pool, t.id, &subject).await.unwrap();
+    let r = privacy::delete(&h.pool, t.id, &subject, Actor::System)
+        .await
+        .unwrap();
     assert_eq!(r.saved_methods_deleted, 1);
     assert_eq!(
-        privacy::export(&h.pool, other.id, &subject)
+        privacy::export(&h.pool, other.id, &subject, Actor::System)
             .await
             .unwrap()
             .saved_methods
@@ -546,7 +562,7 @@ async fn privacy_delete_refuses_an_empty_subject() {
     let h = harness().await;
     let t = tenant(&h).await;
     assert!(
-        privacy::delete(&h.pool, t.id, &Subject::Email(" ".into()))
+        privacy::delete(&h.pool, t.id, &Subject::Email(" ".into()), Actor::System)
             .await
             .is_err()
     );
@@ -705,4 +721,156 @@ async fn restore_drill_backs_up_restores_into_a_scratch_database_and_passes_inte
         .execute(&h.pool)
         .await
         .unwrap();
+}
+
+async fn audit_rows(pool: &MySqlPool, action: &str) -> Vec<(String, Option<u64>, Option<String>)> {
+    sqlx::query_as(
+        "select actor_kind, tenant_id, details from audit_event where action = ? order by id",
+    )
+    .bind(action)
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn operator_tools_write_audit_events_without_subject_values() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    seed_payments(&h, &t, ln).await;
+    seed_secrets(&h, &sealer(&[("k1", 1)]), 0).await;
+
+    let k2 = sealer(&[("k2", 2), ("k1", 1)]);
+    rotate_keys(&h.pool, &k2, &RotateOptions::default(), Actor::System)
+        .await
+        .unwrap();
+    let rows = audit_rows(&h.pool, "keys.rotated").await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].0, "system");
+    let d: serde_json::Value = serde_json::from_str(rows[0].2.as_deref().unwrap()).unwrap();
+    assert_eq!(d["kid"], "k2");
+
+    sqlx::query("update payment set expires = ?, status = 'expired' where status = 'pending'")
+        .bind(Utc::now() - Duration::days(90))
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    let policy = RetentionPolicy {
+        unpaid_payment_days: Some(30),
+        ..Default::default()
+    };
+    let r = retention::purge(&h.pool, &policy, Utc::now(), Actor::AdminToken)
+        .await
+        .unwrap();
+    let rows = audit_rows(&h.pool, "retention.purged").await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].0, "admin_token");
+    let d: serde_json::Value = serde_json::from_str(rows[0].2.as_deref().unwrap()).unwrap();
+    assert_eq!(d["unpaid_payments_deleted"], r.unpaid_payments_deleted);
+
+    let subject = Subject::Email("c@example.com".into());
+    privacy::export(&h.pool, t.id, &subject, Actor::System)
+        .await
+        .unwrap();
+    privacy::delete(&h.pool, t.id, &subject, Actor::System)
+        .await
+        .unwrap();
+    for action in ["privacy.exported", "privacy.deleted"] {
+        let rows = audit_rows(&h.pool, action).await;
+        assert_eq!(rows.len(), 1, "{action}");
+        assert_eq!(rows[0].1, Some(t.id));
+        let details = rows[0].2.as_deref().unwrap();
+        assert!(details.contains("\"subject_kind\":\"email\""));
+        assert!(!details.contains("c@example.com"));
+    }
+}
+
+#[tokio::test]
+async fn retention_never_touches_audit_events() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    seed_payments(&h, &t, ln).await;
+    sqlx::query("insert into audit_event (tenant_id, actor_kind, action, details, created) values (?, 'system', 'login.ok', '{}', ?)")
+        .bind(t.id)
+        .bind(Utc::now() - Duration::days(4000))
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    let before = count(&h.pool, "select count(*) from audit_event").await;
+    let policy = RetentionPolicy {
+        delivery_body_days: Some(0),
+        unpaid_payment_days: Some(0),
+        session_days: Some(0),
+    };
+    retention::purge(
+        &h.pool,
+        &policy,
+        Utc::now() + Duration::days(5000),
+        Actor::System,
+    )
+    .await
+    .unwrap();
+    let after = count(
+        &h.pool,
+        "select count(*) from audit_event where action <> 'retention.purged'",
+    )
+    .await;
+    assert_eq!(after, before);
+}
+
+#[tokio::test]
+async fn privacy_delete_keeps_audit_rows_but_strips_customer_pii_from_details() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let other = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    seed_payments(&h, &t, ln).await;
+    for (tenant_id, details) in [
+        (
+            t.id,
+            r#"{"note":"refund for a@example.com","customer_ref":"custa"}"#,
+        ),
+        (t.id, r#"{"unrelated":true}"#),
+        (other.id, r#"{"note":"a@example.com"}"#),
+    ] {
+        sqlx::query("insert into audit_event (tenant_id, actor_kind, action, details, created) values (?, 'system', 'refund.requested', ?, ?)")
+            .bind(tenant_id)
+            .bind(details)
+            .bind(Utc::now())
+            .execute(&h.pool)
+            .await
+            .unwrap();
+    }
+    let before = count(&h.pool, "select count(*) from audit_event").await;
+    let report = privacy::delete(
+        &h.pool,
+        t.id,
+        &Subject::Email("a@example.com".into()),
+        Actor::System,
+    )
+    .await
+    .unwrap();
+    assert_eq!(report.audit_events_scrubbed, 1);
+    assert_eq!(
+        count(&h.pool, "select count(*) from audit_event").await,
+        before + 1
+    );
+    let mine: Vec<(Option<String>,)> = sqlx::query_as("select details from audit_event where tenant_id = ? and action = 'refund.requested' order by id")
+        .bind(t.id)
+        .fetch_all(&h.pool)
+        .await
+        .unwrap();
+    assert!(!mine[0].0.as_deref().unwrap().contains("a@example.com"));
+    assert!(!mine[0].0.as_deref().unwrap().contains("custa"));
+    assert_eq!(mine[1].0.as_deref(), Some(r#"{"unrelated":true}"#));
+    let theirs: Option<String> = sqlx::query_scalar(
+        "select details from audit_event where tenant_id = ? and action = 'refund.requested'",
+    )
+    .bind(other.id)
+    .fetch_one(&h.pool)
+    .await
+    .unwrap();
+    assert!(theirs.unwrap().contains("a@example.com"));
 }

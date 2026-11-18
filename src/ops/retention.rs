@@ -1,3 +1,4 @@
+use crate::audit::{Action, Actor, Event, Origin};
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use serde::Serialize;
@@ -49,6 +50,26 @@ pub struct PurgeReport {
 const BATCH: i64 = 500;
 
 pub async fn purge(
+    pool: &MySqlPool,
+    policy: &RetentionPolicy,
+    now: DateTime<Utc>,
+    actor: Actor,
+) -> Result<PurgeReport> {
+    let report = purge_tables(pool, policy, now).await?;
+    if report != PurgeReport::default() {
+        Event::new(Action::RetentionPurged, actor)
+            .details(serde_json::json!({
+                "delivery_bodies_cleared": report.delivery_bodies_cleared,
+                "unpaid_payments_deleted": report.unpaid_payments_deleted,
+                "sessions_deleted": report.sessions_deleted,
+            }))
+            .record(pool, &Origin::default())
+            .await;
+    }
+    Ok(report)
+}
+
+async fn purge_tables(
     pool: &MySqlPool,
     policy: &RetentionPolicy,
     now: DateTime<Utc>,

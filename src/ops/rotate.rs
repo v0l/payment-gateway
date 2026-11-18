@@ -1,3 +1,4 @@
+use crate::audit::{Action, Actor, Event, Origin};
 use crate::crypto::Sealer;
 use anyhow::{Context, Result};
 use serde::Serialize;
@@ -64,6 +65,24 @@ impl Default for RotateOptions {
 }
 
 pub async fn rotate_keys(
+    pool: &MySqlPool,
+    sealer: &Sealer,
+    opts: &RotateOptions,
+    actor: Actor,
+) -> Result<RotateReport> {
+    let report = rotate_columns(pool, sealer, opts).await?;
+    Event::new(Action::KeysRotated, actor)
+        .details(serde_json::json!({
+            "kid": sealer.current_kid(),
+            "rotated": report.rotated(),
+            "stopped_early": report.stopped_early,
+        }))
+        .record(pool, &Origin::default())
+        .await;
+    Ok(report)
+}
+
+async fn rotate_columns(
     pool: &MySqlPool,
     sealer: &Sealer,
     opts: &RotateOptions,

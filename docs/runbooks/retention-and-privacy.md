@@ -21,3 +21,7 @@ payment-gateway privacy-delete <project id> --email person@example.com
 ```
 
 Export prints the matching payments (with `customer_ref`, `customer_email`, `metadata`) and saved methods as JSON. Delete sets `customer_email`, `customer_ref` and `metadata` to null on that project's matching payments, empties their finished webhook bodies, and (for `--customer-ref`) deletes saved methods. Amounts, status, attempts and refunds stay, so accounting is unchanged. Other projects are never touched. Backups taken earlier still hold the data until they age out.
+
+## Audit
+
+Every operator command writes an audit event as actor `system`: `keys.rotated`, `retention.purged` (with counts), `privacy.exported` and `privacy.deleted` (project and subject kind, never the subject value). Audit rows are never purged. `privacy-delete` also replaces the customer's email and reference with `[removed]` inside the `details` of that project's audit events.

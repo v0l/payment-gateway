@@ -1,5 +1,6 @@
 use anyhow::{Result, bail};
 use payment_gateway::api::{self, AppState};
+use payment_gateway::audit::Actor;
 use payment_gateway::config::{Config, encryption_keys_from_env};
 use payment_gateway::crypto::Sealer;
 use payment_gateway::db;
@@ -27,9 +28,13 @@ async fn run_command(cmd: &str, args: &[String]) -> Result<()> {
     match cmd {
         "rotate-keys" => {
             let sealer = Sealer::with_keys(&encryption_keys_from_env()?)?;
-            let report =
-                ops::rotate::rotate_keys(&pool, &sealer, &ops::rotate::RotateOptions::default())
-                    .await?;
+            let report = ops::rotate::rotate_keys(
+                &pool,
+                &sealer,
+                &ops::rotate::RotateOptions::default(),
+                Actor::System,
+            )
+            .await?;
             println!("{}", serde_json::to_string_pretty(&report)?);
             for (col, kid, n) in ops::rotate::sealed_kids(&pool).await? {
                 println!("{col} key {kid}: {n}");
@@ -40,7 +45,8 @@ async fn run_command(cmd: &str, args: &[String]) -> Result<()> {
             if policy.is_empty() {
                 bail!("set at least one GATEWAY_RETAIN_* variable");
             }
-            let report = ops::retention::purge(&pool, &policy, chrono::Utc::now()).await?;
+            let report =
+                ops::retention::purge(&pool, &policy, chrono::Utc::now(), Actor::System).await?;
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
         "check-integrity" => {
@@ -60,10 +66,10 @@ async fn run_command(cmd: &str, args: &[String]) -> Result<()> {
         "privacy-export" | "privacy-delete" => {
             let (tenant, subject) = privacy_args(args)?;
             if cmd == "privacy-export" {
-                let e = ops::privacy::export(&pool, tenant, &subject).await?;
+                let e = ops::privacy::export(&pool, tenant, &subject, Actor::System).await?;
                 println!("{}", serde_json::to_string_pretty(&e)?);
             } else {
-                let r = ops::privacy::delete(&pool, tenant, &subject).await?;
+                let r = ops::privacy::delete(&pool, tenant, &subject, Actor::System).await?;
                 println!("{}", serde_json::to_string_pretty(&r)?);
             }
         }
@@ -102,7 +108,9 @@ async fn serve() -> Result<()> {
         let pool = pool.clone();
         tokio::spawn(async move {
             loop {
-                match ops::retention::purge(&pool, &retention, chrono::Utc::now()).await {
+                match ops::retention::purge(&pool, &retention, chrono::Utc::now(), Actor::System)
+                    .await
+                {
                     Ok(r) => log::info!("retention purge: {r:?}"),
                     Err(e) => log::error!("retention purge failed: {e:#}"),
                 }

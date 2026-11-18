@@ -38,6 +38,10 @@ pub enum Action {
     AccountEnabled,
     DeliveryReplayed,
     LimitsChanged,
+    KeysRotated,
+    RetentionPurged,
+    PrivacyExported,
+    PrivacyDeleted,
 }
 
 impl Action {
@@ -75,6 +79,10 @@ impl Action {
             Self::AccountEnabled => "account.enabled",
             Self::DeliveryReplayed => "delivery.replayed",
             Self::LimitsChanged => "limits.changed",
+            Self::KeysRotated => "keys.rotated",
+            Self::RetentionPurged => "retention.purged",
+            Self::PrivacyExported => "privacy.exported",
+            Self::PrivacyDeleted => "privacy.deleted",
         }
     }
 }
