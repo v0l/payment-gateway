@@ -26,9 +26,6 @@ pub(super) async fn get_customer(
     };
     let payments = db::search_payments(s.pool(), id, &filter, 100).await?;
     let methods = db::customer_saved_methods(s.pool(), id, &customer).await?;
-    if payments.is_empty() && methods.is_empty() && subscriptions.is_empty() {
-        return Err(ApiError::not_found());
-    }
     let plans: std::collections::HashMap<u64, db::PlanRow> =
         db::list_plans(s.pool(), id, None, 100)
             .await?
@@ -55,6 +52,9 @@ pub(super) async fn get_customer(
                 })
             })
             .collect();
+    if payments.is_empty() && methods.is_empty() && subscriptions.is_empty() {
+        return Err(ApiError::not_found());
+    }
     let email = payments.iter().find_map(|p| p.customer_email.clone());
     let mut totals: std::collections::BTreeMap<String, u64> = Default::default();
     for p in payments
