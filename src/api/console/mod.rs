@@ -20,6 +20,7 @@ mod activity;
 mod balance;
 mod billing;
 mod branding;
+mod customers;
 mod endpoints;
 mod export;
 mod keys;
@@ -43,6 +44,7 @@ use activity::*;
 use balance::*;
 use billing::*;
 use branding::*;
+use customers::*;
 use endpoints::*;
 use export::*;
 use keys::*;
@@ -174,6 +176,12 @@ pub fn router() -> Router<AppState> {
             post(test_endpoint),
         )
         .route("/projects/{id}/stats", get(stats))
+        .route("/projects/{id}/customers", get(list_customers))
+        .route("/projects/{id}/customers/{customer}", get(get_customer))
+        .route(
+            "/projects/{id}/customers/{customer}/saved-methods/{method}",
+            delete(delete_customer_method),
+        )
         .route("/projects/{id}/payments-export", get(export_payments))
         .route("/projects/{id}/payments-bulk-cancel", post(bulk_cancel))
         .route("/projects/{id}/manual-paid", post(set_manual_paid))

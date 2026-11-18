@@ -231,6 +231,7 @@ const REFUND_COLS: &str = "id, payment_id, attempt_id, amount, charge_amount, cu
 mod attempts;
 mod branding;
 mod deliveries;
+mod customers;
 mod deliveries_v2;
 mod payment_search;
 mod endpoints;
@@ -251,6 +252,7 @@ mod withdrawals;
 pub use attempts::*;
 pub use branding::*;
 pub use deliveries::*;
+pub use customers::*;
 pub use deliveries_v2::*;
 pub use payment_search::*;
 pub use endpoints::*;
