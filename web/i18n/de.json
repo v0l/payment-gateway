@@ -23,6 +23,8 @@
   "continue_to_provider": "Weiter zur Zahlung",
   "provider_redirect": "Du wirst zu unserem Zahlungsanbieter weitergeleitet, um die Zahlung abzuschließen.",
   "open_wallet": "In der Wallet öffnen",
+  "pay_with_card_save": "Mit Karte zahlen und speichern",
+  "card_widget_failed": "Das Kartenformular konnte nicht abgeschlossen werden. Versuche es erneut.",
   "waiting": "Warten auf die Zahlung",
   "total": "Gesamt {amount}",
   "use_other_method": "Andere Zahlungsart verwenden",

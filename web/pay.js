@@ -262,6 +262,41 @@
     return kids;
   }
 
+  function loadRevolutScript(mode) {
+    return new Promise(function (resolve, reject) {
+      if (window.RevolutCheckout) return resolve(window.RevolutCheckout);
+      var s = document.createElement("script");
+      s.src = mode === "sandbox" ? "https://sandbox-merchant.revolut.com/embed.js" : "https://merchant.revolut.com/embed.js";
+      s.onload = function () { window.RevolutCheckout ? resolve(window.RevolutCheckout) : reject(new Error("no widget")); };
+      s.onerror = function () { reject(new Error("load failed")); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function revolutCardButton(w) {
+    var note = el("p", { class: "muted", "aria-live": "polite", text: "" });
+    var btn = el("button", { type: "button", class: "secondary", text: t("pay_with_card_save") });
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      loadRevolutScript(w.mode).then(function (RC) {
+        return RC(w.token, w.mode === "sandbox" ? "sandbox" : "prod");
+      }).then(function (instance) {
+        var opts = {
+          savePaymentMethodFor: "merchant",
+          onSuccess: function () { note.textContent = t("detected"); },
+          onError: function () { btn.disabled = false; note.textContent = t("card_widget_failed"); },
+          onCancel: function () { btn.disabled = false; }
+        };
+        if (w.email) opts.email = w.email;
+        instance.payWithPopup(opts);
+      }).catch(function () {
+        btn.disabled = false;
+        note.textContent = t("card_widget_failed");
+      });
+    });
+    return el("div", { class: "revolut-card" }, [btn, note]);
+  }
+
   function attemptView(a) {
     var d = a.details || {};
     var kids = [];
@@ -275,6 +310,9 @@
         text: t("continue_to_provider")
       }));
       kids.push(el("p", { class: "muted", text: t("provider_redirect") }));
+    }
+    if (d.widget && d.widget.provider === "revolut") {
+      kids.push(revolutCardButton(d.widget));
     }
     if (d.bolt11) {
       kids.push(el("img", { class: "qr", src: "/pay/" + id + "/qr/" + a.id, alt: t("qr_lightning") }));

@@ -227,6 +227,31 @@ async fn stripe_declined_off_session_charge_is_an_error() {
 }
 
 #[tokio::test]
+async fn revolut_save_method_attempt_exposes_widget_details_and_plain_attempt_does_not() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/orders"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture_json("revolut/order_created.json")),
+        )
+        .mount(&server)
+        .await;
+    let p = revolut(&server.uri(), "tok_fixture");
+
+    let plain = p.create(request(2500)).await.unwrap();
+    assert!(plain.details.get("widget").is_none());
+
+    let mut req = request(2500);
+    req.save_method = true;
+    let saved = p.create(req).await.unwrap();
+    let widget = &saved.details["widget"];
+    assert_eq!(widget["provider"], "revolut");
+    assert_eq!(widget["token"], "eb78ecc2-d65f-4ace-acbd-e55253e7ea0f");
+    assert_eq!(widget["email"], "a@b.c");
+    assert!(saved.details["checkout_url"].as_str().is_some());
+}
+
+#[tokio::test]
 async fn revolut_recorded_responses_drive_order_webhook_and_refund() {
     let server = MockServer::start().await;
     let created = fixture_json("revolut/order_created.json");
