@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+: "${TEST_DATABASE_URL:?set TEST_DATABASE_URL, for example mysql://root:test@127.0.0.1:33907/}"
+export LOAD_PAYMENTS="${LOAD_PAYMENTS:-2000}"
+export LOAD_CREATE_CONCURRENCY="${LOAD_CREATE_CONCURRENCY:-64}"
+export LOAD_SETTLE_CONCURRENCY="${LOAD_SETTLE_CONCURRENCY:-50}"
+export LOAD_MIN_CREATIONS_PER_SEC="${LOAD_MIN_CREATIONS_PER_SEC:-200}"
+export LOAD_MIN_SETTLEMENTS_PER_SEC="${LOAD_MIN_SETTLEMENTS_PER_SEC:-50}"
+CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}" cargo test --release --test load -- --nocapture

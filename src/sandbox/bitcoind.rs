@@ -53,6 +53,26 @@ impl BitcoindRpc {
     }
 }
 
+impl BitcoindRpc {
+    pub async fn send_replaceable(&self, address: &str, sats: u64) -> Result<String> {
+        let tx = self
+            .call(
+                true,
+                "sendtoaddress",
+                json!({"address": address, "amount": btc_literal(sats), "replaceable": true}),
+            )
+            .await?;
+        Ok(tx.as_str().unwrap_or_default().to_string())
+    }
+
+    pub async fn bump_fee(&self, txid: &str, sat_per_vbyte: u64) -> Result<String> {
+        let rsp = self
+            .call(true, "bumpfee", json!([txid, {"fee_rate": sat_per_vbyte}]))
+            .await?;
+        Ok(rsp["txid"].as_str().unwrap_or_default().to_string())
+    }
+}
+
 pub fn btc_literal(sats: u64) -> Value {
     serde_json::from_str(&format!("{}.{:08}", sats / 100_000_000, sats % 100_000_000))
         .expect("decimal literal")

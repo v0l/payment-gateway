@@ -61,6 +61,29 @@ services:
     ports:
       - "127.0.0.1:10010:10009"
 
+  lnd-onchain:
+    image: lightninglabs/lnd:v0.19.3-beta
+    depends_on: [bitcoind]
+    command:
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:18443
+      - --bitcoind.rpcuser=regtest
+      - --bitcoind.rpcpass=regtest
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --noseedbackup
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --listen=0.0.0.0:9735
+      - --tlsextradomain=lnd-onchain
+      - --tlsextradomain=localhost
+    volumes:
+      - onchain-data:/root/.lnd
+    ports:
+      - "127.0.0.1:10011:10009"
+
 volumes:
+  onchain-data:
   gateway-data:
   customer-data:
