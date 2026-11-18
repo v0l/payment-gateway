@@ -126,7 +126,7 @@ pub fn spawn(service: Arc<Service>, tick: Duration) -> Workers {
     Workers {
         handles,
         stop,
-        loops: 4,
+        loops: 3,
     }
 }
 

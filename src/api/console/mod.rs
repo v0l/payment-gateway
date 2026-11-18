@@ -18,6 +18,7 @@ use std::collections::HashMap;
 
 mod activity;
 mod balance;
+mod billing;
 mod branding;
 mod endpoints;
 mod keys;
@@ -33,6 +34,7 @@ mod twofactor;
 
 use activity::*;
 use balance::*;
+use billing::*;
 use branding::*;
 use endpoints::*;
 use keys::*;
@@ -62,6 +64,7 @@ const JS_SETTINGS: &str = include_str!("../../../web/console/settings.js");
 const JS_ACCOUNT: &str = include_str!("../../../web/console/account.js");
 const JS_ADMIN: &str = include_str!("../../../web/console/admin.js");
 const JS_ACTIVITY: &str = include_str!("../../../web/console/activity.js");
+const JS_BILLING: &str = include_str!("../../../web/console/billing.js");
 const JS_BALANCE: &str = include_str!("../../../web/console/balance.js");
 const JS_PAYOUTS: &str = include_str!("../../../web/console/payouts.js");
 const JS_APP: &str = include_str!("../../../web/console/app.js");
@@ -161,6 +164,17 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{id}/members/{account}", delete(remove_member))
         .route("/projects/{id}/activity", get(project_activity))
         .route("/projects/{id}/balance", get(project_balance))
+        .route("/projects/{id}/plans", get(list_plans).post(create_plan))
+        .route("/projects/{id}/plans/{plan}/archive", post(archive_plan))
+        .route(
+            "/projects/{id}/subscriptions",
+            get(list_subscriptions).post(create_subscription),
+        )
+        .route("/projects/{id}/subscriptions/{sub}", get(get_subscription))
+        .route(
+            "/projects/{id}/subscriptions/{sub}/{action}",
+            post(subscription_action),
+        )
         .route("/projects/{id}/ledger", get(project_ledger))
         .route("/projects/{id}/payouts", get(project_payouts))
         .route(
@@ -249,6 +263,7 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "account.js" => asset(JS_ACCOUNT, "text/javascript"),
         "admin.js" => asset(JS_ADMIN, "text/javascript"),
         "balance.js" => asset(JS_BALANCE, "text/javascript"),
+        "billing.js" => asset(JS_BILLING, "text/javascript"),
         "activity.js" => asset(JS_ACTIVITY, "text/javascript"),
         "payouts.js" => asset(JS_PAYOUTS, "text/javascript"),
         "app.js" => asset(JS_APP, "text/javascript"),

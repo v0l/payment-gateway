@@ -95,7 +95,7 @@ function layout(active, projectId, content) {
     var open = String(p.id) === String(projectId);
     navs.push(el("div", { class: "sep", text: p.name }));
     if (open) {
-      [["Overview", "overview"], ["Payments", "payments"], ["Providers", "providers"], ["API keys", "keys"], ["Webhooks", "webhooks"], ["Balance", "balance"], ["Payouts", "payouts"], ["Team", "team"], ["Activity", "activity"], ["Settings", "settings"]].forEach(function (x) {
+      [["Overview", "overview"], ["Payments", "payments"], ["Providers", "providers"], ["API keys", "keys"], ["Webhooks", "webhooks"], ["Plans", "plans"], ["Subscriptions", "subscriptions"], ["Balance", "balance"], ["Payouts", "payouts"], ["Team", "team"], ["Activity", "activity"], ["Settings", "settings"]].forEach(function (x) {
         navs.push(link(x[0], "#/p/" + p.id + "/" + x[1], x[1]));
       });
     } else { navs.push(link("Open", "#/p/" + p.id + "/overview", "")); }
@@ -109,7 +109,7 @@ function layout(active, projectId, content) {
 }
 
 function tabs(pid, active) {
-  return el("div", { class: "tabs" }, [["overview", "Overview"], ["payments", "Payments"], ["providers", "Providers"], ["keys", "API keys"], ["webhooks", "Webhooks"], ["balance", "Balance"], ["payouts", "Payouts"], ["team", "Team"], ["activity", "Activity"], ["settings", "Settings"]].map(function (t) {
+  return el("div", { class: "tabs" }, [["overview", "Overview"], ["payments", "Payments"], ["providers", "Providers"], ["keys", "API keys"], ["webhooks", "Webhooks"], ["plans", "Plans"], ["subscriptions", "Subscriptions"], ["balance", "Balance"], ["payouts", "Payouts"], ["team", "Team"], ["activity", "Activity"], ["settings", "Settings"]].map(function (t) {
     return el("a", { href: "#/p/" + pid + "/" + t[0], class: t[0] === active ? "on" : "", text: t[1] });
   }));
 }
