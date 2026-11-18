@@ -50,5 +50,9 @@
   "powered_by": "Offerto da Payment Gateway",
   "error_generic": "Qualcosa è andato storto. Riprova.",
   "error_load": "Impossibile caricare questo pagamento.",
-  "footer_links": "Link"
+  "footer_links": "Link",
+  "order_summary": "Riepilogo dell'ordine ({count})",
+  "discount": "Sconto",
+  "tax": "Imposte",
+  "total_label": "Totale"
 }

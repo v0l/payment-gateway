@@ -50,5 +50,9 @@
   "powered_by": "Powered by Payment Gateway",
   "error_generic": "Something went wrong. Please try again.",
   "error_load": "This payment could not be loaded.",
-  "footer_links": "Links"
+  "footer_links": "Links",
+  "order_summary": "Order summary ({count})",
+  "discount": "Discount",
+  "tax": "Tax",
+  "total_label": "Total"
 }

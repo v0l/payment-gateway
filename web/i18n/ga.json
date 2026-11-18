@@ -50,5 +50,9 @@
   "powered_by": "Cumhachtaithe ag Payment Gateway",
   "error_generic": "Chuaigh rud éigin chun donais. Bain triail eile as.",
   "error_load": "Níorbh fhéidir an íocaíocht seo a luchtú.",
-  "footer_links": "Naisc"
+  "footer_links": "Naisc",
+  "order_summary": "Achoimre ar an ordú ({count})",
+  "discount": "Lacáiste",
+  "tax": "Cáin",
+  "total_label": "Iomlán"
 }

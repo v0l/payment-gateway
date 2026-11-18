@@ -50,5 +50,9 @@
   "powered_by": "Com tecnologia Payment Gateway",
   "error_generic": "Algo correu mal. Tente novamente.",
   "error_load": "Não foi possível carregar este pagamento.",
-  "footer_links": "Ligações"
+  "footer_links": "Ligações",
+  "order_summary": "Resumo do pedido ({count})",
+  "discount": "Desconto",
+  "tax": "Impostos",
+  "total_label": "Total"
 }

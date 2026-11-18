@@ -50,5 +50,9 @@
   "powered_by": "Bereitgestellt von Payment Gateway",
   "error_generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
   "error_load": "Diese Zahlung konnte nicht geladen werden.",
-  "footer_links": "Links"
+  "footer_links": "Links",
+  "order_summary": "Bestellübersicht ({count})",
+  "discount": "Rabatt",
+  "tax": "Steuer",
+  "total_label": "Gesamt"
 }

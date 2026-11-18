@@ -165,3 +165,10 @@ button.link {
   .spinner { animation: none; border-top-color: var(--line); border-inline-end-color: var(--accent); }
   * { transition: none !important; scroll-behavior: auto !important; }
 }
+
+details.summary { margin-block: var(--space-2) var(--space-3); font-size: 0.9rem; }
+details.summary summary { cursor: pointer; color: var(--muted); min-block-size: 44px; display: flex; align-items: center; }
+details.summary table { inline-size: 100%; border-collapse: collapse; }
+details.summary td { padding-block: var(--space-1); border-block-end: 1px solid var(--line); overflow-wrap: anywhere; }
+details.summary td.num { text-align: end; font-variant-numeric: tabular-nums; }
+details.summary tr.total td { font-weight: 700; border-block-end: 0; }

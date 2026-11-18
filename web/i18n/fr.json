@@ -50,5 +50,9 @@
   "powered_by": "Propulsé par Payment Gateway",
   "error_generic": "Une erreur s'est produite. Veuillez réessayer.",
   "error_load": "Ce paiement n'a pas pu être chargé.",
-  "footer_links": "Liens"
+  "footer_links": "Liens",
+  "order_summary": "Récapitulatif de la commande ({count})",
+  "discount": "Remise",
+  "tax": "Taxes",
+  "total_label": "Total"
 }

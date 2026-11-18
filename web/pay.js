@@ -436,6 +436,23 @@
     return el("div", { class: "lang" }, [sel]);
   }
 
+  function summary() {
+    if (!state.line_items || !state.line_items.length) return null;
+    var rows = state.line_items.map(function (l) {
+      return el("tr", {}, [
+        el("td", { text: (l.quantity > 1 ? l.quantity + " x " : "") + l.name }),
+        el("td", { class: "num", text: money(l.total, state.currency) })
+      ]);
+    });
+    if (state.discount) rows.push(el("tr", {}, [el("td", { text: t("discount") + (state.discount.code ? " " + state.discount.code : "") }), el("td", { class: "num", text: "-" + money(state.discount.amount, state.currency) })]));
+    if (state.tax) rows.push(el("tr", {}, [el("td", { text: t("tax") }), el("td", { class: "num", text: money(state.tax, state.currency) })]));
+    rows.push(el("tr", { class: "total" }, [el("td", { text: t("total_label") }), el("td", { class: "num", text: money(state.amount, state.currency) })]));
+    return el("details", { class: "summary" }, [
+      el("summary", { text: t("order_summary", { count: state.line_items.length }) }),
+      el("table", {}, rows)
+    ]);
+  }
+
   function render() {
     countdownNode = null;
     document.title = t("page_title", { name: state.tenant.name });
@@ -443,7 +460,8 @@
     var card = el("div", { class: "card" }, [
       brand(),
       el("div", { class: "amount", text: money(state.amount, state.currency) }),
-      state.description ? el("p", { class: "desc", text: state.description }) : null
+      state.description ? el("p", { class: "desc", text: state.description }) : null,
+      summary()
     ]);
     if (state.status !== "pending") {
       terminal().forEach(function (n) { card.appendChild(n); });
