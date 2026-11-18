@@ -1,8 +1,9 @@
 "use strict";
-var SUB_PILL = { active: "ok", trialing: "info", incomplete: "pending", past_due: "failed", paused: "neutral", cancelled: "cancelled" };
+var SUB_PILL = { active: "ok", trialing: "info", incomplete: "pending", past_due: "failed", paused: "expired", cancelled: "cancelled" };
+var PERIOD_PILL = { paid: "ok", open: "pending", void: "cancelled" };
 function subPill(status) { return pill(status, SUB_PILL[status] || status); }
 function when(iso) { return iso ? new Date(iso).toLocaleString() : ""; }
-function planLabel(p) { return fmtAmount(p.amount, p.currency) + " / " + (p.interval_count > 1 ? p.interval_count + " " : "") + p.interval; }
+function planLabel(p) { return el("span", {}, [moneyEl(p.amount, p.currency), " / " + (p.interval_count > 1 ? p.interval_count + " " : "") + p.interval]); }
 
 function plans(pid) {
   projectShell(pid, "plans", function (p, body) {
@@ -30,7 +31,7 @@ function plans(pid) {
           var act = r.active ? el("button", { text: "Archive", onclick: function () {
             api("POST", "/projects/" + pid + "/plans/" + r.id + "/archive", {}).then(load).catch(function (e) { msg(out, e.message, true); });
           } }) : "";
-          return el("tr", {}, [el("td", { class: "mono", text: String(r.id) }), el("td", { text: r.name }), el("td", { text: planLabel(r) }), el("td", { text: r.trial_days + "d" }), el("td", { text: r.grace_days + "d" }), el("td", {}, [pill(r.active ? "active" : "archived", r.active ? "ok" : "cancelled")]), el("td", {}, [act])]);
+          return el("tr", {}, [el("td", { class: "mono", text: String(r.id) }), el("td", { text: r.name }), el("td", {}, [planLabel(r)]), el("td", { text: r.trial_days + "d" }), el("td", { text: r.grace_days + "d" }), el("td", {}, [pill(r.active ? "active" : "archived", r.active ? "ok" : "cancelled")]), el("td", {}, [act])]);
         }))));
       }).catch(function (e) { msg(list, e.message, true); });
     }
@@ -82,8 +83,14 @@ function subscriptionDetail(pid, id) {
         if (s.status === "active" || s.status === "trialing") { actions.appendChild(el("button", { text: "Pause", onclick: function () { run("pause"); } })); }
         if (s.status === "paused") { actions.appendChild(el("button", { text: "Resume", onclick: function () { run("resume"); } })); }
         if (s.status !== "cancelled") {
-          if (!s.cancel_at_period_end) { actions.appendChild(el("button", { text: "Cancel at period end", onclick: function () { run("cancel", { at_period_end: true }); } })); }
-          actions.appendChild(el("button", { class: "danger", text: "Cancel now", onclick: function () { if (confirm("Cancel this subscription now?")) run("cancel", {}); } }));
+          if (!s.cancel_at_period_end) {
+            actions.appendChild(el("button", { text: "Cancel at period end", onclick: function () {
+              confirmDialog({ title: "Cancel at the end of this period?", body: "The customer keeps access until " + when(s.current_period_end) + " and is not charged again.", keep: "Keep subscription", confirm: "Cancel at period end", danger: true }).then(function (v) { if (v) run("cancel", { at_period_end: true }); });
+            } }));
+          }
+          actions.appendChild(el("button", { class: "danger", text: "Cancel now", onclick: function () {
+            confirmDialog({ title: "Cancel this subscription now?", body: "Billing stops at once and any unpaid invoice is voided.", keep: "Keep subscription", confirm: "Cancel subscription", danger: true }).then(function (v) { if (v) run("cancel", {}); });
+          } }));
         }
         if (s.status === "active" || s.status === "trialing") {
           var np = el("input", { type: "number", placeholder: "new plan id" });
@@ -94,7 +101,7 @@ function subscriptionDetail(pid, id) {
         var head = ["Period", "From", "To", "Amount", "Status", "Failures", "Payment"];
         var hist = s.periods.length ? el("table", {}, [el("tr", {}, head.map(function (h) { return el("th", { text: h }); }))].concat(s.periods.map(function (r) {
           var link = r.payment_id ? el("a", { href: "#/p/" + pid + "/payments/" + r.payment_id, class: "mono", text: r.payment_id.slice(0, 10) }) : "";
-          return el("tr", {}, [el("td", { text: String(r.index) }), el("td", { text: when(r.period_start) }), el("td", { text: when(r.period_end) }), el("td", { text: fmtAmount(r.amount, r.currency) }), el("td", {}, [pill(r.status, r.status === "paid" ? "paid" : r.status === "void" ? "cancelled" : "pending")]), el("td", { text: String(r.failures) }), el("td", {}, [link])]);
+          return el("tr", {}, [el("td", { text: String(r.index) }), el("td", { text: when(r.period_start) }), el("td", { text: when(r.period_end) }), el("td", {}, [moneyEl(r.amount, r.currency)]), el("td", {}, [pill(r.status, PERIOD_PILL[r.status])]), el("td", { text: String(r.failures) }), el("td", {}, [link])]);
         }))) : el("p", { class: "muted", text: "No invoices yet." });
         box.replaceChildren(
           el("div", { class: "card" }, [el("dl", { class: "kv" }, [
@@ -104,7 +111,7 @@ function subscriptionDetail(pid, id) {
             el("dt", { text: "Current period" }), el("dd", { text: when(s.current_period_start) + " to " + when(s.current_period_end) }),
             el("dt", { text: "Next charge" }), el("dd", { text: when(s.next_charge) || "none" }),
             el("dt", { text: "Cancels at period end" }), el("dd", { text: s.cancel_at_period_end ? "yes" : "no" }),
-            el("dt", { text: "Credit" }), el("dd", { text: String(s.credit) }),
+            el("dt", { text: "Credit" }), el("dd", {}, [moneyEl(s.credit, (s.periods[0] || {}).currency || "EUR")]),
             el("dt", { text: "Pay link" }), el("dd", { class: "mono", text: s.pay_url || "" })
           ]), actions, out]),
           el("h3", { text: "History" }), hist
