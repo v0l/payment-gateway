@@ -7,17 +7,16 @@ pub async fn insert_tenant(
     webhook_url: Option<&str>,
     sealed_webhook_secret: &[u8],
 ) -> Result<u64> {
-    let r = sqlx::query(
-        "insert into tenant (name, api_key_hash, webhook_url, webhook_secret) values (?, ?, ?, ?)",
-    )
-    .bind(name)
-    .bind(api_key_hash)
-    .bind(webhook_url)
-    .bind(sealed_webhook_secret)
-    .execute(pool)
-    .await?;
-    set_default_key(pool, r.last_insert_id(), api_key_hash).await?;
-    Ok(r.last_insert_id())
+    let r = sqlx::query("insert into tenant (name, api_key_hash, webhook_secret) values (?, ?, ?)")
+        .bind(name)
+        .bind(api_key_hash)
+        .bind(sealed_webhook_secret)
+        .execute(pool)
+        .await?;
+    let id = r.last_insert_id();
+    set_default_key(pool, id, api_key_hash).await?;
+    set_default_endpoint_url(pool, id, webhook_url).await?;
+    Ok(id)
 }
 
 pub async fn list_tenants(pool: &MySqlPool) -> Result<Vec<Tenant>> {
@@ -79,9 +78,8 @@ pub struct TenantSettings {
 
 pub async fn update_tenant_settings(pool: &MySqlPool, id: u64, s: &TenantSettings) -> Result<bool> {
     let r = sqlx::query(
-        "update tenant set webhook_url = ?, display_name = ?, logo_url = ?, accent_color = ?, allowed_origins = ?, default_success_url = ?, default_cancel_url = ? where id = ?",
+        "update tenant set display_name = ?, logo_url = ?, accent_color = ?, allowed_origins = ?, default_success_url = ?, default_cancel_url = ? where id = ?",
     )
-    .bind(&s.webhook_url)
     .bind(&s.display_name)
     .bind(&s.logo_url)
     .bind(&s.accent_color)
@@ -91,6 +89,7 @@ pub async fn update_tenant_settings(pool: &MySqlPool, id: u64, s: &TenantSetting
     .bind(id)
     .execute(pool)
     .await?;
+    set_default_endpoint_url(pool, id, s.webhook_url.as_deref()).await?;
     Ok(r.rows_affected() > 0)
 }
 

@@ -878,3 +878,140 @@ async fn untrusted_projects_cannot_add_endpoints_beyond_the_limit_or_to_internal
     assert_eq!(s, StatusCode::FORBIDDEN, "{r}");
     assert_eq!(r["code"], "limit_exceeded");
 }
+
+#[tokio::test]
+async fn legacy_webhook_url_is_the_default_endpoint_with_one_delivery_and_the_same_secret() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    let endpoints = db::list_endpoints(&h.pool, t.id).await.unwrap();
+    assert_eq!(endpoints.len(), 1);
+    assert!(endpoints[0].is_default && endpoints[0].enabled && endpoints[0].events.is_none());
+    assert_eq!(endpoints[0].url, t.receiver.url);
+    assert_eq!(
+        h.service.sealer.open(&endpoints[0].secret).unwrap(),
+        t.webhook_secret.as_bytes()
+    );
+
+    paid(&h, &t, ln, "m1").await;
+    let rows: i64 = sqlx::query_scalar("select count(*) from webhook_delivery where tenant_id = ?")
+        .bind(t.id)
+        .fetch_one(&h.pool)
+        .await
+        .unwrap();
+    assert_eq!(rows, 1);
+    h.service.deliver_due().await.unwrap();
+    let got = t.receiver.got.lock().unwrap().clone();
+    assert_eq!(got.len(), 1);
+    let sig = got[0].0["x-gateway-signature"].to_str().unwrap();
+    let (ts, v1) = sig.strip_prefix("t=").unwrap().split_once(",v1=").unwrap();
+    assert_eq!(
+        v1,
+        webhook_signature(&t.webhook_secret, ts.parse().unwrap(), &got[0].1)
+    );
+}
+
+#[tokio::test]
+async fn migration_moves_existing_webhook_urls_into_default_endpoints() {
+    use sqlx::Executor;
+    let h = harness().await;
+    let name = unique("mig");
+    let sealed = h.service.sealer.seal(b"whsec_legacy").unwrap();
+    let id = db::insert_tenant(&h.pool, &name, &hash_api_key("k"), None, &sealed)
+        .await
+        .unwrap();
+    sqlx::query("alter table tenant add column webhook_url varchar(512) null")
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    sqlx::query("update tenant set webhook_url = 'https://old.example.com/h' where id = ?")
+        .bind(id)
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    let sql = include_str!("../migrations/20261210090000_api_contract.sql");
+    let insert = sql
+        .split(';')
+        .find(|s| s.contains("INSERT INTO webhook_endpoint"))
+        .unwrap();
+    h.pool.execute(insert).await.unwrap();
+    let eps = db::list_endpoints(&h.pool, id).await.unwrap();
+    assert_eq!(eps.len(), 1);
+    assert_eq!(eps[0].url, "https://old.example.com/h");
+    assert!(eps[0].is_default);
+    assert_eq!(
+        h.service.sealer.open(&eps[0].secret).unwrap(),
+        b"whsec_legacy"
+    );
+}
+
+#[tokio::test]
+async fn settings_api_round_trips_the_webhook_url_through_the_first_endpoint() {
+    let h = harness().await;
+    let c = console(&h, "rt@example.com").await;
+    let (_, p) = c.req("POST", "/projects", json!({"name": "RT"})).await;
+    let pid = p["id"].as_u64().unwrap();
+    let secret = p["webhook_secret"].as_str().unwrap().to_string();
+    assert!(db::list_endpoints(&h.pool, pid).await.unwrap().is_empty());
+    db::set_tenant_trusted(&h.pool, pid, true).await.unwrap();
+
+    let url = "https://hooks.example.com/a";
+    let (s, v) = c
+        .req(
+            "POST",
+            &format!("/projects/{pid}/settings"),
+            json!({"webhook_url": url}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["webhook_url"], url);
+    let (_, v) = c.req("GET", &format!("/projects/{pid}"), Value::Null).await;
+    assert_eq!(v["webhook_url"], url);
+    let eps = db::list_endpoints(&h.pool, pid).await.unwrap();
+    assert_eq!(eps.len(), 1);
+    assert!(eps[0].is_default);
+    assert_eq!(
+        h.service.sealer.open(&eps[0].secret).unwrap(),
+        secret.as_bytes()
+    );
+
+    let url2 = "https://hooks.example.com/b";
+    c.req(
+        "POST",
+        &format!("/projects/{pid}/settings"),
+        json!({"webhook_url": url2}),
+    )
+    .await;
+    let eps = db::list_endpoints(&h.pool, pid).await.unwrap();
+    assert_eq!(eps.len(), 1);
+    assert_eq!(eps[0].url, url2);
+
+    let (_, r) = c
+        .req(
+            "POST",
+            &format!("/projects/{pid}/rotate-webhook-secret"),
+            json!({}),
+        )
+        .await;
+    let rotated = r["webhook_secret"].as_str().unwrap();
+    let eps = db::list_endpoints(&h.pool, pid).await.unwrap();
+    assert_eq!(
+        h.service.sealer.open(&eps[0].secret).unwrap(),
+        rotated.as_bytes()
+    );
+
+    c.req("POST", &format!("/projects/{pid}/settings"), json!({}))
+        .await;
+    assert!(db::list_endpoints(&h.pool, pid).await.unwrap().is_empty());
+    let (_, v) = c.req("GET", &format!("/projects/{pid}"), Value::Null).await;
+    assert!(v["webhook_url"].is_null());
+}
+
+#[test]
+fn key_rotation_registry_covers_the_endpoint_secret_column() {
+    assert!(
+        payment_gateway::ops::rotate::SEALED_COLUMNS
+            .iter()
+            .any(|c| c.table == "webhook_endpoint" && c.column == "secret")
+    );
+}

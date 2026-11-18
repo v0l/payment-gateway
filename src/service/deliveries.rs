@@ -56,29 +56,20 @@ impl Service {
     }
 
     async fn post_to_target(&self, tenant: &Tenant, d: &DueDelivery) -> anyhow::Result<()> {
-        match d.endpoint_id {
-            None => {
-                let url = tenant
-                    .webhook_url
-                    .as_deref()
-                    .ok_or_else(|| anyhow!("tenant has no webhook_url"))?;
-                self.post_webhook(tenant, url, &tenant.webhook_secret, &d.event_id, &d.body)
-                    .await
-            }
-            Some(id) => {
-                let endpoint = db::get_endpoint(&self.pool, tenant.id, id)
-                    .await?
-                    .ok_or_else(|| anyhow!("webhook endpoint was deleted"))?;
-                self.post_webhook(
-                    tenant,
-                    &endpoint.url,
-                    &endpoint.secret,
-                    &d.event_id,
-                    &d.body,
-                )
-                .await
-            }
-        }
+        let id = d
+            .endpoint_id
+            .ok_or_else(|| anyhow!("delivery has no webhook endpoint"))?;
+        let endpoint = db::get_endpoint(&self.pool, tenant.id, id)
+            .await?
+            .ok_or_else(|| anyhow!("webhook endpoint was deleted"))?;
+        self.post_webhook(
+            tenant,
+            &endpoint.url,
+            &endpoint.secret,
+            &d.event_id,
+            &d.body,
+        )
+        .await
     }
 
     pub async fn send_test_event(

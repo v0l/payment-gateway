@@ -90,7 +90,7 @@ The payment id is 32 random bytes and acts as the capability for the public endp
 
 `POST tenant.webhook_url` with `X-Gateway-Signature: t=<unix>,v1=<hmac sha256 of "t.body">` and `X-Gateway-Event-Id`. Events: `payment.paid`, `payment.expired`, `payment.cancelled`, `refund.completed`, `attempt.failed`. Retries with exponential backoff for 3 days. Receivers must be idempotent on event id. Tenants can always poll `GET /v1/payments/{id}`.
 
-Projects can add `webhook_endpoint` rows (url, sealed secret, event filter, enabled). `emit` writes one `gateway_event` row per event (also served by `GET /v1/events`), one legacy delivery when `webhook_url` is set, and one `webhook_delivery` per enabled matching endpoint, all in the settlement transaction. Test events are sent synchronously and leave no delivery row.
+Projects can add `webhook_endpoint` rows (url, sealed secret, event filter, enabled). `emit` writes one `gateway_event` row per event (also served by `GET /v1/events`), and one `webhook_delivery` per enabled matching endpoint (the legacy `webhook_url` is the endpoint with `is_default`, kept in sync by the settings API for one release), all in the settlement transaction. Test events are sent synchronously and leave no delivery row.
 
 ## API keys and contract
 

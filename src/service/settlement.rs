@@ -26,12 +26,6 @@ impl Service {
         });
         let body = body.to_string();
         db::insert_event(&mut **tx, tenant.id, &id, &event_id, event_type, &body, now).await?;
-        if tenant.webhook_url.is_some() {
-            db::insert_delivery(
-                &mut **tx, tenant.id, &id, &event_id, event_type, &body, None, now,
-            )
-            .await?;
-        }
         for endpoint in db::list_endpoints(&mut **tx, tenant.id).await? {
             if endpoint.enabled && endpoint_wants(&endpoint, event_type) {
                 db::insert_delivery(

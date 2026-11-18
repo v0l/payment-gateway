@@ -9,10 +9,12 @@ pub struct EndpointRow {
     pub description: Option<String>,
     pub events: Option<String>,
     pub enabled: bool,
+    pub is_default: bool,
     pub created: DateTime<Utc>,
 }
 
-const ENDPOINT_COLS: &str = "id, tenant_id, url, secret, description, events, enabled, created";
+const ENDPOINT_COLS: &str =
+    "id, tenant_id, url, secret, description, events, enabled, is_default, created";
 
 pub async fn insert_endpoint(
     pool: &MySqlPool,
@@ -33,6 +35,58 @@ pub async fn insert_endpoint(
     .execute(pool)
     .await?;
     Ok(r.last_insert_id())
+}
+
+pub async fn set_default_endpoint_url(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    url: Option<&str>,
+) -> Result<()> {
+    let existing: Option<u64> = sqlx::query_scalar(
+        "select id from webhook_endpoint where tenant_id = ? and is_default = 1 limit 1",
+    )
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await?;
+    match (existing, url) {
+        (Some(id), Some(url)) => {
+            sqlx::query("update webhook_endpoint set url = ? where id = ?")
+                .bind(url)
+                .bind(id)
+                .execute(pool)
+                .await?;
+        }
+        (Some(id), None) => {
+            sqlx::query("delete from webhook_endpoint where id = ?")
+                .bind(id)
+                .execute(pool)
+                .await?;
+        }
+        (None, Some(url)) => {
+            sqlx::query(
+                "insert into webhook_endpoint (tenant_id, url, secret, is_default) select id, ?, webhook_secret, 1 from tenant where id = ?",
+            )
+            .bind(url)
+            .bind(tenant_id)
+            .execute(pool)
+            .await?;
+        }
+        (None, None) => {}
+    }
+    Ok(())
+}
+
+pub async fn set_default_endpoint_secret(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    sealed: &[u8],
+) -> Result<()> {
+    sqlx::query("update webhook_endpoint set secret = ? where tenant_id = ? and is_default = 1")
+        .bind(sealed)
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 pub async fn list_endpoints<'e, E: Executor<'e, Database = MySql>>(

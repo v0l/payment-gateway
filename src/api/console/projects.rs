@@ -168,7 +168,9 @@ pub(super) async fn rotate_webhook_secret(
 ) -> ApiResult<Value> {
     sess.project(&s, id, Role::Owner).await?;
     let secret = new_webhook_secret();
-    accounts::set_webhook_secret(s.pool(), id, &s.service.sealer.seal(secret.as_bytes())?).await?;
+    let sealed = s.service.sealer.seal(secret.as_bytes())?;
+    accounts::set_webhook_secret(s.pool(), id, &sealed).await?;
+    db::set_default_endpoint_secret(s.pool(), id, &sealed).await?;
     sess.event(Action::WebhookSecretRotated)
         .tenant(id)
         .target("project", id)

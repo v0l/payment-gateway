@@ -26,10 +26,16 @@ CREATE TABLE webhook_endpoint (
     description VARCHAR(128) NULL,
     events VARCHAR(512) NULL,
     enabled BIT(1) NOT NULL DEFAULT 1,
+    is_default BIT(1) NOT NULL DEFAULT 0,
     created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_webhook_endpoint_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
     KEY ix_webhook_endpoint_tenant (tenant_id)
 );
+
+INSERT INTO webhook_endpoint (tenant_id, url, secret, enabled, is_default)
+SELECT id, webhook_url, webhook_secret, 1, 1 FROM tenant WHERE webhook_url IS NOT NULL;
+
+ALTER TABLE tenant DROP COLUMN webhook_url;
 
 CREATE TABLE gateway_event (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -51,5 +57,10 @@ ALTER TABLE webhook_delivery
     ADD COLUMN endpoint_id BIGINT UNSIGNED NULL,
     ADD UNIQUE KEY ux_webhook_delivery_event_endpoint (event_id, endpoint_id),
     ADD KEY ix_webhook_delivery_endpoint (endpoint_id);
+
+UPDATE webhook_delivery d
+JOIN webhook_endpoint e ON e.tenant_id = d.tenant_id AND e.is_default = 1
+SET d.endpoint_id = e.id
+WHERE d.endpoint_id IS NULL;
 
 ALTER TABLE payment ADD KEY ix_payment_tenant_customer (tenant_id, customer_ref);

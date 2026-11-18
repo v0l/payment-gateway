@@ -887,9 +887,7 @@ async fn untrusted_webhook_delivery_refuses_internal_targets() {
     let h = harness().await;
     let c = signed_in(&h, "me@example.com", false).await;
     let (pid, key, _) = project(&c, "P").await;
-    sqlx::query("update tenant set webhook_url = 'http://127.0.0.1:9/hook' where id = ?")
-        .bind(pid)
-        .execute(&h.pool)
+    payment_gateway::db::set_default_endpoint_url(&h.pool, pid, Some("http://127.0.0.1:9/hook"))
         .await
         .unwrap();
     let st = c.req("POST", &format!("/projects/{pid}/providers"), json!({"method": "stripe", "provider_type": "stripe", "name": "s", "config": {"secret_key": "k"}})).await;
@@ -1129,8 +1127,10 @@ async fn webhook_log_and_replay_are_scoped_to_the_project() {
     let (pa, key_a, _) = project(&a, "A").await;
     let (pb, _, _) = project(&b, "B").await;
     let hook = Receiver::start().await;
-    sqlx::query("update tenant set webhook_url = ?, trusted = 1 where id = ?")
-        .bind(&hook.url)
+    payment_gateway::db::set_default_endpoint_url(&h.pool, pa, Some(&hook.url))
+        .await
+        .unwrap();
+    sqlx::query("update tenant set trusted = 1 where id = ?")
         .bind(pa)
         .execute(&h.pool)
         .await

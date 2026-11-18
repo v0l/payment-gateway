@@ -16,8 +16,7 @@ impl Service {
             pending_payments,
             volume_per_day,
             providers,
-            webhook_endpoints: tenant.webhook_url.is_some() as u64
-                + db::count_endpoints(&self.pool, tenant.id).await?,
+            webhook_endpoints: db::count_endpoints(&self.pool, tenant.id).await?,
         })
     }
 

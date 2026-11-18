@@ -8,6 +8,7 @@ pub(super) struct EndpointView {
     description: Option<String>,
     events: Vec<String>,
     enabled: bool,
+    is_default: bool,
     created: DateTime<Utc>,
     delivered: i64,
     failed: i64,
@@ -22,6 +23,7 @@ fn view(e: EndpointRow, stats: &[db::EndpointStats]) -> EndpointView {
         description: e.description,
         events: split_events(e.events.as_deref()),
         enabled: e.enabled,
+        is_default: e.is_default,
         created: e.created,
         delivered: st.map_or(0, |s| s.delivered),
         failed: st.map_or(0, |s| s.failed),
@@ -198,8 +200,12 @@ pub(super) async fn rotate_endpoint_secret(
     sess.project(&s, id, Role::Owner).await?;
     let secret = new_webhook_secret();
     let sealed = s.service.sealer.seal(secret.as_bytes())?;
-    if !db::set_endpoint_secret(s.pool(), id, endpoint_id, &sealed).await? {
-        return Err(ApiError::not_found());
+    let endpoint = db::get_endpoint(s.pool(), id, endpoint_id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    db::set_endpoint_secret(s.pool(), id, endpoint_id, &sealed).await?;
+    if endpoint.is_default {
+        crate::accounts::set_webhook_secret(s.pool(), id, &sealed).await?;
     }
     sess.event(Action::WebhookEndpointSecretRotated)
         .tenant(id)
