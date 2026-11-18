@@ -37,9 +37,11 @@ pub async fn customer_saved_methods(
     tenant_id: u64,
     customer_ref: &str,
 ) -> Result<Vec<SavedMethodRow>> {
-    Ok(list_saved_methods(pool, tenant_id, Some(customer_ref), None, 200)
-        .await?
-        .into_iter()
-        .take(200)
-        .collect())
+    Ok(
+        list_saved_methods(pool, tenant_id, Some(customer_ref), None, 200)
+            .await?
+            .into_iter()
+            .take(200)
+            .collect(),
+    )
 }

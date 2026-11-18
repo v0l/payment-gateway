@@ -13,7 +13,9 @@ pub(super) async fn list_notes(
     let (t, _) = sess.project(&s, id, Role::Viewer).await?;
     let pid = parse_payment_id(&payment).ok_or_else(ApiError::not_found)?;
     s.service.payment_for_tenant(&t, &pid).await?;
-    Ok(Json(json!({"notes": db::payment_notes(s.pool(), id, &pid).await?})))
+    Ok(Json(
+        json!({"notes": db::payment_notes(s.pool(), id, &pid).await?}),
+    ))
 }
 
 pub(super) async fn add_note(
@@ -62,7 +64,9 @@ pub(super) async fn mark_paid(
     }
     let reason = input.reason.trim();
     if reason.chars().count() < 3 || reason.chars().count() > 500 {
-        return Err(ApiError::bad_request("reason must be 3 to 500 characters").with_field("reason"));
+        return Err(
+            ApiError::bad_request("reason must be 3 to 500 characters").with_field("reason")
+        );
     }
     let row = s.service.mark_paid_manually(&t, &pid, reason).await?;
     sess.event(Action::PaymentMarkedPaid)
@@ -110,8 +114,10 @@ pub(super) async fn bulk_cancel(
 ) -> ApiResult<Value> {
     let (t, _) = sess.project(&s, id, Role::Admin).await?;
     if !(1..=24 * 365).contains(&input.older_than_hours) {
-        return Err(ApiError::bad_request("older_than_hours must be between 1 and 8760")
-            .with_field("older_than_hours"));
+        return Err(
+            ApiError::bad_request("older_than_hours must be between 1 and 8760")
+                .with_field("older_than_hours"),
+        );
     }
     let cutoff = Utc::now() - Duration::hours(input.older_than_hours);
     let stale = db::stale_pending_payments(s.pool(), id, cutoff, 200).await?;
@@ -128,7 +134,9 @@ pub(super) async fn bulk_cancel(
         .details(json!({"older_than_hours": input.older_than_hours, "cancelled": cancelled, "skipped": skipped}))
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
-    Ok(Json(json!({"cancelled": cancelled, "skipped": skipped, "more": stale.len() == 200})))
+    Ok(Json(
+        json!({"cancelled": cancelled, "skipped": skipped, "more": stale.len() == 200}),
+    ))
 }
 
 #[derive(Deserialize)]

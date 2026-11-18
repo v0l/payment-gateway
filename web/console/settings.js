@@ -44,6 +44,7 @@ function settings(pid) {
       body.appendChild(el("h3", { text: "Security" }));
       body.appendChild(el("div", { class: "card" }, [el("label", {}, [req, " Require two factor for members of this project"]), reqOut]));
     }
+    body.appendChild(projectConfigPanels(pid, p));
     var keyOut = el("div");
     var rows = [el("button", { text: "Rotate API key", onclick: function () {
       if (!confirm("The old key stops working immediately. Continue?")) return;
@@ -63,6 +64,7 @@ function settings(pid) {
     }
     body.appendChild(el("h3", { text: "Keys" }));
     body.appendChild(el("div", { class: "row" }, rows)); body.appendChild(keyOut);
+    if (p.role === "owner") body.appendChild(dangerZone(pid, p));
   });
 }
 

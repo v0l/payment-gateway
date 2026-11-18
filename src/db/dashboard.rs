@@ -110,7 +110,10 @@ pub struct TenantOverview {
     pub limit_volume_per_day: Option<u64>,
 }
 
-pub async fn tenant_overviews(pool: &MySqlPool, since: DateTime<Utc>) -> Result<Vec<TenantOverview>> {
+pub async fn tenant_overviews(
+    pool: &MySqlPool,
+    since: DateTime<Utc>,
+) -> Result<Vec<TenantOverview>> {
     Ok(sqlx::query_as(&format!(
         "select t.id, t.name, t.enabled, t.trusted, (select count(*) from payment p where p.tenant_id = t.id) as payments, (select cast(coalesce(sum(p.amount), 0) as signed) from payment p where p.tenant_id = t.id and p.created >= ? and p.status in {PAID_STATES}) as volume_30d, (select max(p.created) from payment p where p.tenant_id = t.id) as last_payment, t.limit_payments_per_day, t.limit_pending_payments, t.limit_volume_per_day from tenant t order by t.id"
     ))

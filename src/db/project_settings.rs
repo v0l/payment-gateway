@@ -139,7 +139,11 @@ pub async fn nonzero_balance(pool: &MySqlPool, tenant_id: u64) -> Result<bool> {
     Ok(n > 0)
 }
 
-pub async fn finish_project_delete(pool: &MySqlPool, tenant_id: u64, now: DateTime<Utc>) -> Result<()> {
+pub async fn finish_project_delete(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    now: DateTime<Utc>,
+) -> Result<()> {
     let mut tx = pool.begin().await?;
     sqlx::query("update tenant set enabled = 0 where id = ?")
         .bind(tenant_id)

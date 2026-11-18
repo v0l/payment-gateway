@@ -197,13 +197,15 @@ pub async fn upsert_saved_view(
 }
 
 pub async fn count_saved_views(pool: &MySqlPool, tenant_id: u64, account_id: u64) -> Result<i64> {
-    Ok(sqlx::query_scalar(
-        "select count(*) from saved_view where tenant_id = ? and account_id = ?",
+    Ok(
+        sqlx::query_scalar(
+            "select count(*) from saved_view where tenant_id = ? and account_id = ?",
+        )
+        .bind(tenant_id)
+        .bind(account_id)
+        .fetch_one(pool)
+        .await?,
     )
-    .bind(tenant_id)
-    .bind(account_id)
-    .fetch_one(pool)
-    .await?)
 }
 
 pub async fn delete_saved_view(

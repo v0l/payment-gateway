@@ -29,12 +29,17 @@ pub(super) struct LegalInput {
 }
 
 fn clean(value: Option<String>, field: &str, max: usize) -> Result<Option<String>, ApiError> {
-    let Some(v) = value.map(|v| v.trim().to_string()).filter(|v| !v.is_empty()) else {
+    let Some(v) = value
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+    else {
         return Ok(None);
     };
     if v.chars().count() > max || v.chars().any(|c| c.is_control() && c != '\n') {
-        return Err(ApiError::bad_request(format!("{field} is too long or has control characters"))
-            .with_field(field));
+        return Err(ApiError::bad_request(format!(
+            "{field} is too long or has control characters"
+        ))
+        .with_field(field));
     }
     Ok(Some(v))
 }
@@ -56,13 +61,23 @@ pub(super) async fn set_legal(
     {
         return Err(ApiError::bad_request("email is not valid").with_field("email"));
     }
-    db::set_legal_details(s.pool(), id, name.as_deref(), address.as_deref(), vat.as_deref(), email.as_deref())
-        .await?;
+    db::set_legal_details(
+        s.pool(),
+        id,
+        name.as_deref(),
+        address.as_deref(),
+        vat.as_deref(),
+        email.as_deref(),
+    )
+    .await?;
     sess.event(Action::LegalDetailsChanged)
         .tenant(id)
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
-    Ok(Json(serde_json::to_value(db::project_settings(s.pool(), id).await?).map_err(anyhow::Error::from)?))
+    Ok(Json(
+        serde_json::to_value(db::project_settings(s.pool(), id).await?)
+            .map_err(anyhow::Error::from)?,
+    ))
 }
 
 #[derive(Deserialize)]
@@ -80,14 +95,23 @@ pub(super) async fn set_project_notifications(
     Json(input): Json<NotifyInput>,
 ) -> ApiResult<Value> {
     sess.project(&s, id, Role::Admin).await?;
-    db::set_notification_prefs(s.pool(), id, input.webhook_abandoned, input.provider_failing, input.refund_failed)
-        .await?;
+    db::set_notification_prefs(
+        s.pool(),
+        id,
+        input.webhook_abandoned,
+        input.provider_failing,
+        input.refund_failed,
+    )
+    .await?;
     sess.event(Action::NotificationPrefsChanged)
         .tenant(id)
         .details(json!({"webhook_abandoned": input.webhook_abandoned, "provider_failing": input.provider_failing, "refund_failed": input.refund_failed}))
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
-    Ok(Json(serde_json::to_value(db::project_settings(s.pool(), id).await?).map_err(anyhow::Error::from)?))
+    Ok(Json(
+        serde_json::to_value(db::project_settings(s.pool(), id).await?)
+            .map_err(anyhow::Error::from)?,
+    ))
 }
 
 #[derive(Deserialize)]
@@ -126,7 +150,10 @@ async fn deletion_blockers(s: &AppState, id: u64) -> Result<Vec<&'static str>, A
 fn blocked(blockers: &[&str]) -> ApiError {
     ApiError::new(
         StatusCode::CONFLICT,
-        format!("project cannot be deleted while it has {}", blockers.join(" and ")),
+        format!(
+            "project cannot be deleted while it has {}",
+            blockers.join(" and ")
+        ),
     )
 }
 

@@ -84,12 +84,14 @@ pub async fn payment(h: &Harness, p: &Project, body: Value) -> String {
 }
 
 pub async fn force_paid(h: &Harness, id: &str, minutes_to_settle: i64) {
-    sqlx::query("update payment set status = 'paid', paid_at = created + interval ? minute where id = ?")
-        .bind(minutes_to_settle)
-        .bind(&pid(id)[..])
-        .execute(&h.pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "update payment set status = 'paid', paid_at = created + interval ? minute where id = ?",
+    )
+    .bind(minutes_to_settle)
+    .bind(&pid(id)[..])
+    .execute(&h.pool)
+    .await
+    .unwrap();
 }
 
 pub async fn age(h: &Harness, id: &str, hours: i64) {

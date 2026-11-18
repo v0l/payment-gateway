@@ -1,9 +1,6 @@
 use super::*;
 
-pub(super) async fn tenant_overview(
-    sess: Session,
-    State(s): State<AppState>,
-) -> ApiResult<Value> {
+pub(super) async fn tenant_overview(sess: Session, State(s): State<AppState>) -> ApiResult<Value> {
     sess.operator(&s)?;
     let since = Utc::now() - Duration::days(30);
     Ok(Json(
@@ -60,13 +57,12 @@ pub(super) async fn global_search(
     if term.len() < 4 || term.len() > 200 {
         return Err(ApiError::bad_request("search needs 4 to 200 characters").with_field("q"));
     }
-    Ok(Json(json!({"hits": db::global_search(s.pool(), term, 50).await?})))
+    Ok(Json(
+        json!({"hits": db::global_search(s.pool(), term, 50).await?}),
+    ))
 }
 
-pub(super) async fn platform_health(
-    sess: Session,
-    State(s): State<AppState>,
-) -> ApiResult<Value> {
+pub(super) async fn platform_health(sess: Session, State(s): State<AppState>) -> ApiResult<Value> {
     sess.operator(&s)?;
     let (pending, oldest) = db::pending_delivery_stats(s.pool(), Utc::now())
         .await?

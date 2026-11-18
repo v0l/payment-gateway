@@ -30,9 +30,9 @@ mod operator_tools;
 mod payment_filters;
 mod payment_tools;
 mod payments;
-mod project_settings;
 mod payouts;
 mod platform_billing;
+mod project_settings;
 mod projects;
 mod providers;
 mod recovery;
@@ -57,9 +57,9 @@ use operator_tools::*;
 use payment_filters::*;
 use payment_tools::*;
 use payments::*;
-use project_settings::*;
 use payouts::*;
 use platform_billing::*;
+use project_settings::*;
 pub(crate) use projects::settings_diff;
 use projects::*;
 use providers::*;
@@ -92,6 +92,12 @@ const JS_BALANCE: &str = include_str!("../../../web/console/balance.js");
 const JS_SHARED: &str = include_str!("../../../web/console/shared.js");
 const JS_TREASURY: &str = include_str!("../../../web/console/treasury.js");
 const JS_PAYOUTS: &str = include_str!("../../../web/console/payouts.js");
+const JS_PAYLIST: &str = include_str!("../../../web/console/paylist.js");
+const JS_PAYTOOLS: &str = include_str!("../../../web/console/paytools.js");
+const JS_DASHBOARD: &str = include_str!("../../../web/console/dashboard.js");
+const JS_CUSTOMERS: &str = include_str!("../../../web/console/customers.js");
+const JS_OPERATOR: &str = include_str!("../../../web/console/operator.js");
+const JS_DANGER: &str = include_str!("../../../web/console/danger.js");
 const JS_APP: &str = include_str!("../../../web/console/app.js");
 const CSS: &str = include_str!("../../../web/console.css");
 const TOKENS_CSS: &str = include_str!("../../../web/tokens.css");
@@ -185,9 +191,15 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{id}/dashboard", get(dashboard))
         .route("/projects/{id}/settings", get(get_settings))
         .route("/projects/{id}/settings/legal", post(set_legal))
-        .route("/projects/{id}/settings/notifications", post(set_project_notifications))
+        .route(
+            "/projects/{id}/settings/notifications",
+            post(set_project_notifications),
+        )
         .route("/projects/{id}/settings/enabled", post(set_enabled))
-        .route("/projects/{id}/delete-request", post(request_delete).delete(cancel_delete))
+        .route(
+            "/projects/{id}/delete-request",
+            post(request_delete).delete(cancel_delete),
+        )
         .route("/projects/{id}/delete-confirm", post(confirm_delete))
         .route("/operator/tenants", get(tenant_overview))
         .route("/operator/tenants/{id}/support", get(support_view))
@@ -202,7 +214,10 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{id}/payments-export", get(export_payments))
         .route("/projects/{id}/payments-bulk-cancel", post(bulk_cancel))
         .route("/projects/{id}/manual-paid", post(set_manual_paid))
-        .route("/projects/{id}/saved-views", get(list_views).post(save_view))
+        .route(
+            "/projects/{id}/saved-views",
+            get(list_views).post(save_view),
+        )
         .route("/projects/{id}/saved-views/{view}", delete(delete_view))
         .route(
             "/projects/{id}/payments/{payment}/notes",
@@ -219,7 +234,10 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{id}/deliveries", get(deliveries))
         .route("/projects/{id}/deliveries/{delivery}/replay", post(replay))
         .route("/projects/{id}/deliveries/{delivery}", get(delivery_detail))
-        .route("/projects/{id}/deliveries-resend-failed", post(resend_failed))
+        .route(
+            "/projects/{id}/deliveries-resend-failed",
+            post(resend_failed),
+        )
         .route("/projects/{id}/webhook-health", get(webhook_health))
         .route("/projects/{id}/webhook-verify", post(verify_signature))
         .route(
@@ -382,6 +400,12 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "activity.js" => asset(JS_ACTIVITY, "text/javascript"),
         "payouts.js" => asset(JS_PAYOUTS, "text/javascript"),
         "treasury.js" => asset(JS_TREASURY, "text/javascript"),
+        "paylist.js" => asset(JS_PAYLIST, "text/javascript"),
+        "paytools.js" => asset(JS_PAYTOOLS, "text/javascript"),
+        "dashboard.js" => asset(JS_DASHBOARD, "text/javascript"),
+        "customers.js" => asset(JS_CUSTOMERS, "text/javascript"),
+        "operator.js" => asset(JS_OPERATOR, "text/javascript"),
+        "danger.js" => asset(JS_DANGER, "text/javascript"),
         "app.js" => asset(JS_APP, "text/javascript"),
         "app.css" => asset(CSS, "text/css"),
         "tokens.css" => asset(TOKENS_CSS, "text/css"),

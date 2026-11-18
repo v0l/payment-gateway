@@ -70,7 +70,9 @@ pub(super) fn parse_filter(q: &HashMap<String, String>) -> Result<SearchFilter, 
     if let (Some(lo), Some(hi)) = (f.min_amount, f.max_amount)
         && lo > hi
     {
-        return Err(ApiError::bad_request("min_amount is above max_amount").with_field("min_amount"));
+        return Err(
+            ApiError::bad_request("min_amount is above max_amount").with_field("min_amount")
+        );
     }
     if let (Some(a), Some(b)) = (f.created_from, f.created_to)
         && a >= b

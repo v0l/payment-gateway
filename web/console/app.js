@@ -16,6 +16,8 @@ function route() {
   if (parts[0] === "account") return account();
   if (parts[0] === "admin" && me.is_operator) return admin();
   if (parts[0] === "shared" && me.is_operator) return sharedAdmin();
+  if (parts[0] === "tenants" && me.is_operator) return operatorTenants();
+  if (parts[0] === "support" && parts[1] && me.is_operator) return supportView(parts[1]);
   if (parts[0] === "payout-queue" && me.is_operator) return payoutQueue();
   if (parts[0] === "platform-plans" && me.is_operator) return platformPlans();
   if (parts[0] === "treasury" && me.is_operator) return treasury();
@@ -24,6 +26,7 @@ function route() {
     var pid = parts[1], tab = parts[2] || "overview";
     if (tab === "overview") return overview(pid);
     if (tab === "payments") { if (parts[3] === "new") return newPayment(pid); if (parts[3]) return paymentDetail(pid, parts[3]); return payments(pid); }
+    if (tab === "customers") { if (parts[3]) return customerDetail(pid, decodeURIComponent(parts[3])); return customers(pid); }
     if (tab === "providers") { if (parts[3]) return providerForm(pid, parts[3]); return providers(pid); }
     if (tab === "keys") return apiKeys(pid);
     if (tab === "webhooks") return webhooks(pid);

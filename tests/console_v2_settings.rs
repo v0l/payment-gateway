@@ -15,16 +15,36 @@ async fn legal_details_and_notifications_roundtrip_with_validation() {
     assert_eq!(r["notify_refund_failed"], true);
     assert_eq!(r["allow_manual_paid"], false);
     let (s, r) = c
-        .req("POST", &format!("{base}/legal"), json!({"name": "Shop BV", "vat_id": "NL123", "email": "billing@shop.test"}))
+        .req(
+            "POST",
+            &format!("{base}/legal"),
+            json!({"name": "Shop BV", "vat_id": "NL123", "email": "billing@shop.test"}),
+        )
         .await;
     assert_eq!(s, StatusCode::OK, "{r}");
     assert_eq!(r["legal_name"], "Shop BV");
-    let (s, _) = c.req("POST", &format!("{base}/legal"), json!({"email": "not an email"})).await;
+    let (s, _) = c
+        .req(
+            "POST",
+            &format!("{base}/legal"),
+            json!({"email": "not an email"}),
+        )
+        .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
-    let (s, _) = c.req("POST", &format!("{base}/legal"), json!({"name": "x".repeat(200)})).await;
+    let (s, _) = c
+        .req(
+            "POST",
+            &format!("{base}/legal"),
+            json!({"name": "x".repeat(200)}),
+        )
+        .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
     let (s, r) = c
-        .req("POST", &format!("{base}/notifications"), json!({"webhook_abandoned": false, "provider_failing": true, "refund_failed": false}))
+        .req(
+            "POST",
+            &format!("{base}/notifications"),
+            json!({"webhook_abandoned": false, "provider_failing": true, "refund_failed": false}),
+        )
         .await;
     assert_eq!(s, StatusCode::OK, "{r}");
     assert_eq!(r["notify_webhook_abandoned"], false);
@@ -41,7 +61,11 @@ async fn settings_are_tenant_scoped() {
     for (m, path, body) in [
         ("GET", "settings", Value::Null),
         ("POST", "settings/legal", json!({"name": "x"})),
-        ("POST", "settings/notifications", json!({"webhook_abandoned": true, "provider_failing": true, "refund_failed": true})),
+        (
+            "POST",
+            "settings/notifications",
+            json!({"webhook_abandoned": true, "provider_failing": true, "refund_failed": true}),
+        ),
         ("POST", "settings/enabled", json!({"enabled": false})),
         ("POST", "delete-request", Value::Null),
     ] {
@@ -94,15 +118,24 @@ async fn project_deletion_needs_token_cooling_off_and_no_pending_or_balance() {
     let (s, r) = c.req("POST", &req, Value::Null).await;
     assert_eq!(s, StatusCode::CONFLICT, "{r}");
     assert!(r["error"].as_str().unwrap().contains("pending"));
-    c.req("POST", &format!("/projects/{}/payments/{id}/cancel", p.id), Value::Null).await;
+    c.req(
+        "POST",
+        &format!("/projects/{}/payments/{id}/cancel", p.id),
+        Value::Null,
+    )
+    .await;
 
     let (s, _) = c.req("POST", &confirm, json!({"token": "del_x"})).await;
     assert_eq!(s, StatusCode::CONFLICT);
     let (s, r) = c.req("POST", &req, Value::Null).await;
     assert_eq!(s, StatusCode::OK, "{r}");
     let token = r["token"].as_str().unwrap().to_string();
-    let stored: Option<String> = sqlx::query_scalar("select delete_token_hash from project_config where tenant_id = ?")
-        .bind(p.id).fetch_one(&h.pool).await.unwrap();
+    let stored: Option<String> =
+        sqlx::query_scalar("select delete_token_hash from project_config where tenant_id = ?")
+            .bind(p.id)
+            .fetch_one(&h.pool)
+            .await
+            .unwrap();
     assert_ne!(stored.unwrap(), token);
 
     let (s, _) = c.req("POST", &confirm, json!({"token": "del_wrong"})).await;
@@ -118,12 +151,19 @@ async fn project_deletion_needs_token_cooling_off_and_no_pending_or_balance() {
     let (s, r) = c.req("POST", &confirm, json!({"token": token})).await;
     assert_eq!(s, StatusCode::CONFLICT, "{r}");
     assert!(r["error"].as_str().unwrap().contains("balance"));
-    sqlx::query("update ledger_account set balance = 0 where tenant_id = ?").bind(p.id).execute(&h.pool).await.unwrap();
+    sqlx::query("update ledger_account set balance = 0 where tenant_id = ?")
+        .bind(p.id)
+        .execute(&h.pool)
+        .await
+        .unwrap();
 
     let (s, r) = c.req("POST", &confirm, json!({"token": token})).await;
     assert_eq!(s, StatusCode::OK, "{r}");
     let (s, _) = call(&h.app, "POST", "/v1/payments", Some(&p.key), eur("x", 100)).await;
-    assert!(s == StatusCode::UNAUTHORIZED || s == StatusCode::FORBIDDEN, "{s}");
+    assert!(
+        s == StatusCode::UNAUTHORIZED || s == StatusCode::FORBIDDEN,
+        "{s}"
+    );
     let t = db::get_tenant(&h.pool, p.id).await.unwrap().unwrap();
     assert!(!t.enabled);
     let n: i64 = sqlx::query_scalar("select count(*) from audit_event where action in ('project.delete_requested','project.deleted') and tenant_id = ?")

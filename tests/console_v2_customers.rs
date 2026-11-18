@@ -51,13 +51,27 @@ async fn customer_page_lists_payments_and_saved_methods() {
     payment(&h, &p, other).await;
     saved(&h, &p, "cus_1", "pm_1").await;
 
-    let (s, list) = c.req("GET", &format!("/projects/{}/customers", p.id), Value::Null).await;
+    let (s, list) = c
+        .req("GET", &format!("/projects/{}/customers", p.id), Value::Null)
+        .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(list["customers"].as_array().unwrap().len(), 2);
-    let (_, list) = c.req("GET", &format!("/projects/{}/customers?q=cus_2", p.id), Value::Null).await;
+    let (_, list) = c
+        .req(
+            "GET",
+            &format!("/projects/{}/customers?q=cus_2", p.id),
+            Value::Null,
+        )
+        .await;
     assert_eq!(list["customers"].as_array().unwrap().len(), 1);
 
-    let (s, r) = c.req("GET", &format!("/projects/{}/customers/cus_1", p.id), Value::Null).await;
+    let (s, r) = c
+        .req(
+            "GET",
+            &format!("/projects/{}/customers/cus_1", p.id),
+            Value::Null,
+        )
+        .await;
     assert_eq!(s, StatusCode::OK, "{r}");
     assert_eq!(r["email"], "x@example.com");
     assert_eq!(r["payments"].as_array().unwrap().len(), 1);
@@ -65,7 +79,13 @@ async fn customer_page_lists_payments_and_saved_methods() {
     assert_eq!(r["saved_methods"][0]["last4"], "4242");
     assert_eq!(r["saved_methods"][0]["brand"], "visa");
     assert!(r["subscriptions"].as_array().unwrap().is_empty());
-    let (s, _) = c.req("GET", &format!("/projects/{}/customers/nobody", p.id), Value::Null).await;
+    let (s, _) = c
+        .req(
+            "GET",
+            &format!("/projects/{}/customers/nobody", p.id),
+            Value::Null,
+        )
+        .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 }
 
@@ -77,7 +97,9 @@ async fn deleting_a_saved_method_is_audited_and_tenant_scoped() {
     let pa = project(&a, "a").await;
     let pb = project(&b, "b").await;
     let mid = saved(&h, &pa, "cus_1", "pm_1").await;
-    let path = |p: &Project, cust: &str| format!("/projects/{}/customers/{cust}/saved-methods/{mid}", p.id);
+    let path = |p: &Project, cust: &str| {
+        format!("/projects/{}/customers/{cust}/saved-methods/{mid}", p.id)
+    };
     let (s, _) = b.req("DELETE", &path(&pb, "cus_1"), Value::Null).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
     let (s, _) = b.req("DELETE", &path(&pa, "cus_1"), Value::Null).await;
@@ -86,12 +108,20 @@ async fn deleting_a_saved_method_is_audited_and_tenant_scoped() {
     assert_eq!(s, StatusCode::NOT_FOUND);
     let (s, _) = a.req("DELETE", &path(&pa, "cus_1"), Value::Null).await;
     assert_eq!(s, StatusCode::OK);
-    let (s, _) = a.req("GET", &format!("/projects/{}/customers/cus_1", pa.id), Value::Null).await;
+    let (s, _) = a
+        .req(
+            "GET",
+            &format!("/projects/{}/customers/cus_1", pa.id),
+            Value::Null,
+        )
+        .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
-    let n: i64 = sqlx::query_scalar("select count(*) from audit_event where action = 'saved_method.deleted'")
-        .fetch_one(&h.pool)
-        .await
-        .unwrap();
+    let n: i64 = sqlx::query_scalar(
+        "select count(*) from audit_event where action = 'saved_method.deleted'",
+    )
+    .fetch_one(&h.pool)
+    .await
+    .unwrap();
     assert_eq!(n, 1);
 }
 
@@ -105,10 +135,28 @@ async fn customers_of_another_project_are_invisible() {
     let mut body = eur("c1", 500);
     body["customer_ref"] = json!("cus_1");
     payment(&h, &pa, body).await;
-    let (_, list) = b.req("GET", &format!("/projects/{}/customers", pb.id), Value::Null).await;
+    let (_, list) = b
+        .req(
+            "GET",
+            &format!("/projects/{}/customers", pb.id),
+            Value::Null,
+        )
+        .await;
     assert!(list["customers"].as_array().unwrap().is_empty());
-    let (s, _) = b.req("GET", &format!("/projects/{}/customers", pa.id), Value::Null).await;
+    let (s, _) = b
+        .req(
+            "GET",
+            &format!("/projects/{}/customers", pa.id),
+            Value::Null,
+        )
+        .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
-    let (s, _) = b.req("GET", &format!("/projects/{}/customers/cus_1", pb.id), Value::Null).await;
+    let (s, _) = b
+        .req(
+            "GET",
+            &format!("/projects/{}/customers/cus_1", pb.id),
+            Value::Null,
+        )
+        .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 }

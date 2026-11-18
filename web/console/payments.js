@@ -1,37 +1,6 @@
 "use strict";
 var STATUSES = ["", "pending", "paid", "expired", "cancelled", "refunded", "partially_refunded"];
 
-function payments(pid) {
-  projectShell(pid, "payments", function (p, body) {
-    var q = el("input", { placeholder: "Search reference or id" });
-    var st = el("select", {}, STATUSES.map(function (s) { return el("option", { value: s, text: s || "any status" }); }));
-    var list = el("div"); var more = el("div");
-    var rows = []; var next = null;
-    function load(reset) {
-      if (reset) { rows = []; next = null; }
-      var qs = "?status=" + encodeURIComponent(st.value) + "&q=" + encodeURIComponent(q.value) + (next ? "&before=" + encodeURIComponent(next) : "");
-      api("GET", "/projects/" + pid + "/payments" + qs).then(function (r) {
-        rows = rows.concat(r.payments); next = r.next; draw();
-      }).catch(function (e) { msg(list, e.message, true); });
-    }
-    function draw() {
-      list.replaceChildren(rows.length ? el("table", {}, [el("tr", {}, ["Id", "Reference", "Amount", "Status", "Method", "Created"].map(function (h) { return el("th", { text: h }); }))].concat(rows.map(function (r) {
-        var shown = r.attempts.filter(function (a) { return a.status === "paid"; })[0] || r.attempts[r.attempts.length - 1];
-        var tr = el("tr", { class: "click", onclick: function () { go("#/p/" + pid + "/payments/" + r.id); } }, [
-          el("td", { class: "mono", text: r.id.slice(0, 8) }), el("td", { text: r.reference }), el("td", { text: fmtAmount(r.amount, r.currency) }),
-          el("td", {}, [pill(r.status)]), el("td", { text: shown ? shown.method : "-" }), el("td", { class: "muted", text: ago(r.created) })]);
-        return tr;
-      }))) : el("p", { class: "muted", text: "No payments match." }));
-      more.replaceChildren(next ? el("button", { text: "Load more", onclick: function () { load(false); } }) : el("span", { class: "muted", text: rows.length ? "No more payments" : "" }));
-    }
-    q.addEventListener("keydown", function (e) { if (e.key === "Enter") load(true); });
-    st.addEventListener("change", function () { load(true); });
-    body.appendChild(el("div", { class: "row" }, [q, st, el("button", { text: "Search", onclick: function () { load(true); } }), el("button", { class: "primary", text: "New payment", onclick: function () { go("#/p/" + pid + "/payments/new"); } })]));
-    body.appendChild(list); body.appendChild(more);
-    load(true);
-  });
-}
-
 function newPayment(pid) {
   projectShell(pid, "payments", function (p, body) {
     var ref = el("input", { value: "order-" + Math.floor(Date.now() / 1000) });
@@ -47,6 +16,8 @@ function newPayment(pid) {
   });
 }
 
+function deliveryOpen() { return !!document.querySelector(".delivery-open"); }
+
 function paymentDetail(pid, id) {
   projectShell(pid, "payments", function (p, body) {
     var box = el("div"); body.appendChild(box);
@@ -54,20 +25,18 @@ function paymentDetail(pid, id) {
       api("GET", "/projects/" + pid + "/payments/" + id).then(function (d) {
         var pay = d.payment;
         var actions = el("div", { class: "row" });
-        var out = el("div");
+        var out = el("div"); var deliveryHolder = el("div");
         if (pay.status === "pending") {
           actions.appendChild(el("button", { class: "danger", text: "Cancel payment", onclick: function () {
             api("POST", "/projects/" + pid + "/payments/" + id + "/cancel", {}).then(load).catch(function (e) { msg(out, e.message, true); });
           } }));
         }
         if (pay.status === "paid" || pay.status === "partially_refunded") {
-          var amt = el("input", { type: "number", placeholder: "Amount (blank = all remaining)" });
-          var dest = el("input", { placeholder: "Lightning invoice or address (for BTC payments)" });
+          var amt = el("input", { type: "number", placeholder: "Amount (blank = all remaining)", "aria-label": "Refund amount" });
+          var dest = el("input", { placeholder: "Lightning invoice or address (for BTC payments)", "aria-label": "Refund destination" });
           actions.appendChild(amt); actions.appendChild(dest);
           actions.appendChild(el("button", { class: "danger", text: "Refund", onclick: function () {
-            if (!confirm("Refund this payment?")) return;
-            api("POST", "/projects/" + pid + "/payments/" + id + "/refund", { amount: amt.value ? Number(amt.value) : null, destination: dest.value || null })
-              .then(function (r) { msg(out, "Refund " + r.status + (r.error ? ": " + r.error : ""), r.status === "failed"); load(); }).catch(function (e) { msg(out, e.message, true); });
+            refundFlow(pid, id, pay, amt.value, dest.value.trim(), out, load);
           } }));
         }
         box.replaceChildren(
@@ -89,6 +58,7 @@ function paymentDetail(pid, id) {
             return el("tr", {}, [el("td", { text: l.name + (l.sku ? " (" + l.sku + ")" : "") }), el("td", { text: String(l.quantity) }), el("td", { text: fmtAmount(l.unit_amount, pay.currency) }),
               el("td", { text: l.discount ? fmtAmount(l.discount, pay.currency) : "" }), el("td", { text: l.tax ? fmtAmount(l.tax, pay.currency) : "" }), el("td", { text: fmtAmount(l.total, pay.currency) })]);
           }))) : null,
+          paymentTools(pid, id, pay, p.role, out, load),
           el("h3", { text: "Attempts" }),
           pay.attempts.length ? el("table", {}, [el("tr", {}, ["Method", "Status", "Charge", "Fee", "Details"].map(function (h) { return el("th", { text: h }); }))].concat(pay.attempts.map(function (a) {
             var det = a.details || {};
@@ -103,13 +73,14 @@ function paymentDetail(pid, id) {
           el("h3", { text: "Webhooks sent" }),
           d.deliveries.length ? el("table", {}, d.deliveries.map(function (x) {
             return el("tr", {}, [el("td", { text: x.event_type }), el("td", {}, [pill(x.delivered_at ? "delivered" : x.abandoned_at ? "failed" : "waiting", x.delivered_at ? "ok" : x.abandoned_at ? "bad" : "pending")]), el("td", { text: x.attempts + " tries" }), el("td", { class: "muted", text: x.last_error || "" }),
-              el("td", {}, [el("a", { text: "replay", onclick: function () { api("POST", "/projects/" + pid + "/deliveries/" + x.id + "/replay", {}).then(load); } })])]);
-          })) : el("p", { class: "muted", text: "None." })
+              el("td", {}, [el("a", { text: "replay", onclick: function () { api("POST", "/projects/" + pid + "/deliveries/" + x.id + "/replay", {}).then(load); } }), " ", el("a", { text: "detail", onclick: function () { deliveryDetail(pid, x.id, deliveryHolder); } })])]);
+          })) : el("p", { class: "muted", text: "None." }),
+          deliveryHolder
         );
       }).catch(function (e) { box.replaceChildren(el("div", { class: "err", text: e.message })); });
     }
     load();
-    stopTimer(); timer = setInterval(load, 5000);
+    stopTimer(); timer = setInterval(function () { var a = document.activeElement; if (a && box.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return; if (deliveryOpen()) return; load(); }, 5000);
   });
 }
 

@@ -2,20 +2,31 @@
 function webhooks(pid) {
   projectShell(pid, "webhooks", function (p, body) {
     var only = el("input", { type: "checkbox" });
-    var list = el("div");
+    var list = el("div"); var detailBox = el("div"); var toolOut = el("div");
     function load() {
       api("GET", "/projects/" + pid + "/deliveries" + (only.checked ? "?undelivered=1" : "")).then(function (rows) {
         list.replaceChildren(rows.length ? el("table", {}, [el("tr", {}, ["Time", "Event", "State", "Tries", "Error", ""].map(function (h) { return el("th", { text: h }); }))].concat(rows.map(function (d) {
           return el("tr", {}, [el("td", { class: "muted", text: ago(d.created) }), el("td", { text: d.event_type }),
             el("td", {}, [pill(d.delivered_at ? "delivered" : d.abandoned_at ? "failed" : "waiting", d.delivered_at ? "ok" : d.abandoned_at ? "bad" : "pending")]),
             el("td", { text: d.attempts }), el("td", { class: "muted", text: d.last_error || "" }),
-            el("td", {}, [el("details", {}, [el("summary", { text: "body" }), el("pre", { text: JSON.stringify(JSON.parse(d.body), null, 2) })]), el("a", { text: "replay", onclick: function () { api("POST", "/projects/" + pid + "/deliveries/" + d.id + "/replay", {}).then(load); } })])]);
+            el("td", {}, [el("details", {}, [el("summary", { text: "body" }), el("pre", { text: JSON.stringify(JSON.parse(d.body), null, 2) })]), el("a", { text: "replay", onclick: function () { api("POST", "/projects/" + pid + "/deliveries/" + d.id + "/replay", {}).then(load); } }), " ", el("a", { text: "detail", onclick: function () { deliveryDetail(pid, d.id, detailBox); } })])]);
         }))) : el("p", { class: "muted", text: "No webhooks yet." }));
       });
     }
     only.addEventListener("change", load);
     body.appendChild(el("div", { class: "row" }, [el("label", {}, [only, " only undelivered"])]));
-    body.appendChild(list); load();
+    body.appendChild(el("div", { class: "row" }, [el("button", { text: "Resend all failed", disabled: p.role === "viewer", onclick: function () {
+      api("POST", "/projects/" + pid + "/deliveries-resend-failed", {}).then(function (r) { msg(toolOut, r.queued + " queued for delivery."); load(); }).catch(function (e) { msg(toolOut, e.message, true); });
+    } })]));
+    body.appendChild(toolOut); body.appendChild(list); body.appendChild(detailBox); load();
+    body.appendChild(el("h3", { text: "Endpoint health" }));
+    var healthBox = el("div"); body.appendChild(healthBox);
+    api("GET", "/projects/" + pid + "/webhook-health").then(function (h) {
+      healthBox.replaceChildren(h.endpoints.length ? el("table", {}, [el("tr", {}, ["URL", "State", "Sent 7d", "Failed 7d", "Last success", "Last failure"].map(function (x) { return el("th", { text: x }); }))].concat(h.endpoints.map(function (e) {
+        return el("tr", {}, [el("td", { class: "mono", text: e.url }), el("td", {}, [pill(e.state, e.state === "healthy" ? "ok" : e.state === "failing" ? "bad" : "pending")]), el("td", { text: e.deliveries_7d }), el("td", { text: e.failed_7d }), el("td", { class: "muted", text: e.last_success ? ago(e.last_success) : "" }), el("td", { class: "muted", text: e.last_failure ? ago(e.last_failure) : "" })]);
+      }))) : el("p", { class: "muted", text: "No endpoints." }));
+    }).catch(function (e) { msg(healthBox, e.message, true); });
+    body.appendChild(signatureHelper(pid));
     var epOut = el("div"), epList = el("div");
     var epUrl = el("input", { placeholder: "https://example.com/hook" });
     var epEvents = el("input", { placeholder: "events, comma separated (empty for all)" });
@@ -46,3 +57,16 @@ function webhooks(pid) {
   });
 }
 
+
+function signatureHelper(pid) {
+  var bodyIn = el("textarea", { rows: "4", placeholder: "Raw request body exactly as received", "aria-label": "Request body" });
+  var secret = el("input", { placeholder: "Signing secret (whsec_...)", "aria-label": "Signing secret", autocomplete: "off" });
+  var sig = el("input", { placeholder: "x-gateway-signature header value", "aria-label": "Signature header" });
+  var out = el("div");
+  return el("div", {}, [el("h3", { text: "Verify a signature" }), el("div", { class: "card" }, [field("Body", bodyIn), field("Secret", secret), field("Signature header", sig),
+    el("button", { text: "Verify", onclick: function () {
+      api("POST", "/projects/" + pid + "/webhook-verify", { body: bodyIn.value, secret: secret.value, signature: sig.value.trim() }).then(function (r) {
+        msg(out, r.valid ? "Signature is valid. Age " + r.age_seconds + " s." : "Signature does not match.", !r.valid);
+      }).catch(function (e) { msg(out, e.message, true); });
+    } }), out])]);
+}

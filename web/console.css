@@ -64,3 +64,14 @@ dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; overflow-wrap: anywhere;
 .plan-editor { overflow-x: auto; }
 .plan-editor input:not([type=checkbox]) { width: 7.5rem; min-width: 0; }
 .plan-editor td:nth-child(2) input { width: 9rem; }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 0 0 8px; }
+.filters input, .filters select { width: 100%; }
+.list-area { min-height: 160px; }
+.dash-area { min-height: 260px; }
+.seg { display: inline-flex; margin: 0 0 14px; }
+.seg button { border-radius: 0; margin-left: -1px; }
+.seg button:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
+.seg button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.seg button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+tr.click:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (max-width: 900px) { main { padding: 16px 14px 48px; } .filters { grid-template-columns: repeat(2, 1fr); } }

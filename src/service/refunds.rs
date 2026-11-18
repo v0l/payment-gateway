@@ -42,7 +42,8 @@ impl Service {
             .filter(|r| r.attempt_id == attempt.id && r.status != "failed")
             .map(|r| r.charge_amount)
             .sum();
-        let charge = super::refund_preview::refund_charge(&attempt, amount, remaining, charge_committed)?;
+        let charge =
+            super::refund_preview::refund_charge(&attempt, amount, remaining, charge_committed)?;
         let refund_id = db::insert_refund(
             &mut *tx,
             id,
