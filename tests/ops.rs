@@ -874,3 +874,65 @@ async fn privacy_delete_keeps_audit_rows_but_strips_customer_pii_from_details() 
     .unwrap();
     assert!(theirs.unwrap().contains("a@example.com"));
 }
+
+#[tokio::test]
+async fn retention_purges_dead_account_tokens_and_old_throttle_rows_but_keeps_live_ones() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let id = payment_gateway::accounts::insert_account(&h.pool, "tok@example.com", "hash", false)
+        .await
+        .unwrap();
+    let now = Utc::now();
+    let rows = [
+        ("expired", -40i64, None),
+        ("used_old", 5, Some(-40i64)),
+        ("used_recent", 5, Some(-1)),
+        ("live", 5, None),
+        ("expired_recently", -1, None),
+    ];
+    for (hash, expires, used) in rows {
+        sqlx::query("insert into account_token (account_id, kind, token_hash, created, expires, used_at) values (?, 'reset', ?, ?, ?, ?)")
+            .bind(id)
+            .bind(hash)
+            .bind(now - Duration::days(60))
+            .bind(now + Duration::days(expires))
+            .bind(used.map(|d| now + Duration::days(d)))
+            .execute(&h.pool)
+            .await
+            .unwrap();
+    }
+    for (kind, age) in [("old", 40), ("fresh", 1)] {
+        sqlx::query(
+            "insert into notification_throttle (tenant_id, kind, sent_at) values (?, ?, ?)",
+        )
+        .bind(t.id)
+        .bind(kind)
+        .bind(now - Duration::days(age))
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    }
+    let policy = RetentionPolicy {
+        session_days: Some(7),
+        ..Default::default()
+    };
+    let r = retention::purge(&h.pool, &policy, now, Actor::System)
+        .await
+        .unwrap();
+    assert_eq!(r.account_tokens_deleted, 2);
+    assert_eq!(r.throttle_rows_deleted, 1);
+    let left: Vec<String> =
+        sqlx::query_scalar("select token_hash from account_token order by token_hash")
+            .fetch_all(&h.pool)
+            .await
+            .unwrap();
+    assert_eq!(left, vec!["expired_recently", "live", "used_recent"]);
+    assert_eq!(
+        count(
+            &h.pool,
+            "select count(*) from notification_throttle where kind = 'fresh'"
+        )
+        .await,
+        1
+    );
+}

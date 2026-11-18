@@ -7,7 +7,7 @@ The server purges on start and every 6 hours when any of these is set (whole day
 ```
 GATEWAY_RETAIN_DELIVERY_BODY_DAYS=90      # empties the body of delivered or abandoned webhooks
 GATEWAY_RETAIN_UNPAID_PAYMENT_DAYS=180    # deletes expired or cancelled payments that never took money
-GATEWAY_RETAIN_SESSION_DAYS=7             # deletes console sessions this long past expiry
+GATEWAY_RETAIN_SESSION_DAYS=7             # deletes console sessions, spent or expired account tokens (password reset, email change) and notification throttle rows older than this
 ```
 
 Run once by hand with `payment-gateway purge` and the same variables. Paid, refunded and partially refunded payments, their attempts, refunds and receipts, and open payments are never touched. Payments with any paid attempt, confirmed receipt or refund are skipped even if their status is expired. Undelivered webhooks keep their body. The audit log and ledger are never purged.

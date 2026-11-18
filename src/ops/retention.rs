@@ -45,6 +45,8 @@ pub struct PurgeReport {
     pub delivery_bodies_cleared: u64,
     pub unpaid_payments_deleted: u64,
     pub sessions_deleted: u64,
+    pub account_tokens_deleted: u64,
+    pub throttle_rows_deleted: u64,
 }
 
 const BATCH: i64 = 500;
@@ -62,6 +64,8 @@ pub async fn purge(
                 "delivery_bodies_cleared": report.delivery_bodies_cleared,
                 "unpaid_payments_deleted": report.unpaid_payments_deleted,
                 "sessions_deleted": report.sessions_deleted,
+                "account_tokens_deleted": report.account_tokens_deleted,
+                "throttle_rows_deleted": report.throttle_rows_deleted,
             }))
             .record(pool, &Origin::default())
             .await;
@@ -89,6 +93,20 @@ async fn purge_tables(
             .execute(pool)
             .await?;
         report.sessions_deleted = r.rows_affected();
+        let cutoff = now - Duration::days(days);
+        let r = sqlx::query(
+            "delete from account_token where expires < ? or (used_at is not null and used_at < ?)",
+        )
+        .bind(cutoff)
+        .bind(cutoff)
+        .execute(pool)
+        .await?;
+        report.account_tokens_deleted = r.rows_affected();
+        let r = sqlx::query("delete from notification_throttle where sent_at < ?")
+            .bind(cutoff)
+            .execute(pool)
+            .await?;
+        report.throttle_rows_deleted = r.rows_affected();
     }
     Ok(report)
 }
