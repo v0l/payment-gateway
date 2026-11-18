@@ -475,17 +475,15 @@ impl Service {
             "created": now.timestamp(),
             "data": { "withdrawal": payouts::WithdrawalView::from(&w) },
         });
-        self.fan_out(
-            tx,
-            tenant,
-            None,
-            &event_id,
+        let body = body.to_string();
+        let event = super::settlement::OutgoingEvent {
+            payment_id: None,
+            event_id: &event_id,
             event_type,
-            &body.to_string(),
+            body: &body,
             now,
-        )
-        .await?;
-        Ok(())
+        };
+        self.fan_out(tx, tenant, &event).await
     }
 }
 

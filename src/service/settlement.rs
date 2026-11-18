@@ -1,5 +1,13 @@
 use super::*;
 
+pub(super) struct OutgoingEvent<'a> {
+    pub payment_id: Option<&'a PaymentId>,
+    pub event_id: &'a str,
+    pub event_type: &'a str,
+    pub body: &'a str,
+    pub now: DateTime<Utc>,
+}
+
 impl Service {
     pub(super) async fn emit(
         &self,
@@ -24,43 +32,44 @@ impl Service {
             "created": now.timestamp(),
             "data": { "payment": view, "detail": extra },
         });
-        self.fan_out(
-            tx,
-            tenant,
-            Some(&id),
-            &event_id,
+        let body = body.to_string();
+        let event = OutgoingEvent {
+            payment_id: Some(&id),
+            event_id: &event_id,
             event_type,
-            &body.to_string(),
+            body: &body,
             now,
-        )
-        .await
+        };
+        self.fan_out(tx, tenant, &event).await
     }
 
     pub(super) async fn fan_out(
         &self,
         tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
         tenant: &Tenant,
-        payment_id: Option<&PaymentId>,
-        event_id: &str,
-        event_type: &str,
-        body: &str,
-        now: DateTime<Utc>,
+        e: &OutgoingEvent<'_>,
     ) -> Result<()> {
         db::insert_event(
-            &mut **tx, tenant.id, payment_id, event_id, event_type, body, now,
+            &mut **tx,
+            tenant.id,
+            e.payment_id,
+            e.event_id,
+            e.event_type,
+            e.body,
+            e.now,
         )
         .await?;
         for endpoint in db::list_endpoints(&mut **tx, tenant.id).await? {
-            if endpoint.enabled && endpoint_wants(&endpoint, event_type) {
+            if endpoint.enabled && endpoint_wants(&endpoint, e.event_type) {
                 db::insert_delivery(
                     &mut **tx,
                     tenant.id,
-                    payment_id,
-                    event_id,
-                    event_type,
-                    body,
+                    e.payment_id,
+                    e.event_id,
+                    e.event_type,
+                    e.body,
                     Some(endpoint.id),
-                    now,
+                    e.now,
                 )
                 .await?;
             }
