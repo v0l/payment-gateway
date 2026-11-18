@@ -1,0 +1,20 @@
+CREATE TABLE reconciliation_run (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    created TIMESTAMP(3) NOT NULL,
+    trigger_kind VARCHAR(16) NOT NULL,
+    tenant_balances BIGINT NOT NULL,
+    pending_payouts BIGINT NOT NULL,
+    platform_fees BIGINT NOT NULL,
+    liabilities BIGINT NOT NULL,
+    assets BIGINT NOT NULL,
+    difference BIGINT NOT NULL,
+    wallets_checked INT UNSIGNED NOT NULL DEFAULT 0,
+    wallet_errors INT UNSIGNED NOT NULL DEFAULT 0,
+    drift_accounts INT UNSIGNED NOT NULL DEFAULT 0,
+    unbalanced_transactions INT UNSIGNED NOT NULL DEFAULT 0,
+    stuck_count INT UNSIGNED NOT NULL DEFAULT 0,
+    status VARCHAR(16) NOT NULL,
+    alerts TEXT NOT NULL,
+    details MEDIUMTEXT NOT NULL,
+    KEY ix_reconciliation_run_created (created)
+);

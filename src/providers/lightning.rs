@@ -39,11 +39,21 @@ impl InvoiceLookup for LndLookup {
 pub struct LightningProvider {
     node: Arc<dyn LightningNode>,
     lookup: Option<Arc<dyn InvoiceLookup>>,
+    wallet: Option<Arc<dyn super::WalletSource>>,
 }
 
 impl LightningProvider {
     pub fn new(node: Arc<dyn LightningNode>) -> Self {
-        Self { node, lookup: None }
+        Self {
+            node,
+            lookup: None,
+            wallet: None,
+        }
+    }
+
+    pub fn with_wallet(mut self, wallet: Arc<dyn super::WalletSource>) -> Self {
+        self.wallet = Some(wallet);
+        self
     }
 
     pub fn with_lookup(mut self, lookup: Arc<dyn InvoiceLookup>) -> Self {
@@ -60,7 +70,10 @@ impl LightningProvider {
         let creds = super::creds::lnd_creds(config)?;
         let node = LndNode::new(url, &creds.cert, &creds.macaroon).await?;
         let node = Arc::new(node);
-        Ok(Self::new(node.clone()).with_lookup(Arc::new(LndLookup(node))))
+        let wallet = super::wallet::LndWallet::new(node.client(), url);
+        Ok(Self::new(node.clone())
+            .with_lookup(Arc::new(LndLookup(node)))
+            .with_wallet(Arc::new(wallet)))
     }
 }
 
@@ -77,6 +90,13 @@ pub fn invoice_amount_msat(invoice: &str) -> Result<Option<u64>> {
 impl Provider for LightningProvider {
     fn method(&self) -> &'static str {
         "lightning"
+    }
+
+    async fn wallet_balances(&self) -> Result<Vec<super::WalletBalance>> {
+        match &self.wallet {
+            Some(w) => w.balances().await,
+            None => Ok(vec![]),
+        }
     }
 
     async fn create(&self, req: AttemptRequest) -> Result<CreatedAttempt> {

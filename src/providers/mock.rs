@@ -53,6 +53,8 @@ pub struct MockProvider {
     pub fail_create: Mutex<bool>,
     pub fail_refund: Mutex<bool>,
     pub watch_starts: Mutex<Vec<Option<String>>>,
+    pub wallet: Mutex<Vec<super::WalletBalance>>,
+    pub fail_wallet: Mutex<bool>,
     settled: Mutex<std::collections::HashSet<String>>,
 }
 
@@ -70,6 +72,8 @@ impl MockProvider {
             fail_create: Default::default(),
             fail_refund: Default::default(),
             watch_starts: Default::default(),
+            wallet: Default::default(),
+            fail_wallet: Default::default(),
             settled: Default::default(),
         }
     }
@@ -103,6 +107,13 @@ impl Provider for MockProvider {
 
     fn options(&self) -> Vec<String> {
         super::super::model::options_from_config(self.method, &self.config)
+    }
+
+    async fn wallet_balances(&self) -> Result<Vec<super::WalletBalance>> {
+        if *self.fail_wallet.lock().unwrap() {
+            bail!("mock wallet unreachable");
+        }
+        Ok(self.wallet.lock().unwrap().clone())
     }
 
     async fn create(&self, req: AttemptRequest) -> Result<CreatedAttempt> {

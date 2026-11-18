@@ -179,6 +179,11 @@ impl Provider for Guarded {
         self.run("capture_return", self.inner.capture_return(attempt))
             .await
     }
+
+    async fn wallet_balances(&self) -> Result<Vec<super::WalletBalance>> {
+        self.run("wallet_balances", self.inner.wallet_balances())
+            .await
+    }
 }
 
 #[cfg(test)]

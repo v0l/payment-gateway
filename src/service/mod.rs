@@ -82,6 +82,7 @@ pub struct Service {
     pub metrics: Arc<crate::metrics::Metrics>,
     pub payouts: crate::payouts::Runtime,
     pub clock: Arc<dyn crate::lease::Clock>,
+    pub treasury: crate::treasury::Settings,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -189,6 +190,7 @@ impl Service {
             metrics,
             payouts: Default::default(),
             clock,
+            treasury: Default::default(),
         });
         let as_recorder: Arc<dyn crate::providers::HealthRecorder> = service.clone();
         let recorder = Arc::downgrade(&as_recorder);
@@ -298,6 +300,7 @@ mod retry;
 mod saved;
 mod settlement;
 mod shared;
+mod treasury;
 mod withdrawals;
 pub use deliveries::{backoff_secs, endpoint_wants, webhook_signature};
 pub use platform_ops::PlanDefinition;

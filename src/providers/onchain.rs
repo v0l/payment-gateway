@@ -16,11 +16,20 @@ use std::sync::Arc;
 
 pub struct OnChainProviderImpl {
     chain: Arc<dyn OnChainProvider>,
+    wallet: Option<Arc<dyn super::WalletSource>>,
 }
 
 impl OnChainProviderImpl {
     pub fn new(chain: Arc<dyn OnChainProvider>) -> Self {
-        Self { chain }
+        Self {
+            chain,
+            wallet: None,
+        }
+    }
+
+    pub fn with_wallet(mut self, wallet: Arc<dyn super::WalletSource>) -> Self {
+        self.wallet = Some(wallet);
+        self
     }
 
     pub async fn lnd(config: &Value) -> Result<Self> {
@@ -54,7 +63,9 @@ impl OnChainProviderImpl {
             },
         )
         .await?;
-        Ok(Self::new(Arc::new(chain)))
+        let node = payments_rs::lightning::LndNode::new(url, &creds.cert, &creds.macaroon).await?;
+        let wallet = super::wallet::LndWallet::new(node.client(), url);
+        Ok(Self::new(Arc::new(chain)).with_wallet(Arc::new(wallet)))
     }
 }
 
@@ -62,6 +73,13 @@ impl OnChainProviderImpl {
 impl Provider for OnChainProviderImpl {
     fn method(&self) -> &'static str {
         "onchain"
+    }
+
+    async fn wallet_balances(&self) -> Result<Vec<super::WalletBalance>> {
+        match &self.wallet {
+            Some(w) => w.balances().await,
+            None => Ok(vec![]),
+        }
     }
 
     async fn create(&self, req: AttemptRequest) -> Result<CreatedAttempt> {

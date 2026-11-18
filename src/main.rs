@@ -183,6 +183,9 @@ async fn serve() -> Result<()> {
     );
     let sat_per_vbyte = config.payout_policy.onchain_sat_per_vbyte;
     service.payouts.set_policy(config.payout_policy.clone());
+    service
+        .treasury
+        .set_tolerance_msat(config.solvency_tolerance_sats * 1000);
     if let Some(lnd) = &config.payout_lnd {
         let node = payment_gateway::payouts::LndPayoutNode::connect(
             &lnd.url,

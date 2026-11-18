@@ -7,7 +7,10 @@ pub mod onchain;
 pub mod paypal;
 pub mod revolut;
 pub mod stripe;
+pub mod wallet;
 pub mod webhook_check;
+
+pub use wallet::{WalletBalance, WalletSource};
 
 use crate::crypto::Sealer;
 use crate::db::{self, AttemptRow, PaymentId, ProviderConfigRow, SavedMethodRow};
@@ -196,6 +199,10 @@ pub trait Provider: Send + Sync {
 
     async fn capture_return(&self, _attempt: &AttemptRow) -> Result<Option<ProviderEvent>> {
         Ok(None)
+    }
+
+    async fn wallet_balances(&self) -> Result<Vec<WalletBalance>> {
+        Ok(vec![])
     }
 }
 

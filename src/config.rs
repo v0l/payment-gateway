@@ -25,6 +25,7 @@ pub struct Config {
     pub instance_id: String,
     pub payout_lnd: Option<PayoutLnd>,
     pub payout_policy: crate::payouts::PayoutPolicy,
+    pub solvency_tolerance_sats: u64,
 }
 
 #[derive(Clone)]
@@ -254,6 +255,12 @@ impl Config {
         });
         let payout_lnd = Self::payout_lnd(&mut env);
         let payout_policy = crate::payouts::PayoutPolicy::from_env(&mut env);
+        let solvency_tolerance_sats = env.number(
+            "GATEWAY_SOLVENCY_TOLERANCE_SATS",
+            0u64,
+            0,
+            21_000_000u64 * 100_000_000,
+        );
         env.finish()?;
         Ok(Self {
             database_url,
@@ -276,6 +283,7 @@ impl Config {
             instance_id,
             payout_lnd,
             payout_policy,
+            solvency_tolerance_sats,
         })
     }
 }

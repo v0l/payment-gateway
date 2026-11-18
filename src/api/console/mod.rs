@@ -32,6 +32,7 @@ mod recovery;
 mod session;
 mod shared;
 mod team;
+mod treasury;
 mod twofactor;
 
 use activity::*;
@@ -51,6 +52,7 @@ use recovery::*;
 use session::*;
 use shared::*;
 use team::*;
+use treasury::*;
 use twofactor::*;
 
 pub const COOKIE: &str = "pgw_session";
@@ -72,6 +74,7 @@ const JS_BILLING: &str = include_str!("../../../web/console/billing.js");
 const JS_PLATFORM_BILLING: &str = include_str!("../../../web/console/platform-billing.js");
 const JS_BALANCE: &str = include_str!("../../../web/console/balance.js");
 const JS_SHARED: &str = include_str!("../../../web/console/shared.js");
+const JS_TREASURY: &str = include_str!("../../../web/console/treasury.js");
 const JS_PAYOUTS: &str = include_str!("../../../web/console/payouts.js");
 const JS_APP: &str = include_str!("../../../web/console/app.js");
 const CSS: &str = include_str!("../../../web/console.css");
@@ -231,6 +234,9 @@ pub fn router() -> Router<AppState> {
             "/admin/projects/{id}/payout-limits",
             post(admin_set_payout_limits),
         )
+        .route("/admin/treasury", get(admin_treasury))
+        .route("/admin/treasury/run", post(admin_treasury_run))
+        .route("/admin/treasury/banner", get(admin_treasury_banner))
         .route("/admin/audit", get(admin_audit))
         .route("/admin/accounts", get(admin_accounts))
         .route("/admin/providers", get(admin_providers))
@@ -317,6 +323,7 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "billing.js" => asset(JS_BILLING, "text/javascript"),
         "activity.js" => asset(JS_ACTIVITY, "text/javascript"),
         "payouts.js" => asset(JS_PAYOUTS, "text/javascript"),
+        "treasury.js" => asset(JS_TREASURY, "text/javascript"),
         "app.js" => asset(JS_APP, "text/javascript"),
         "app.css" => asset(CSS, "text/css"),
         "tokens.css" => asset(TOKENS_CSS, "text/css"),

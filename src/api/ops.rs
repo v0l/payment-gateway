@@ -230,6 +230,7 @@ async fn refresh_gauges(s: &AppState) {
             0.0
         },
     );
+    treasury_gauges(s).await;
     if let Ok(Some((pending, oldest))) = db::pending_delivery_stats(pool, chrono::Utc::now()).await
     {
         m.set("gateway_webhook_pending", &[], pending as f64);
@@ -237,6 +238,47 @@ async fn refresh_gauges(s: &AppState) {
             "gateway_webhook_oldest_pending_age_seconds",
             &[],
             oldest as f64,
+        );
+    }
+}
+
+async fn treasury_gauges(s: &AppState) {
+    let m = &s.service.metrics;
+    let pool = s.pool();
+    if let Ok(t) = crate::treasury::totals(pool).await {
+        m.set("gateway_liabilities_msat", &[], t.liabilities as f64);
+        m.set("gateway_fees_earned_msat", &[], t.platform_fees as f64);
+    }
+    if let Ok(Some(run)) = crate::treasury::latest_run(pool).await {
+        m.set("gateway_assets_msat", &[], run.assets as f64);
+        m.set(
+            "gateway_solvency_difference_msat",
+            &[],
+            run.difference as f64,
+        );
+        m.set(
+            "gateway_ledger_drift_accounts",
+            &[],
+            run.drift_accounts as f64,
+        );
+        m.set(
+            "gateway_ledger_unbalanced_transactions",
+            &[],
+            run.unbalanced_transactions as f64,
+        );
+        m.set("gateway_stuck_items", &[], run.stuck_count as f64);
+    }
+    let pending: Result<(i64, Option<i64>), _> = sqlx::query_as(
+        "select count(*), cast(sum(amount + max_fee) as signed) from withdrawal where status in ('requested', 'approved', 'sending')",
+    )
+    .fetch_one(pool)
+    .await;
+    if let Ok((n, sum)) = pending {
+        m.set("gateway_withdrawals_pending", &[], n as f64);
+        m.set(
+            "gateway_withdrawals_pending_msat",
+            &[],
+            sum.unwrap_or(0) as f64,
         );
     }
 }

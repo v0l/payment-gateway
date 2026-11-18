@@ -32,6 +32,7 @@ pub mod service;
 pub mod shared;
 pub mod ssrf;
 pub mod totp;
+pub mod treasury;
 pub mod twofactor;
 pub mod validate;
 pub mod worker;

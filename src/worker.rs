@@ -88,6 +88,9 @@ pub fn spawn(service: Arc<Service>, tick: Duration) -> Workers {
             if let Err(e) = s.run_platform_billing().await {
                 log::error!("platform billing run failed: {e:?}");
             }
+            if let Err(e) = s.reconcile_if_due().await {
+                log::error!("reconciliation run failed: {e:?}");
+            }
             if pause(&mut rx, tick).await {
                 break;
             }
