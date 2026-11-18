@@ -16,6 +16,7 @@ pub mod ratelimit;
 pub mod rates;
 pub mod sandbox;
 pub mod service;
+pub mod shared;
 pub mod ssrf;
 pub mod validate;
 pub mod worker;

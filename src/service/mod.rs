@@ -85,6 +85,7 @@ pub struct MethodChoice {
     pub fee: u64,
     pub total: u64,
     pub currency: String,
+    pub platform_managed: bool,
 }
 
 fn random_hex(n: usize) -> String {
@@ -248,4 +249,6 @@ mod payments;
 mod refunds;
 mod saved;
 mod settlement;
+mod shared;
 pub use deliveries::{backoff_secs, webhook_signature};
+pub use shared::{LEDGER_CURRENCY, SharedChoice};

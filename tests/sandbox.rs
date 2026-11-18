@@ -476,6 +476,7 @@ async fn onchain_payment_sends_the_exact_sats_to_the_attempt_address_and_mines()
             created: chrono::Utc::now(),
             expires: chrono::Utc::now() + chrono::Duration::hours(1),
             save_method: false,
+            shared: None,
         },
     )
     .await

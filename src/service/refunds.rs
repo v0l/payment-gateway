@@ -75,6 +75,8 @@ impl Service {
             Ok(r) => r,
             Err(e) => return Err(e.into()),
         };
+        self.post_refund_debit(&mut tx, tenant.id, &attempt, refund_id, charge)
+            .await?;
         tx.commit().await?;
 
         let provider_id = if attempt.method == "fixedfloat" {
@@ -138,6 +140,8 @@ impl Service {
                 let msg = format!("{e:#}");
                 failure = Some(msg.clone());
                 db::finish_refund(&mut *tx, refund_id, "failed", None, Some(&msg)).await?;
+                self.post_refund_reversal(&mut tx, tenant.id, &attempt, refund_id, charge)
+                    .await?;
                 self.emit(
                     &mut tx,
                     tenant,

@@ -53,7 +53,7 @@ pub async fn list_provider_configs(
 
 pub async fn list_all_enabled_provider_configs(pool: &MySqlPool) -> Result<Vec<ProviderConfigRow>> {
     Ok(sqlx::query_as(&format!(
-        "select {PROVIDER_COLS} from provider_config where enabled = 1 and tenant_id in (select id from tenant where enabled = 1) order by id"
+        "select {PROVIDER_COLS} from provider_config where enabled = 1 and shared_provider_id is null and tenant_id in (select id from tenant where enabled = 1) order by id"
     ))
     .fetch_all(pool)
     .await?)

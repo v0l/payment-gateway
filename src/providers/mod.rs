@@ -211,9 +211,21 @@ impl Registry {
         if let Some(p) = self.cache.lock().unwrap().get(&id) {
             return Ok(p.clone());
         }
+        if let Some(shared_id) = crate::shared::shared_id_of_key(id) {
+            drop(_guard);
+            return self.get_shared(id, shared_id).await;
+        }
         let row = db::get_provider_config(&self.pool, id)
             .await?
             .context("unknown provider config")?;
+        if let Some(shared_id) = row.shared_provider_id {
+            drop(_guard);
+            let provider = self
+                .get_shared(crate::shared::shared_key(shared_id), shared_id)
+                .await?;
+            self.cache.lock().unwrap().insert(id, provider.clone());
+            return Ok(provider);
+        }
         let config = self.open_config(&row)?;
         let trusted = db::get_tenant(&self.pool, row.tenant_id)
             .await?
@@ -224,6 +236,40 @@ impl Registry {
         }
         let provider = self.factory.build(&row, config).await?;
         self.cache.lock().unwrap().insert(id, provider.clone());
+        Ok(provider)
+    }
+
+    async fn get_shared(&self, key: u64, shared_id: u64) -> Result<Arc<dyn Provider>> {
+        if let Some(p) = self.cache.lock().unwrap().get(&key) {
+            return Ok(p.clone());
+        }
+        let _guard = self.build_lock.lock().await;
+        if let Some(p) = self.cache.lock().unwrap().get(&key) {
+            return Ok(p.clone());
+        }
+        let shared = db::get_shared_provider(&self.pool, shared_id)
+            .await?
+            .context("unknown shared provider")?;
+        let plain = self
+            .sealer
+            .open(&shared.config)
+            .context("shared provider config")?;
+        let config: Value = serde_json::from_slice(&plain)?;
+        let row = ProviderConfigRow {
+            id: key,
+            tenant_id: 0,
+            method: shared.method.clone(),
+            provider_type: shared.provider_type.clone(),
+            name: shared.name.clone(),
+            enabled: shared.enabled,
+            config: shared.config.clone(),
+            fee_rate: None,
+            fee_base: None,
+            fee_currency: None,
+            shared_provider_id: Some(shared_id),
+        };
+        let provider = self.factory.build(&row, config).await?;
+        self.cache.lock().unwrap().insert(key, provider.clone());
         Ok(provider)
     }
 

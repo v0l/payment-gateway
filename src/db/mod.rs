@@ -56,6 +56,7 @@ pub struct ProviderConfigRow {
     pub fee_rate: Option<f64>,
     pub fee_base: Option<u64>,
     pub fee_currency: Option<String>,
+    pub shared_provider_id: Option<u64>,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -108,6 +109,11 @@ pub struct AttemptRow {
     pub expires: DateTime<Utc>,
     pub paid_at: Option<DateTime<Utc>>,
     pub save_method: bool,
+    pub shared_provider_id: Option<u64>,
+    pub platform_fee_bps: Option<u32>,
+    pub platform_fee_base: Option<u64>,
+    pub platform_fee: Option<u64>,
+    pub platform_net: Option<u64>,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -186,10 +192,9 @@ pub async fn connect(url: &str) -> Result<MySqlPool> {
 }
 
 const TENANT_COLS: &str = "id, name, api_key_hash, webhook_url, webhook_secret, enabled, display_name, logo_url, accent_color, allowed_origins, default_success_url, default_cancel_url, trusted, limit_payments_per_day, limit_pending_payments, limit_amount_per_payment, limit_volume_per_day, limit_providers, limit_webhook_endpoints, limit_attempts_per_payment";
-const PROVIDER_COLS: &str =
-    "id, tenant_id, method, provider_type, name, enabled, config, fee_rate, fee_base, fee_currency";
+const PROVIDER_COLS: &str = "id, tenant_id, method, provider_type, name, enabled, config, fee_rate, fee_base, fee_currency, shared_provider_id";
 const PAYMENT_COLS: &str = "id, tenant_id, reference, currency, amount, tax, status, created, expires, paid_at, description, customer_ref, customer_email, metadata, methods, idempotency_key, success_url, cancel_url";
-const ATTEMPT_COLS: &str = "id, payment_id, provider_config_id, watch_provider_id, method, option_key, base_amount, processing_fee, currency, charge_amount, charge_currency, rate, lookup, external_id, details, status, created, expires, paid_at, save_method";
+const ATTEMPT_COLS: &str = "id, payment_id, provider_config_id, watch_provider_id, method, option_key, base_amount, processing_fee, currency, charge_amount, charge_currency, rate, lookup, external_id, details, status, created, expires, paid_at, save_method, shared_provider_id, platform_fee_bps, platform_fee_base, platform_fee, platform_net";
 const SAVED_COLS: &str = "id, tenant_id, customer_ref, provider_config_id, external_customer_id, external_id, brand, last4, exp_month, exp_year, enabled, created";
 const REFUND_COLS: &str = "id, payment_id, attempt_id, amount, charge_amount, currency, destination, status, external_id, error, created";
 
@@ -200,6 +205,7 @@ mod payments;
 mod providers;
 mod refunds;
 mod saved;
+mod shared;
 mod stats;
 mod tenants;
 
@@ -210,5 +216,6 @@ pub use payments::*;
 pub use providers::*;
 pub use refunds::*;
 pub use saved::*;
+pub use shared::*;
 pub use stats::*;
 pub use tenants::*;

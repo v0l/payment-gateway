@@ -22,7 +22,7 @@ impl Service {
         if !method_supports(&method, &p.currency) {
             return invalid(format!("{method} cannot be used for {}", p.currency));
         }
-        let configs = db::list_provider_configs(&self.pool, tenant.id, true).await?;
+        let configs = self.usable_configs(tenant).await?;
         let cfg = configs
             .iter()
             .find(|c| c.method == method && input.provider_id.map(|id| id == c.id).unwrap_or(true))
@@ -74,7 +74,11 @@ impl Service {
         } else {
             None
         };
-        let watch_id = receive_cfg.as_ref().map(|c| c.id).unwrap_or(cfg.id);
+        let shared = self.shared_attempt_terms(tenant, &cfg).await?;
+        let watch_id = match &shared {
+            Some(sa) => crate::shared::shared_key(sa.shared_provider_id),
+            None => receive_cfg.as_ref().map(|c| c.id).unwrap_or(cfg.id),
+        };
         let provider = self
             .registry
             .get(cfg.id)
@@ -160,6 +164,7 @@ impl Service {
                 created: now,
                 expires: attempt_expires,
                 save_method: input.save_method,
+                shared,
             },
         )
         .await?;

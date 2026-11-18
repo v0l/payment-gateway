@@ -74,6 +74,21 @@ pub fn spawn(service: Arc<Service>, tick: Duration) -> Workers {
                 }
                 Err(e) => log::error!("listing providers failed: {e:#}"),
             }
+            match db::list_shared_providers(&s.pool, true).await {
+                Ok(shared) => {
+                    for sp in shared {
+                        let key = crate::shared::shared_key(sp.id);
+                        start_watcher(s.clone(), key, watching.clone(), &watcher_handles);
+                        match s.reconcile_provider(key).await {
+                            Ok(_) => s.provider_recovered(key),
+                            Err(e) => {
+                                log::warn!("reconcile shared provider {} failed: {e:?}", sp.id)
+                            }
+                        }
+                    }
+                }
+                Err(e) => log::error!("listing shared providers failed: {e:#}"),
+            }
             tokio::time::sleep(Duration::from_secs(30)).await;
         }
     }));

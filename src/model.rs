@@ -98,6 +98,9 @@ pub struct AttemptView {
     pub expires: DateTime<Utc>,
     pub paid_at: Option<DateTime<Utc>>,
     pub details: Value,
+    pub platform_managed: bool,
+    pub platform_fee: Option<u64>,
+    pub net_credited: Option<u64>,
 }
 
 impl From<&AttemptRow> for AttemptView {
@@ -115,6 +118,9 @@ impl From<&AttemptRow> for AttemptView {
             expires: a.expires,
             paid_at: a.paid_at,
             details: serde_json::from_str(&a.details).unwrap_or(Value::Null),
+            platform_managed: a.shared_provider_id.is_some(),
+            platform_fee: a.platform_fee,
+            net_credited: a.platform_net,
         }
     }
 }

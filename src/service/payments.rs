@@ -182,7 +182,7 @@ impl Service {
         tenant: &Tenant,
         p: &PaymentRow,
     ) -> Result<Vec<MethodChoice>> {
-        let configs = db::list_provider_configs(&self.pool, tenant.id, true).await?;
+        let configs = self.usable_configs(tenant).await?;
         let allowed = Self::allowed_methods(p);
         let has_onchain = configs.iter().any(|c| c.method == "onchain");
         let mut out = vec![];
@@ -222,6 +222,7 @@ impl Service {
                 fee,
                 total: p.amount.saturating_add(fee),
                 currency: p.currency.clone(),
+                platform_managed: cfg.shared_provider_id.is_some(),
             });
         }
         Ok(out)

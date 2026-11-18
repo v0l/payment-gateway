@@ -18,6 +18,7 @@ pub struct NewAttempt<'a> {
     pub created: DateTime<Utc>,
     pub expires: DateTime<Utc>,
     pub save_method: bool,
+    pub shared: Option<crate::db::SharedAttempt>,
 }
 
 pub async fn insert_attempt<'e, E: Executor<'e, Database = MySql>>(
@@ -25,7 +26,7 @@ pub async fn insert_attempt<'e, E: Executor<'e, Database = MySql>>(
     a: &NewAttempt<'_>,
 ) -> Result<u64> {
     let r = sqlx::query(
-        "insert into payment_attempt (payment_id, provider_config_id, watch_provider_id, method, option_key, base_amount, processing_fee, currency, charge_amount, charge_currency, rate, lookup, external_id, details, status, created, expires, save_method) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)",
+        "insert into payment_attempt (payment_id, provider_config_id, watch_provider_id, method, option_key, base_amount, processing_fee, currency, charge_amount, charge_currency, rate, lookup, external_id, details, status, created, expires, save_method, shared_provider_id, platform_fee_bps, platform_fee_base) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)",
     )
     .bind(&a.payment_id[..])
     .bind(a.provider_config_id)
@@ -44,6 +45,9 @@ pub async fn insert_attempt<'e, E: Executor<'e, Database = MySql>>(
     .bind(a.created)
     .bind(a.expires)
     .bind(a.save_method)
+    .bind(a.shared.map(|s| s.shared_provider_id))
+    .bind(a.shared.map(|s| s.terms.bps))
+    .bind(a.shared.map(|s| s.terms.base_msat))
     .execute(ex)
     .await?;
     Ok(r.last_insert_id())
@@ -194,6 +198,9 @@ pub async fn pending_attempts_of_provider(
     pool: &MySqlPool,
     provider_id: u64,
 ) -> Result<Vec<AttemptRow>> {
+    if provider_id >= crate::shared::SHARED_KEY_BASE {
+        return pending_attempts_of_shared(pool, provider_id).await;
+    }
     Ok(sqlx::query_as(&format!(
         "select {ATTEMPT_COLS} from payment_attempt where provider_config_id = ? and status = 'pending' order by id limit 500"
     ))

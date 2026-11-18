@@ -161,6 +161,15 @@ impl Service {
 
         let now = Utc::now();
         db::mark_attempt_paid(&mut *tx, attempt.id, now).await?;
+        let split = self
+            .post_settlement(&mut tx, tenant.id, &attempt, received)
+            .await?;
+        let detail = match split {
+            Some(sp) => {
+                json!({"attempt_id": attempt.id, "received": received, "platform_fee": sp.fee, "net_credited": sp.net})
+            }
+            None => json!({"attempt_id": attempt.id, "received": received}),
+        };
         let mut to_cancel = vec![];
         match p.status.as_str() {
             "pending" | "expired" => {
@@ -172,24 +181,12 @@ impl Service {
                         to_cancel.push(other);
                     }
                 }
-                self.emit(
-                    &mut tx,
-                    &tenant,
-                    &p,
-                    "payment.paid",
-                    json!({"attempt_id": attempt.id, "received": received}),
-                )
-                .await?;
+                self.emit(&mut tx, &tenant, &p, "payment.paid", detail)
+                    .await?;
             }
             _ => {
-                self.emit(
-                    &mut tx,
-                    &tenant,
-                    &p,
-                    "payment.late_payment",
-                    json!({"attempt_id": attempt.id, "received": received}),
-                )
-                .await?;
+                self.emit(&mut tx, &tenant, &p, "payment.late_payment", detail)
+                    .await?;
             }
         }
         tx.commit().await?;
