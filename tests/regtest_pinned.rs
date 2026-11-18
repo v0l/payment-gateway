@@ -57,6 +57,7 @@ async fn lnd_provider_connects_through_the_pinned_address_and_creates_an_invoice
             option: None,
             save_method: false,
             receive: None,
+            lines: vec![],
         })
         .await
         .expect("invoice created over the pinned connection");
