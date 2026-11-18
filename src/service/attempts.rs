@@ -110,6 +110,7 @@ impl Service {
             option: option.clone(),
             save_method: input.save_method,
             receive,
+            lines: Self::provider_lines(&p, &charge_cur, charge),
         };
 
         let (created, saved_charge) = match input.saved_method_id {

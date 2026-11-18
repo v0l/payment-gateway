@@ -1,5 +1,13 @@
 use super::*;
 
+fn invoice_field(message: &str) -> &'static str {
+    if message.contains("discount") {
+        "discount"
+    } else {
+        "line_items"
+    }
+}
+
 impl Service {
     pub async fn create_payment(
         &self,
@@ -17,17 +25,48 @@ impl Service {
         if reference.chars().any(char::is_control) {
             return invalid("reference must not contain control characters");
         }
-        if input.amount == 0 {
+        let breakdown = match (&input.line_items, &input.discount) {
+            (None, Some(_)) => return invalid_field("discount", "discount requires line_items"),
+            (None, None) => None,
+            (Some(items), discount) => {
+                let b = crate::invoice::compute(items, discount.as_ref())
+                    .map_err(|m| Error::InvalidField(invoice_field(&m), m))?;
+                if input.amount != 0 && input.amount != b.total {
+                    return invalid_field(
+                        "amount",
+                        format!(
+                            "amount {} does not match the line items total {}",
+                            input.amount, b.total
+                        ),
+                    );
+                }
+                if input.tax != 0 && input.tax != b.tax {
+                    return invalid_field(
+                        "tax",
+                        format!(
+                            "tax {} does not match the line items tax {}",
+                            input.tax, b.tax
+                        ),
+                    );
+                }
+                Some(b)
+            }
+        };
+        let (amount, tax) = match &breakdown {
+            Some(b) => (b.total, b.tax),
+            None => (input.amount, input.tax),
+        };
+        if amount == 0 {
             return invalid("amount must be positive");
         }
         let currency = input.currency.trim().to_uppercase();
         if rates::unit(&currency).is_err() {
             return invalid(format!("unsupported currency {currency}"));
         }
-        if input.amount > rates::MAX_AMOUNT {
+        if amount > rates::MAX_AMOUNT {
             return invalid(format!("amount cannot exceed {}", rates::MAX_AMOUNT));
         }
-        if input.tax > input.amount {
+        if tax > amount {
             return invalid("tax cannot exceed amount");
         }
         let expires_in = input.expires_in.unwrap_or(DEFAULT_EXPIRY_SECS);
@@ -76,6 +115,10 @@ impl Service {
                 Some(s)
             }
         };
+        let line_items = breakdown
+            .as_ref()
+            .map(|b| serde_json::to_string(b).map_err(|e| Error::Internal(e.into())))
+            .transpose()?;
         let methods = input
             .methods
             .as_ref()
@@ -86,7 +129,7 @@ impl Service {
                 return invalid("Idempotency-Key must be 1-128 characters");
             }
             if let Some(existing) = db::payment_by_idempotency(&self.pool, tenant.id, key).await? {
-                return self.same_request(existing, supplied.as_deref(), input.amount, &currency);
+                return self.same_request(existing, supplied.as_deref(), amount, &currency);
             }
         }
 
@@ -98,8 +141,8 @@ impl Service {
             tenant_id: tenant.id,
             reference: &reference,
             currency: &currency,
-            amount: input.amount,
-            tax: input.tax,
+            amount,
+            tax,
             created: now,
             expires: now + Duration::seconds(expires_in),
             description: input.description.as_deref(),
@@ -110,9 +153,10 @@ impl Service {
             idempotency_key,
             success_url: input.success_url.as_deref(),
             cancel_url: input.cancel_url.as_deref(),
+            line_items: line_items.as_deref(),
         };
         let mut tx = self.pool.begin().await?;
-        self.check_new_payment(&mut tx, tenant, input.amount, &currency)
+        self.check_new_payment(&mut tx, tenant, amount, &currency)
             .await?;
         let inserted = db::insert_payment(&mut *tx, &new).await;
         let inserted = match inserted {
@@ -127,12 +171,7 @@ impl Service {
                     && let Some(existing) =
                         db::payment_by_idempotency(&self.pool, tenant.id, key).await?
                 {
-                    return self.same_request(
-                        existing,
-                        supplied.as_deref(),
-                        input.amount,
-                        &currency,
-                    );
+                    return self.same_request(existing, supplied.as_deref(), amount, &currency);
                 }
                 return Err(e);
             }
@@ -159,6 +198,20 @@ impl Service {
             ));
         }
         Ok((existing, false))
+    }
+
+    pub(super) fn provider_lines(
+        p: &PaymentRow,
+        charge_currency: &str,
+        charge: u64,
+    ) -> Vec<crate::invoice::ChargeLine> {
+        let Some(b) = p.breakdown() else {
+            return vec![];
+        };
+        if !charge_currency.eq_ignore_ascii_case(&p.currency) || charge < b.total {
+            return vec![];
+        }
+        b.charge_lines(charge - b.total)
     }
 
     pub(super) fn allowed_methods(p: &PaymentRow) -> Option<Vec<String>> {

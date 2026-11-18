@@ -74,11 +74,15 @@ pub struct TenantSettings {
     pub allowed_origins: Option<String>,
     pub default_success_url: Option<String>,
     pub default_cancel_url: Option<String>,
+    pub legal_name: Option<String>,
+    pub address: Option<String>,
+    pub tax_id: Option<String>,
+    pub support_email: Option<String>,
 }
 
 pub async fn update_tenant_settings(pool: &MySqlPool, id: u64, s: &TenantSettings) -> Result<bool> {
     let r = sqlx::query(
-        "update tenant set display_name = ?, logo_url = ?, accent_color = ?, allowed_origins = ?, default_success_url = ?, default_cancel_url = ? where id = ?",
+        "update tenant set display_name = ?, logo_url = ?, accent_color = ?, allowed_origins = ?, default_success_url = ?, default_cancel_url = ?, legal_name = ?, address = ?, tax_id = ?, support_email = ? where id = ?",
     )
     .bind(&s.display_name)
     .bind(&s.logo_url)
@@ -86,6 +90,10 @@ pub async fn update_tenant_settings(pool: &MySqlPool, id: u64, s: &TenantSetting
     .bind(&s.allowed_origins)
     .bind(&s.default_success_url)
     .bind(&s.default_cancel_url)
+    .bind(&s.legal_name)
+    .bind(&s.address)
+    .bind(&s.tax_id)
+    .bind(&s.support_email)
     .bind(id)
     .execute(pool)
     .await?;

@@ -1,2 +1,11 @@
 target
 .env
+node_modules
+dist
+__pycache__
+*.egg-info
+node_modules
+.venv
+target
+.next
+next-env.d.ts

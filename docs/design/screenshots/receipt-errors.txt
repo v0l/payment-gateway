@@ -1,0 +1,1 @@
+favicon.ico 404 only (no favicon route); no script errors on receipt or pay page at 1280/360 light/dark/print

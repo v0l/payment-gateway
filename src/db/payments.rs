@@ -17,6 +17,7 @@ pub struct NewPayment<'a> {
     pub idempotency_key: Option<&'a str>,
     pub success_url: Option<&'a str>,
     pub cancel_url: Option<&'a str>,
+    pub line_items: Option<&'a str>,
 }
 
 pub async fn insert_payment<'e, E: Executor<'e, Database = MySql>>(
@@ -24,7 +25,7 @@ pub async fn insert_payment<'e, E: Executor<'e, Database = MySql>>(
     p: &NewPayment<'_>,
 ) -> Result<()> {
     sqlx::query(
-        "insert into payment (id, tenant_id, reference, currency, amount, tax, status, created, expires, description, customer_ref, customer_email, metadata, methods, idempotency_key, success_url, cancel_url) values (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "insert into payment (id, tenant_id, reference, currency, amount, tax, status, created, expires, description, customer_ref, customer_email, metadata, methods, idempotency_key, success_url, cancel_url, line_items) values (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&p.id[..])
     .bind(p.tenant_id)
@@ -42,6 +43,7 @@ pub async fn insert_payment<'e, E: Executor<'e, Database = MySql>>(
     .bind(p.idempotency_key)
     .bind(p.success_url)
     .bind(p.cancel_url)
+    .bind(p.line_items)
     .execute(ex)
     .await?;
     Ok(())

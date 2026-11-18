@@ -8,8 +8,13 @@ function settings(pid) {
       accent_color: el("input", { value: p.accent_color || "", placeholder: "#5b3df5" }),
       allowed_origins: el("textarea", { placeholder: "One per line. Sites allowed to embed the pay page." }),
       default_success_url: el("input", { value: p.default_success_url || "" }),
-      default_cancel_url: el("input", { value: p.default_cancel_url || "" })
+      default_cancel_url: el("input", { value: p.default_cancel_url || "" }),
+      legal_name: el("input", { value: p.legal_name || "", placeholder: "Seller name on receipts" }),
+      address: el("textarea", { placeholder: "Seller address on receipts" }),
+      tax_id: el("input", { value: p.tax_id || "", placeholder: "VAT or tax ID" }),
+      support_email: el("input", { value: p.support_email || "", placeholder: "support@example.com" })
     };
+    f.address.value = p.address || "";
     f.allowed_origins.value = (p.allowed_origins || []).join("\n");
     var out = el("div"); var btn = el("button", { class: "primary", text: "Save settings" });
     btn.addEventListener("click", function () {
@@ -19,7 +24,8 @@ function settings(pid) {
       busy(btn, function () { return api("POST", "/projects/" + pid + "/settings", payload); }).then(function () { msg(out, "Saved."); }).catch(function (e) { msg(out, e.message, true); });
     });
     body.appendChild(el("div", { class: "card" }, [field("Webhook URL (https)", f.webhook_url), field("Display name on pay page", f.display_name), field("Logo URL", f.logo_url), field("Accent colour", f.accent_color),
-      field("Allowed embed origins", f.allowed_origins), field("Default success URL", f.default_success_url), field("Default cancel URL", f.default_cancel_url), btn, out]));
+      field("Allowed embed origins", f.allowed_origins), field("Default success URL", f.default_success_url), field("Default cancel URL", f.default_cancel_url),
+      field("Legal name (receipts)", f.legal_name), field("Address (receipts)", f.address), field("Tax ID (receipts)", f.tax_id), field("Support email (receipts)", f.support_email), btn, out]));
     var limitsBox = el("div", { class: "card" });
     body.appendChild(el("h3", { text: "Limits and usage" }));
     body.appendChild(limitsBox);

@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "payment-gateway-client"
+version = "0.1.0"
+description = "Client for the payment gateway API with webhook verification"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+httpx = ["httpx>=0.27"]
+
+[tool.setuptools]
+packages = ["payment_gateway"]

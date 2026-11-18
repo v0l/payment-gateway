@@ -128,6 +128,10 @@ POST /v1/payments/{id}/attempts   {"method":"lightning"}
 
 The attempt response carries `details`: `bolt11`, an on-chain `address` and `uri`, a `checkout_url` for Stripe and Revolut, or a `deposit_address` and `deposit_amount` for an altcoin.
 
+Line items, tax and discounts: send `line_items` (`name`, `description`, `quantity` default 1, `unit_amount`, `tax_rate` in percent with at most 2 decimals or `tax_amount` in minor units, `sku`) and optionally `discount` (`amount` or `percent`, plus `code`). The server computes the totals and `amount` may be omitted. If `amount` (or `tax`) is sent it must equal the computed value, otherwise 400 with `error_detail.field` naming `amount`, `tax`, `discount` or `line_items`. At most 100 lines, names up to 127 characters. All math is integer. Rounding: a percent discount is `round_half_up(subtotal * percent)`, spread over lines in proportion to their net amount with the leftover minor units going to the largest fractional remainders (first line wins ties). Tax from `tax_rate` is `round_half_up(discounted line net * rate)` per line, `tax_amount` is taken as given. Total is subtotal minus discount plus tax. The payment view, webhook payload and pay page state carry `line_items`, `subtotal`, `discount` and `receipt_url`. Stripe and Revolut checkouts show the lines (each line's price includes its share of discount and tax, and a processing fee becomes its own line); other methods and payments without lines use a single line.
+
+Receipts: `GET /receipt/{payment_id}` is a public, print friendly HTML receipt for paid payments, a capability URL like the pay page. It shows the seller (`legal_name`, `address`, `tax_id`, `support_email` from project settings), buyer email, lines, tax, total, method, date and reference, and nothing secret. It is not under `/v1` and needs no key, so it is not in the OpenAPI document; the payment view's `receipt_url` links to it. Unpaid or unknown ids return 404. `Service::send_receipt_mail` is the hook for emailing it to the customer.
+
 Limits: each project has usage limits (payments and volume per 24 hours, live pending payments, amount per payment, providers, webhook endpoints, attempts per payment), low in test mode and high once trusted. Breaching one returns 403 with `code: "limit_exceeded"`, the `limit` name, `current` and `max`. Request rate is limited per API key and per IP: a 429 carries `Retry-After`. Bodies over 1 MiB get 413. Operators edit limits per project in the console.
 
 Hosted page: send the customer to the `pay_url` in the create response. It lets them pick a method, shows the QR or hands off to the card form, updates live, then redirects to `success_url` with `payment_id`, `reference`, `status` and `sig`. `sig` is `HMAC-SHA256(webhook_secret, "{payment_id}.{reference}.{status}")`. `success_url` and `cancel_url` (and the project defaults) must be on one of the project's `allowed_origins`, otherwise create is rejected. Still confirm with the webhook or `GET /v1/payments/{id}`.
@@ -144,6 +148,10 @@ Iframe:
 ```
 
 The tenant's `allowed_origins` must include the embedding site. Card checkouts cannot be framed, so the embed sends the top window to them.
+
+## Client libraries
+
+`clients/js` (TypeScript), `clients/rust` and `clients/python` wrap `/v1` with idempotency keys, retries on 429 and 5xx, pagination iterators and `verifyWebhook`. Each has its own README and tests, and `clients/README.md` describes the shared conformance scenario. `scripts/start-test-gateway.sh` boots a gateway on a throwaway database and prints the admin token and a tenant key. Runnable integrations are in `examples/` (Express, Next.js, axum, Flask). Nothing is published from this repo yet.
 
 ## Webhooks
 

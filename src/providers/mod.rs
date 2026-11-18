@@ -31,6 +31,7 @@ pub struct AttemptRequest {
     pub option: Option<String>,
     pub save_method: bool,
     pub receive: Option<Arc<dyn Provider>>,
+    pub lines: Vec<crate::invoice::ChargeLine>,
 }
 
 #[derive(Debug, Clone)]
@@ -231,13 +232,14 @@ impl Registry {
             self.cache.lock().unwrap().insert(id, provider.clone());
             return Ok(provider);
         }
-        let config = self.open_config(&row)?;
+        let mut config = self.open_config(&row)?;
         let trusted = db::get_tenant(&self.pool, row.tenant_id)
             .await?
             .map(|t| t.trusted)
             .unwrap_or(false);
         if !trusted && let Some(url) = config.get("url").and_then(Value::as_str) {
-            crate::ssrf::resolve_public(url).await?;
+            let pinned = crate::ssrf::pin_url(&crate::ssrf::SystemResolver, url).await?;
+            config["url"] = Value::String(pinned);
         }
         let built = tokio::time::timeout(self.call_timeout, self.factory.build(&row, config))
             .await

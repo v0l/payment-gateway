@@ -14,6 +14,10 @@ pub(super) struct ProjectView {
     allowed_origins: Vec<String>,
     default_success_url: Option<String>,
     default_cancel_url: Option<String>,
+    legal_name: Option<String>,
+    address: Option<String>,
+    tax_id: Option<String>,
+    support_email: Option<String>,
     enabled: bool,
 }
 
@@ -32,11 +36,15 @@ pub(super) fn project_view(t: Tenant, role: Role) -> ProjectView {
         allowed_origins,
         default_success_url: t.default_success_url,
         default_cancel_url: t.default_cancel_url,
+        legal_name: t.legal_name,
+        address: t.address,
+        tax_id: t.tax_id,
+        support_email: t.support_email,
         enabled: t.enabled,
     }
 }
 
-pub(crate) fn settings_diff(before: &Tenant, after: &Tenant) -> [(&'static str, bool); 7] {
+pub(crate) fn settings_diff(before: &Tenant, after: &Tenant) -> [(&'static str, bool); 11] {
     [
         ("webhook_url", before.webhook_url != after.webhook_url),
         ("display_name", before.display_name != after.display_name),
@@ -54,6 +62,10 @@ pub(crate) fn settings_diff(before: &Tenant, after: &Tenant) -> [(&'static str, 
             "default_cancel_url",
             before.default_cancel_url != after.default_cancel_url,
         ),
+        ("legal_name", before.legal_name != after.legal_name),
+        ("address", before.address != after.address),
+        ("tax_id", before.tax_id != after.tax_id),
+        ("support_email", before.support_email != after.support_email),
     ]
 }
 

@@ -80,9 +80,15 @@ function paymentDetail(pid, id) {
             el("dt", { text: "Expires" }), el("dd", { text: new Date(pay.expires).toLocaleString() }),
             el("dt", { text: "Paid" }), el("dd", { text: pay.paid_at ? new Date(pay.paid_at).toLocaleString() : "" }),
             el("dt", { text: "Customer" }), el("dd", { text: pay.customer_ref || "" }),
+            el("dt", { text: "Receipt" }), el("dd", {}, [pay.receipt_url ? el("a", { href: pay.receipt_url, target: "_blank", rel: "noopener", text: pay.receipt_url }) : null]),
             el("dt", { text: "Pay page" }), el("dd", {}, [el("a", { href: pay.pay_url, target: "_blank", rel: "noopener", text: pay.pay_url })]),
             el("dt", { text: "Metadata" }), el("dd", { class: "mono", text: pay.metadata ? JSON.stringify(pay.metadata) : "" })
           ]), actions, out]),
+          (pay.line_items && pay.line_items.length) ? el("h3", { text: "Line items" }) : null,
+          (pay.line_items && pay.line_items.length) ? el("table", {}, [el("tr", {}, ["Item", "Qty", "Unit", "Discount", "Tax", "Total"].map(function (h) { return el("th", { text: h }); }))].concat(pay.line_items.map(function (l) {
+            return el("tr", {}, [el("td", { text: l.name + (l.sku ? " (" + l.sku + ")" : "") }), el("td", { text: String(l.quantity) }), el("td", { text: fmtAmount(l.unit_amount, pay.currency) }),
+              el("td", { text: l.discount ? fmtAmount(l.discount, pay.currency) : "" }), el("td", { text: l.tax ? fmtAmount(l.tax, pay.currency) : "" }), el("td", { text: fmtAmount(l.total, pay.currency) })]);
+          }))) : null,
           el("h3", { text: "Attempts" }),
           pay.attempts.length ? el("table", {}, [el("tr", {}, ["Method", "Status", "Charge", "Fee", "Details"].map(function (h) { return el("th", { text: h }); }))].concat(pay.attempts.map(function (a) {
             var det = a.details || {};

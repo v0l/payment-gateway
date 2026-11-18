@@ -80,3 +80,16 @@ pub fn event(to: &str, project: &str, subject: &str, detail: &str) -> Message {
     }
     .render()
 }
+
+pub fn receipt(to: &str, seller: &str, receipt_url: &str) -> Message {
+    Mail {
+        to,
+        subject: format!("Your receipt from {seller}"),
+        preheader: "View and print your receipt.",
+        heading: "Your receipt",
+        paragraphs: vec![format!("Thank you for your payment to {seller}.")],
+        action: Some(("View receipt", receipt_url)),
+        footnote: None,
+    }
+    .render()
+}

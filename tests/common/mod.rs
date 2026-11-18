@@ -27,7 +27,85 @@ pub struct Harness {
     pub factory: Arc<DefaultFactory>,
     pub pool: MySqlPool,
     pub mailer: Arc<RecordingMailer>,
+    pub db_guard: Arc<DbGuard>,
 }
+
+pub struct DbGuard {
+    base: String,
+    name: String,
+}
+
+impl Drop for DbGuard {
+    fn drop(&mut self) {
+        let base = self.base.clone();
+        let name = self.name.clone();
+        let _ = std::thread::spawn(move || {
+            let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            else {
+                return;
+            };
+            rt.block_on(async {
+                if let Ok(admin) = MySqlPool::connect(&base).await {
+                    let ids: Vec<i64> = sqlx::query_scalar(
+                        "select cast(id as signed) from information_schema.processlist where db = ? and id <> connection_id()",
+                    )
+                    .bind(&name)
+                    .fetch_all(&admin)
+                    .await
+                    .unwrap_or_default();
+                    for id in ids {
+                        let _ = sqlx::query(&format!("kill {id}")).execute(&admin).await;
+                    }
+                    let _ = sqlx::query("set session lock_wait_timeout = 10")
+                        .execute(&admin)
+                        .await;
+                    let _ = sqlx::query(&format!("drop database if exists {name}"))
+                        .execute(&admin)
+                        .await;
+                    admin.close().await;
+                }
+            });
+        })
+        .join();
+    }
+}
+
+const STALE_AFTER_SECS: u64 = 3600;
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+}
+
+fn test_db_age_secs(name: &str, now: u64) -> Option<u64> {
+    let rest = name.strip_prefix("t_")?;
+    let (secs, _) = rest.split_once('_')?;
+    let created: u64 = secs.parse().ok()?;
+    Some(now.saturating_sub(created))
+}
+
+async fn drop_stale_test_dbs(admin: &MySqlPool) {
+    let names: Vec<String> = sqlx::query_scalar(
+        "select cast(schema_name as char) from information_schema.schemata where schema_name like 't\\_%'",
+    )
+    .fetch_all(admin)
+    .await
+    .unwrap_or_default();
+    let now = now_secs();
+    for name in names {
+        if test_db_age_secs(&name, now).is_some_and(|age| age > STALE_AFTER_SECS) {
+            let _ = sqlx::query(&format!("drop database if exists `{name}`"))
+                .execute(admin)
+                .await;
+        }
+    }
+}
+
+static STALE_SWEEP: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
 
 pub fn unique(prefix: &str) -> String {
     let n = std::time::SystemTime::now()
@@ -58,8 +136,11 @@ async fn build_harness(mail: bool) -> Harness {
         Arc::new(DisabledMailer)
     };
     let base = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL");
-    let name = unique("t_");
+    let name = format!("t_{}_{:x}{:x}", now_secs(), std::process::id(), rand_u32());
     let admin = MySqlPool::connect(&base).await.unwrap();
+    STALE_SWEEP
+        .get_or_init(|| async { drop_stale_test_dbs(&admin).await })
+        .await;
     sqlx::query(&format!("create database {name}"))
         .execute(&admin)
         .await
@@ -84,12 +165,14 @@ async fn build_harness(mail: bool) -> Harness {
         true,
         None,
     ));
+    admin.close().await;
     Harness {
         app,
         service,
         factory,
         pool,
         mailer,
+        db_guard: Arc::new(DbGuard { base, name }),
     }
 }
 

@@ -1,0 +1,10 @@
+{
+  "name": "express-checkout-example",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node server.mjs" },
+  "dependencies": {
+    "@payment-gateway/client": "file:../../clients/js",
+    "express": "^4.21.0"
+  }
+}

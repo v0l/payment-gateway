@@ -68,7 +68,7 @@ fn gateway_js() -> Response {
     r
 }
 
-fn page_headers(frame_ancestors: &str) -> HeaderMap {
+pub(super) fn page_headers(frame_ancestors: &str) -> HeaderMap {
     let mut h = HeaderMap::new();
     let csp = format!(
         "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors {frame_ancestors}"
@@ -93,7 +93,7 @@ fn page_headers(frame_ancestors: &str) -> HeaderMap {
     h
 }
 
-async fn load(s: &AppState, raw: &str) -> Result<(db::PaymentRow, Tenant), ApiError> {
+pub(super) async fn load(s: &AppState, raw: &str) -> Result<(db::PaymentRow, Tenant), ApiError> {
     let id = parse_payment_id(raw).ok_or_else(ApiError::not_found)?;
     let p = db::get_payment(s.pool(), &id)
         .await?
@@ -141,6 +141,10 @@ struct PublicState {
     expires: chrono::DateTime<chrono::Utc>,
     tenant: PublicTenant,
     allowed_origins: Vec<String>,
+    line_items: Vec<crate::invoice::LineView>,
+    subtotal: Option<u64>,
+    discount: Option<crate::invoice::DiscountView>,
+    tax: u64,
     methods: Vec<MethodChoice>,
     attempts: Vec<AttemptView>,
     return_url: Option<String>,
@@ -165,7 +169,17 @@ async fn build_state(
     } else {
         vec![]
     };
+    let breakdown = p.breakdown();
     Ok(PublicState {
+        line_items: breakdown
+            .as_ref()
+            .map(|b| b.lines.iter().map(crate::invoice::Line::view).collect())
+            .unwrap_or_default(),
+        subtotal: breakdown.as_ref().map(|b| b.subtotal),
+        discount: breakdown
+            .as_ref()
+            .and_then(|b| b.discount.as_ref().map(|d| d.view())),
+        tax: p.tax,
         id: hex::encode(&p.id),
         status: p.status.clone(),
         amount: p.amount,

@@ -7,8 +7,8 @@ use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use payments_rs::currency::{Currency, CurrencyAmount};
 use payments_rs::fiat::{
-    RevolutApi, RevolutConfig, RevolutCustomer, RevolutOrderState, RevolutSavedPaymentMethodType,
-    RevolutWebhookBody, RevolutWebhookEvent,
+    LineItem, RevolutApi, RevolutConfig, RevolutCustomer, RevolutOrderState,
+    RevolutSavedPaymentMethodType, RevolutWebhookBody, RevolutWebhookEvent,
 };
 use payments_rs::webhook::WebhookMessage;
 use serde_json::{Value, json};
@@ -134,12 +134,28 @@ impl Provider for RevolutProvider {
         if req.save_method && customer.as_ref().and_then(|c| c.email.as_ref()).is_none() {
             bail!("customer_email is required to save a payment method");
         }
+        let line_items = (!req.lines.is_empty()).then(|| {
+            req.lines
+                .iter()
+                .map(|l| LineItem {
+                    name: l.name.clone(),
+                    description: l.description.clone(),
+                    unit_amount: l.unit_amount,
+                    quantity: l.quantity,
+                    currency: req.currency.clone(),
+                    images: None,
+                    metadata: None,
+                    tax_amount: None,
+                    tax_name: None,
+                })
+                .collect::<Vec<_>>()
+        });
         let order = self
             .api
             .create_order_ext(
                 Self::amount(&req.currency, req.amount)?,
                 Some(req.description.clone()),
-                None,
+                line_items,
                 customer,
                 req.save_method.then(|| "merchant".to_string()),
             )

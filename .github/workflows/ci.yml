@@ -31,3 +31,39 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
+  clients:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: test
+          MARIADB_DATABASE: gateway
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      TEST_DATABASE_URL: mysql://root:test@127.0.0.1:3306/
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: scripts/start-test-gateway.sh | tee gateway.env
+      - run: cd clients/js && npm install && npm run build
+      - name: js client
+        run: set -a && . ./gateway.env && set +a && cd clients/js && npm test
+      - name: python client
+        run: set -a && . ./gateway.env && set +a && cd clients/python && python -m unittest discover -s tests
+      - name: rust client
+        run: set -a && . ./gateway.env && set +a && cd clients/rust && cargo test
+      - if: always()
+        run: scripts/start-test-gateway.sh --stop

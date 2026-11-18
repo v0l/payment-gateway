@@ -6,6 +6,7 @@ pub mod audit;
 pub mod config;
 pub mod crypto;
 pub mod db;
+pub mod invoice;
 pub mod lease;
 pub mod ledger;
 pub mod limiter;

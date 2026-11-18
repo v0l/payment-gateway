@@ -27,6 +27,10 @@ A tenant may not change: fonts, radius, spacing, status colours, copy, layout, o
 - **Error.** Inline `error` text with `role="alert"` under the card content. The state area stays usable.
 - **Loading.** "Loading" text in the card shell.
 
+## Order summary and receipt
+
+When a payment has line items the card shows a collapsed "Order summary (N items)" under the description. It expands to one row per line, then discount, tax and total, all in `.money` figures. The public receipt at `/receipt/{id}` (`web/receipt.css`, tokens only) is a single card with the seller block, a metadata list, the lines table and "Total paid". Under 480 px the unit and tax columns hide and the metadata list stacks. Print forces a light, borderless page without the Print button. Screenshots: `docs/design/screenshots/receipt-*` and `pay-summary-*`.
+
 ## Content rules
 
 Copy is neutral, second person, no jargon: "Lightning invoice", "Bitcoin address", "Send exactly this amount." Status words are never colour only: icon plus title. No em or en dashes.

@@ -114,3 +114,11 @@ a.link, button.link {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+details.summary { margin: var(--space-2) 0 var(--space-3); font-size: var(--fs-base); }
+details.summary summary { cursor: pointer; color: var(--muted); }
+details.summary summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+details.summary table { width: 100%; border-collapse: collapse; margin-top: var(--space-2); }
+details.summary td { padding: var(--space-1) 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+details.summary td.num { text-align: right; }
+details.summary tr.total td { font-weight: 700; border-bottom: 0; }

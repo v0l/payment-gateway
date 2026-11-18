@@ -633,9 +633,58 @@ async fn innodb_deadlocks(h: &Harness) -> u64 {
     v.parse().unwrap()
 }
 
+async fn try_to_deadlock_settlement(
+    h: &Harness,
+    tenant_id: u64,
+    shared_id: u64,
+    hash: &str,
+    attempt_id: u64,
+) {
+    use payment_gateway::ledger::AccountKind;
+    use payment_gateway::shared::shared_key;
+    let mut blocker = h.pool.begin().await.unwrap();
+    for _ in 0..200 {
+        sqlx::query("insert into dl_weight (v) values (1)")
+            .execute(&mut *blocker)
+            .await
+            .unwrap();
+    }
+    sqlx::query("select id from ledger_account where tenant_id = ? and kind = ? for update")
+        .bind(tenant_id)
+        .bind(AccountKind::TenantBalance.as_str())
+        .fetch_all(&mut *blocker)
+        .await
+        .unwrap();
+
+    let settling = {
+        let s = sink(h, shared_key(shared_id));
+        let hash = hash.to_string();
+        tokio::spawn(async move { s.event(paid(&hash, &hash, None, true), None).await })
+    };
+    for _ in 0..400 {
+        let waiting: i64 = sqlx::query_scalar(
+            "select count(*) from information_schema.innodb_trx where trx_state = 'LOCK WAIT' and trx_query like '%ledger_account%'",
+        )
+        .fetch_one(&h.pool)
+        .await
+        .unwrap();
+        if waiting > 0 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    let cycle = sqlx::query("select id from payment_attempt where id = ? for update")
+        .bind(attempt_id)
+        .fetch_all(&mut *blocker)
+        .await;
+    drop(blocker);
+    let _ = cycle;
+    settling.await.unwrap().unwrap();
+}
+
 #[tokio::test]
 async fn a_deadlock_retry_on_a_shared_settlement_credits_exactly_once() {
-    use payment_gateway::ledger::{self, AccountKind};
+    use payment_gateway::ledger;
     use payment_gateway::shared::shared_key;
     let h = harness().await;
     let t = tenant(&h).await;
@@ -666,64 +715,31 @@ async fn a_deadlock_retry_on_a_shared_settlement_credits_exactly_once() {
         99_000_000
     );
 
-    let (hash, attempt_id) = shared_payment_hash(&h, &t, 5000).await;
     sqlx::query("create table dl_weight (id int auto_increment primary key, v int)")
         .execute(&h.pool)
         .await
         .unwrap();
-    let before = innodb_deadlocks(&h).await;
-
-    let mut blocker = h.pool.begin().await.unwrap();
-    for _ in 0..200 {
-        sqlx::query("insert into dl_weight (v) values (1)")
-            .execute(&mut *blocker)
+    let mut attempts = vec![];
+    let mut hit = false;
+    for _ in 0..5 {
+        let (hash, attempt_id) = shared_payment_hash(&h, &t, 5000).await;
+        let before = innodb_deadlocks(&h).await;
+        try_to_deadlock_settlement(&h, t.id, sid, &hash, attempt_id).await;
+        hit |= innodb_deadlocks(&h).await > before;
+        sink(&h, shared_key(sid))
+            .event(paid(&hash, &hash, None, true), None)
             .await
             .unwrap();
-    }
-    sqlx::query("select id from ledger_account where tenant_id = ? and kind = ? for update")
-        .bind(t.id)
-        .bind(AccountKind::TenantBalance.as_str())
-        .fetch_all(&mut *blocker)
-        .await
-        .unwrap();
-
-    let settling = {
-        let s = sink(&h, shared_key(sid));
-        let hash = hash.clone();
-        tokio::spawn(async move { s.event(paid(&hash, &hash, None, true), None).await })
-    };
-    for _ in 0..200 {
-        let waiting: i64 = sqlx::query_scalar(
-            "select count(*) from information_schema.innodb_trx where trx_state = 'LOCK WAIT'",
-        )
-        .fetch_one(&h.pool)
-        .await
-        .unwrap();
-        if waiting > 0 {
+        attempts.push(attempt_id);
+        if hit {
             break;
         }
-        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
     }
-    let cycle = sqlx::query("select id from payment_attempt where id = ? for update")
-        .bind(attempt_id)
-        .fetch_all(&mut *blocker)
-        .await;
-    drop(blocker);
-    let _ = cycle;
-
-    settling.await.unwrap().unwrap();
-    assert!(
-        innodb_deadlocks(&h).await > before,
-        "the scenario must have produced a deadlock"
-    );
-    let replay = sink(&h, shared_key(sid));
-    replay
-        .event(paid(&hash, &hash, None, true), None)
-        .await
-        .unwrap();
+    assert!(hit, "no attempt produced a deadlock in 5 tries");
+    let settled = attempts.len() as i64 + 1;
     assert_eq!(
         ledger::tenant_balance(&h.pool, t.id, "BTC").await.unwrap(),
-        198_000_000
+        99_000_000 * settled
     );
     let fees: i64 = sqlx::query_scalar(
         "select cast(coalesce(sum(balance), 0) as signed) from ledger_account where tenant_id is null and kind = 'platform_fees'",
@@ -731,13 +747,15 @@ async fn a_deadlock_retry_on_a_shared_settlement_credits_exactly_once() {
     .fetch_one(&h.pool)
     .await
     .unwrap();
-    assert_eq!(fees, 2_000_000);
-    let postings: i64 =
-        sqlx::query_scalar("select count(*) from ledger_transaction where idempotency_key = ?")
-            .bind(format!("settle:{attempt_id}"))
-            .fetch_one(&h.pool)
-            .await
-            .unwrap();
-    assert_eq!(postings, 1);
+    assert_eq!(fees, 1_000_000 * settled);
+    for attempt_id in attempts {
+        let postings: i64 =
+            sqlx::query_scalar("select count(*) from ledger_transaction where idempotency_key = ?")
+                .bind(format!("settle:{attempt_id}"))
+                .fetch_one(&h.pool)
+                .await
+                .unwrap();
+        assert_eq!(postings, 1);
+    }
     assert!(ledger::reconcile(&h.pool).await.unwrap().is_empty());
 }

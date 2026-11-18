@@ -37,6 +37,7 @@ fn request(amount: u64, currency: &str) -> AttemptRequest {
         option: None,
         save_method: false,
         receive: None,
+        lines: vec![],
     }
 }
 
@@ -1000,4 +1001,93 @@ async fn stalled_lnd_node_times_out_behind_the_guard() {
         ),
         "{text}"
     );
+}
+
+struct CapturingFactory(std::sync::Mutex<Vec<Value>>);
+
+#[async_trait]
+impl payment_gateway::providers::ProviderFactory for CapturingFactory {
+    async fn build(
+        &self,
+        _row: &payment_gateway::db::ProviderConfigRow,
+        config: Value,
+    ) -> anyhow::Result<Arc<dyn Provider>> {
+        self.0.lock().unwrap().push(config);
+        Ok(Arc::new(LightningProvider::new(Arc::new(
+            FakeNode::default(),
+        ))))
+    }
+}
+
+#[tokio::test]
+async fn shared_providers_are_not_pinned_or_refused_for_an_untrusted_project() {
+    use payment_gateway::crypto::Sealer;
+    use payment_gateway::db::{NewSharedProvider, insert_shared_provider};
+    use payment_gateway::providers::Registry;
+
+    let h = common::harness().await;
+    let sealer = Sealer::new(&[9u8; 32]);
+    let factory = Arc::new(CapturingFactory(Default::default()));
+    let registry = Registry::new(h.pool.clone(), sealer.clone(), factory.clone());
+    let sealed = sealer
+        .seal(br#"{"url":"https://127.0.0.1:10009"}"#)
+        .unwrap();
+    let sid = insert_shared_provider(
+        &h.pool,
+        &NewSharedProvider {
+            name: "Platform LN",
+            method: "lightning",
+            provider_type: "lnd",
+            network: "regtest",
+            sealed_config: &sealed,
+            fee_bps: 0,
+            fee_base_msat: 0,
+            allow_untrusted: true,
+            allow_trusted: true,
+        },
+    )
+    .await
+    .unwrap();
+
+    registry
+        .get(payment_gateway::shared::shared_key(sid))
+        .await
+        .expect("a shared provider on a loopback url is built, not refused");
+    let seen = factory.0.lock().unwrap();
+    assert_eq!(seen[0]["url"], "https://127.0.0.1:10009");
+}
+
+#[tokio::test]
+async fn an_untrusted_projects_own_lnd_on_a_loopback_url_is_still_refused() {
+    use payment_gateway::crypto::Sealer;
+    use payment_gateway::providers::Registry;
+
+    let h = common::harness().await;
+    let sealer = Sealer::new(&[9u8; 32]);
+    let factory = Arc::new(CapturingFactory(Default::default()));
+    let registry = Registry::new(h.pool.clone(), sealer.clone(), factory.clone());
+    let t = common::tenant(&h).await;
+    payment_gateway::db::set_tenant_trusted(&h.pool, t.id, false)
+        .await
+        .unwrap();
+    let sealed = sealer
+        .seal(br#"{"url":"https://127.0.0.1:10009"}"#)
+        .unwrap();
+    let id = payment_gateway::db::insert_provider_config(
+        &h.pool,
+        payment_gateway::db::NewProviderConfig {
+            tenant_id: t.id,
+            method: "lightning",
+            provider_type: "lnd",
+            name: "own",
+            sealed_config: &sealed,
+            fee_rate: None,
+            fee_base: None,
+            fee_currency: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(registry.get(id).await.is_err());
+    assert!(factory.0.lock().unwrap().is_empty());
 }
