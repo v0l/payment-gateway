@@ -2,7 +2,7 @@ use super::*;
 
 impl Service {
     pub async fn deliver_due(&self) -> Result<usize> {
-        let now = Utc::now();
+        let now = self.clock.now();
         let due = db::due_deliveries(&self.pool, now).await?;
         let mut sent = 0;
         for d in due {
@@ -11,7 +11,7 @@ impl Service {
             }
             let tenant = self.tenant(d.tenant_id).await?;
             let outcome = self.post_to_target(&tenant, &d).await;
-            let now = Utc::now();
+            let now = self.clock.now();
             self.metrics.inc(
                 "gateway_webhook_deliveries_total",
                 &[(
@@ -81,7 +81,7 @@ impl Service {
         let body = serde_json::json!({
             "id": event_id,
             "type": "webhook.test",
-            "created": Utc::now().timestamp(),
+            "created": self.clock.now().timestamp(),
             "data": {"message": "test event from the payment gateway"},
         })
         .to_string();
@@ -109,7 +109,7 @@ impl Service {
                 .build()?
         };
         let secret = String::from_utf8(self.sealer.open(sealed_secret)?)?;
-        let ts = Utc::now().timestamp();
+        let ts = self.clock.now().timestamp();
         let sig = webhook_signature(&secret, ts, body);
         let rsp = client
             .post(url)

@@ -128,7 +128,40 @@ pub async fn harness_with_mail() -> Harness {
     build_harness(true).await
 }
 
+pub struct ManualClock(Mutex<chrono::DateTime<chrono::Utc>>);
+
+impl ManualClock {
+    pub fn at(y: i32, m: u32, d: u32) -> Arc<Self> {
+        use chrono::TimeZone;
+        Arc::new(Self(Mutex::new(
+            chrono::Utc.with_ymd_and_hms(y, m, d, 12, 0, 0).unwrap(),
+        )))
+    }
+
+    pub fn advance_days(&self, days: i64) {
+        *self.0.lock().unwrap() += chrono::Duration::days(days);
+    }
+
+    pub fn advance_secs(&self, secs: i64) {
+        *self.0.lock().unwrap() += chrono::Duration::seconds(secs);
+    }
+}
+
+impl payment_gateway::lease::Clock for ManualClock {
+    fn now(&self) -> chrono::DateTime<chrono::Utc> {
+        *self.0.lock().unwrap()
+    }
+}
+
+pub async fn harness_with_clock(clock: Arc<ManualClock>) -> Harness {
+    build_harness_with(false, Some(clock)).await
+}
+
 async fn build_harness(mail: bool) -> Harness {
+    build_harness_with(mail, None).await
+}
+
+async fn build_harness_with(mail: bool, clock: Option<Arc<ManualClock>>) -> Harness {
     let mailer = Arc::new(RecordingMailer::new());
     let service_mailer: Arc<dyn Mailer> = if mail {
         mailer.clone()
@@ -151,13 +184,18 @@ async fn build_harness(mail: bool) -> Harness {
     let sealer = Sealer::new(&[9u8; 32]);
     let factory = Arc::new(DefaultFactory::new(true));
     let registry = Registry::new(pool.clone(), sealer.clone(), factory.clone());
-    let service = Service::with_mailer(
+    let clock: Arc<dyn payment_gateway::lease::Clock> = match clock {
+        Some(c) => c,
+        None => Arc::new(payment_gateway::lease::SystemClock),
+    };
+    let service = Service::with_clock(
         pool.clone(),
         sealer,
         registry,
         Arc::new(StaticRates::new(&[("EUR", 50_000.0), ("USD", 60_000.0)])),
         "https://pay.test".to_string(),
         service_mailer,
+        clock,
     );
     let app = api::router(payment_gateway::api::AppState::new(
         service.clone(),
