@@ -73,6 +73,21 @@ pub async fn check(pool: &MySqlPool) -> Result<Vec<Finding>> {
             findings.push(Finding { check: name, count });
         }
     }
+    let mismatches = crate::ledger::reconcile(pool).await?;
+    let cached = mismatches.iter().filter(|m| m.account_id.is_some()).count() as i64;
+    let unbalanced = mismatches.len() as i64 - cached;
+    if cached != 0 {
+        findings.push(Finding {
+            check: "ledger_cached_balance_mismatch",
+            count: cached,
+        });
+    }
+    if unbalanced != 0 {
+        findings.push(Finding {
+            check: "ledger_unbalanced_transaction",
+            count: unbalanced,
+        });
+    }
     Ok(findings)
 }
 

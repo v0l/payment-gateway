@@ -626,6 +626,7 @@ async fn restore_drill_backs_up_restores_into_a_scratch_database_and_passes_inte
     let s = seed_payments(&h, &t, ln).await;
     let sealer_k = sealer(&[("k1", 1)]);
     seed_secrets(&h, &sealer_k, 1).await;
+    seed_ledger(&h, t.id).await;
 
     let base = std::env::var("TEST_DATABASE_URL").unwrap();
     let (host, port, user, pass) = db_parts(&base);
@@ -694,6 +695,9 @@ async fn restore_drill_backs_up_restores_into_a_scratch_database_and_passes_inte
         "payment_attempt",
         "refund",
         "webhook_delivery",
+        "ledger_account",
+        "ledger_transaction",
+        "ledger_entry",
     ] {
         let sql = format!("select count(*) from {table}");
         assert_eq!(
@@ -710,6 +714,12 @@ async fn restore_drill_backs_up_restores_into_a_scratch_database_and_passes_inte
             .unwrap();
     assert_eq!(id, 1);
     assert!(integrity::check(&restored).await.unwrap().is_empty());
+    assert_eq!(
+        payment_gateway::ledger::tenant_balance(&restored, t.id, "BTC")
+            .await
+            .unwrap(),
+        5_000
+    );
     assert_eq!(
         integrity::unreadable_sealed_values(&restored, &sealer_k)
             .await
@@ -784,6 +794,112 @@ async fn operator_tools_write_audit_events_without_subject_values() {
         assert!(details.contains("\"subject_kind\":\"email\""));
         assert!(!details.contains("c@example.com"));
     }
+}
+
+async fn seed_ledger(h: &Harness, tenant_id: u64) {
+    use payment_gateway::ledger::{AccountKind, AccountRef, Entry, Posting, TxKind, post};
+    let mut tx = h.pool.begin().await.unwrap();
+    let p = Posting::new(
+        TxKind::PaymentReceived,
+        vec![
+            Entry::new(
+                AccountRef::platform(AccountKind::PlatformWallet, "BTC"),
+                -5_000,
+            ),
+            Entry::new(
+                AccountRef::tenant(tenant_id, AccountKind::TenantBalance, "BTC"),
+                5_000,
+            ),
+        ],
+    );
+    post(&mut tx, &p, "seed-ledger").await.unwrap();
+    tx.commit().await.unwrap();
+}
+
+#[tokio::test]
+async fn retention_and_privacy_never_touch_ledger_tables() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    seed_payments(&h, &t, ln).await;
+    seed_ledger(&h, t.id).await;
+    sqlx::query("update ledger_transaction set created = ?")
+        .bind(Utc::now() - Duration::days(4000))
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    let tables = ["ledger_account", "ledger_transaction", "ledger_entry"];
+    let mut before = Vec::new();
+    for table in tables {
+        before.push(count(&h.pool, &format!("select count(*) from {table}")).await);
+    }
+    let policy = RetentionPolicy {
+        delivery_body_days: Some(0),
+        unpaid_payment_days: Some(0),
+        session_days: Some(0),
+    };
+    retention::purge(
+        &h.pool,
+        &policy,
+        Utc::now() + Duration::days(5000),
+        Actor::System,
+    )
+    .await
+    .unwrap();
+    let mut after = Vec::new();
+    for table in tables {
+        after.push(count(&h.pool, &format!("select count(*) from {table}")).await);
+    }
+    assert_eq!(before, after);
+    assert!(before.iter().all(|n| *n > 0));
+}
+
+#[tokio::test]
+async fn integrity_reports_a_tampered_ledger_cache_and_an_unbalanced_transaction() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    seed_ledger(&h, t.id).await;
+    assert!(integrity::check(&h.pool).await.unwrap().is_empty());
+
+    sqlx::query("update ledger_account set balance = balance + 1 where tenant_id = ?")
+        .bind(t.id)
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    let findings = integrity::check(&h.pool).await.unwrap();
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.check == "ledger_cached_balance_mismatch" && f.count == 1)
+    );
+    assert!(
+        !findings
+            .iter()
+            .any(|f| f.check == "ledger_unbalanced_transaction")
+    );
+
+    sqlx::query("update ledger_account set balance = balance - 1 where tenant_id = ?")
+        .bind(t.id)
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    sqlx::query("insert into ledger_transaction (kind, idempotency_key, created) values ('adjustment', 'hand', ?)")
+        .bind(Utc::now())
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    sqlx::query("insert into ledger_entry (transaction_id, account_id, amount, currency, created) select (select id from ledger_transaction where idempotency_key = 'hand'), id, 7, currency, ? from ledger_account where tenant_id = ?")
+        .bind(Utc::now())
+        .bind(t.id)
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    let findings = integrity::check(&h.pool).await.unwrap();
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.check == "ledger_unbalanced_transaction" && f.count == 1)
+    );
 }
 
 #[tokio::test]
