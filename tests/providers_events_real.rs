@@ -26,6 +26,7 @@ fn request() -> AttemptRequest {
         option: None,
         save_method: false,
         receive: None,
+        lines: vec![],
     }
 }
 
