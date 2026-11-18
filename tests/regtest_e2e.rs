@@ -1,7 +1,7 @@
 mod common;
 use axum::http::StatusCode;
 use common::*;
-use payment_gateway::api::{self, AppState};
+use payment_gateway::api::{self};
 use payment_gateway::sandbox::{Sandbox, SandboxConfig};
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -63,12 +63,12 @@ async fn real_lnd_lightning_and_onchain_payments_settle_through_the_gateway() {
     }
     let h = harness().await;
     let sb = Sandbox::from_config(config(), h.service.clone()).unwrap();
-    let app = api::router(AppState {
-        service: h.service.clone(),
-        admin_token: ADMIN.into(),
-        allow_mock: true,
-        sandbox: Some(sb.clone()),
-    });
+    let app = api::router(payment_gateway::api::AppState::new(
+        h.service.clone(),
+        ADMIN.into(),
+        true,
+        Some(sb.clone()),
+    ));
     let log = sb
         .bootstrap()
         .await

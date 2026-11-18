@@ -2,7 +2,7 @@ mod common;
 use async_trait::async_trait;
 use axum::http::StatusCode;
 use common::*;
-use payment_gateway::api::{self, AppState};
+use payment_gateway::api::{self};
 use payment_gateway::sandbox::{Bitcoind, ChannelInfo, LnNode, LndAccess, NodeInfo, Sandbox};
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
@@ -159,12 +159,12 @@ async fn rig() -> Rig {
     sb.poll = std::time::Duration::from_millis(5);
     sb.polls = 20;
     let sb = Arc::new(sb);
-    let app = api::router(AppState {
-        service: h.service.clone(),
-        admin_token: ADMIN.into(),
-        allow_mock: true,
-        sandbox: Some(sb.clone()),
-    });
+    let app = api::router(payment_gateway::api::AppState::new(
+        h.service.clone(),
+        ADMIN.into(),
+        true,
+        Some(sb.clone()),
+    ));
     Rig {
         h,
         app,
@@ -639,12 +639,12 @@ async fn status_reports_node_errors_without_failing_the_whole_call() {
         "x:1".into(),
         h.service.clone(),
     ));
-    let app = api::router(AppState {
-        service: h.service.clone(),
-        admin_token: ADMIN.into(),
-        allow_mock: true,
-        sandbox: Some(sb),
-    });
+    let app = api::router(payment_gateway::api::AppState::new(
+        h.service.clone(),
+        ADMIN.into(),
+        true,
+        Some(sb),
+    ));
     let (s, st) = admin(&app, "GET", "/sandbox/api/status", Value::Null).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(st["ready"], false);
@@ -707,12 +707,12 @@ async fn bootstrap_reports_a_timeout_instead_of_hanging_when_a_node_never_syncs(
     );
     sb.poll = std::time::Duration::from_millis(1);
     sb.polls = 3;
-    let app = api::router(AppState {
-        service: h.service.clone(),
-        admin_token: ADMIN.into(),
-        allow_mock: true,
-        sandbox: Some(Arc::new(sb)),
-    });
+    let app = api::router(payment_gateway::api::AppState::new(
+        h.service.clone(),
+        ADMIN.into(),
+        true,
+        Some(Arc::new(sb)),
+    ));
     let (s, r) = admin(&app, "POST", "/sandbox/api/bootstrap", json!({})).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(r["ok"], false);

@@ -12,7 +12,6 @@ use payments_rs::onchain::{
     OnChainProvider, SendCoinsRequest, SendOutput,
 };
 use serde_json::{Value, json};
-use std::path::Path;
 use std::sync::Arc;
 
 pub struct OnChainProviderImpl {
@@ -26,12 +25,11 @@ impl OnChainProviderImpl {
 
     pub async fn lnd(config: &Value) -> Result<Self> {
         setup_crypto_provider();
-        let field = |k: &str| {
-            config
-                .get(k)
-                .and_then(Value::as_str)
-                .with_context(|| format!("lnd config needs {k}"))
-        };
+        let url = config
+            .get("url")
+            .and_then(Value::as_str)
+            .context("lnd config needs url")?;
+        let creds = super::creds::lnd_creds(config)?;
         let address_type = match config.get("address_type").and_then(Value::as_str) {
             Some("p2wkh") => LndAddressType::WitnessPubkeyHash,
             Some("np2wkh") => LndAddressType::NestedPubkeyHash,
@@ -43,9 +41,9 @@ impl OnChainProviderImpl {
             .and_then(Value::as_u64)
             .unwrap_or(1) as u32;
         let chain = LndOnChainProvider::new(
-            field("url")?,
-            Path::new(field("cert_path")?),
-            Path::new(field("macaroon_path")?),
+            url,
+            &creds.cert,
+            &creds.macaroon,
             LndOnChainConfig {
                 address_type,
                 account: config

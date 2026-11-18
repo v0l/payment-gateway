@@ -5,7 +5,7 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, Request, StatusCode};
 use http_body_util::BodyExt;
-use payment_gateway::api::{self, AppState};
+use payment_gateway::api::{self};
 use payment_gateway::crypto::Sealer;
 use payment_gateway::db;
 use payment_gateway::providers::mock::MockProvider;
@@ -60,12 +60,12 @@ pub async fn harness() -> Harness {
         Arc::new(StaticRates::new(&[("EUR", 50_000.0), ("USD", 60_000.0)])),
         "https://pay.test".to_string(),
     );
-    let app = api::router(AppState {
-        service: service.clone(),
-        admin_token: ADMIN.into(),
-        allow_mock: true,
-        sandbox: None,
-    });
+    let app = api::router(payment_gateway::api::AppState::new(
+        service.clone(),
+        ADMIN.into(),
+        true,
+        None,
+    ));
     Harness {
         app,
         service,

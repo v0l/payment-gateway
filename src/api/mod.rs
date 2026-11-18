@@ -1,4 +1,5 @@
 mod admin;
+mod console;
 mod public;
 mod sandbox;
 mod tenant;
@@ -17,9 +18,30 @@ pub struct AppState {
     pub admin_token: String,
     pub allow_mock: bool,
     pub sandbox: Option<Arc<crate::sandbox::Sandbox>>,
+    pub login_limiter: Arc<crate::limiter::Limiter>,
+    pub max_projects: usize,
 }
 
 impl AppState {
+    pub fn new(
+        service: Arc<Service>,
+        admin_token: String,
+        allow_mock: bool,
+        sandbox: Option<Arc<crate::sandbox::Sandbox>>,
+    ) -> Self {
+        Self {
+            service,
+            admin_token,
+            allow_mock,
+            sandbox,
+            login_limiter: Arc::new(crate::limiter::Limiter::new(
+                8,
+                std::time::Duration::from_secs(900),
+            )),
+            max_projects: 5,
+        }
+    }
+
     pub fn pool(&self) -> &sqlx::MySqlPool {
         &self.service.pool
     }
@@ -30,6 +52,9 @@ pub struct ApiError(pub StatusCode, pub String);
 impl ApiError {
     pub fn unauthorized() -> Self {
         Self(StatusCode::UNAUTHORIZED, "unauthorized".into())
+    }
+    pub fn unauthorized_with(msg: &str) -> Self {
+        Self(StatusCode::UNAUTHORIZED, msg.into())
     }
     pub fn not_found() -> Self {
         Self(StatusCode::NOT_FOUND, "not found".into())
@@ -84,6 +109,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/v1", tenant::router())
         .merge(public::router())
         .merge(sandbox::router())
+        .merge(console::router())
         .with_state(state)
 }
 

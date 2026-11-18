@@ -27,6 +27,7 @@ pub struct Tenant {
     pub allowed_origins: Option<String>,
     pub default_success_url: Option<String>,
     pub default_cancel_url: Option<String>,
+    pub trusted: bool,
 }
 
 impl Tenant {
@@ -182,7 +183,7 @@ pub async fn connect(url: &str) -> Result<MySqlPool> {
     Ok(pool)
 }
 
-const TENANT_COLS: &str = "id, name, api_key_hash, webhook_url, webhook_secret, enabled, display_name, logo_url, accent_color, allowed_origins, default_success_url, default_cancel_url";
+const TENANT_COLS: &str = "id, name, api_key_hash, webhook_url, webhook_secret, enabled, display_name, logo_url, accent_color, allowed_origins, default_success_url, default_cancel_url, trusted";
 const PROVIDER_COLS: &str =
     "id, tenant_id, method, provider_type, name, enabled, config, fee_rate, fee_base, fee_currency";
 const PAYMENT_COLS: &str = "id, tenant_id, reference, currency, amount, tax, status, created, expires, paid_at, description, customer_ref, customer_email, metadata, methods, idempotency_key, success_url, cancel_url";
@@ -1003,5 +1004,237 @@ pub async fn pending_attempts_of_provider(
     ))
     .bind(provider_id)
     .fetch_all(pool)
+    .await?)
+}
+
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct StatRow {
+    pub status: String,
+    pub currency: String,
+    pub count: i64,
+    pub total: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct DayRow {
+    pub day: String,
+    pub currency: String,
+    pub count: i64,
+    pub total: Option<i64>,
+}
+
+pub async fn list_payments(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    status: Option<&str>,
+    query: Option<&str>,
+    before: Option<(DateTime<Utc>, Vec<u8>)>,
+    limit: u32,
+) -> Result<Vec<PaymentRow>> {
+    let mut sql = format!("select {PAYMENT_COLS} from payment where tenant_id = ?");
+    if status.is_some() {
+        sql.push_str(" and status = ?");
+    }
+    if query.is_some() {
+        sql.push_str(" and (reference like ? or hex(id) like ?)");
+    }
+    if before.is_some() {
+        sql.push_str(" and (created < ? or (created = ? and id < ?))");
+    }
+    sql.push_str(" order by created desc, id desc limit ?");
+    let mut q = sqlx::query_as(&sql).bind(tenant_id);
+    if let Some(s) = status {
+        q = q.bind(s);
+    }
+    if let Some(text) = query {
+        let escaped = text
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
+        q = q
+            .bind(format!("{escaped}%"))
+            .bind(format!("{}%", escaped.to_uppercase()));
+    }
+    if let Some((at, id)) = before {
+        q = q.bind(at).bind(at).bind(id);
+    }
+    Ok(q.bind(limit).fetch_all(pool).await?)
+}
+
+pub async fn payment_stats(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    since: DateTime<Utc>,
+) -> Result<Vec<StatRow>> {
+    Ok(sqlx::query_as(
+        "select status, currency, count(*) as count, cast(sum(amount) as signed) as total from payment where tenant_id = ? and created >= ? group by status, currency order by status, currency",
+    )
+    .bind(tenant_id)
+    .bind(since)
+    .fetch_all(pool)
+    .await?)
+}
+
+pub async fn paid_by_day(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    since: DateTime<Utc>,
+) -> Result<Vec<DayRow>> {
+    Ok(sqlx::query_as(
+        "select cast(date(paid_at) as char) as day, currency, count(*) as count, cast(sum(amount) as signed) as total from payment where tenant_id = ? and paid_at >= ? and status in ('paid','partially_refunded','refunded') group by date(paid_at), currency order by date(paid_at)",
+    )
+    .bind(tenant_id)
+    .bind(since)
+    .fetch_all(pool)
+    .await?)
+}
+
+pub async fn method_counts(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    since: DateTime<Utc>,
+) -> Result<Vec<(String, i64)>> {
+    Ok(sqlx::query_as(
+        "select a.method, count(*) from payment_attempt a join payment p on p.id = a.payment_id where p.tenant_id = ? and a.status = 'paid' and a.paid_at >= ? group by a.method order by 2 desc",
+    )
+    .bind(tenant_id)
+    .bind(since)
+    .fetch_all(pool)
+    .await?)
+}
+
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct DeliveryDetail {
+    pub id: u64,
+    pub event_id: String,
+    pub event_type: String,
+    pub attempts: u32,
+    pub created: DateTime<Utc>,
+    pub next_attempt: DateTime<Utc>,
+    pub delivered_at: Option<DateTime<Utc>>,
+    pub abandoned_at: Option<DateTime<Utc>>,
+    pub last_error: Option<String>,
+    pub body: String,
+}
+
+pub async fn deliveries_for_tenant(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    undelivered_only: bool,
+) -> Result<Vec<DeliveryDetail>> {
+    let extra = if undelivered_only {
+        " and delivered_at is null"
+    } else {
+        ""
+    };
+    Ok(sqlx::query_as(&format!(
+        "select id, event_id, event_type, attempts, created, next_attempt, delivered_at, abandoned_at, last_error, body from webhook_delivery where tenant_id = ?{extra} order by id desc limit 100"
+    ))
+    .bind(tenant_id)
+    .fetch_all(pool)
+    .await?)
+}
+
+pub async fn replay_tenant_delivery(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    id: u64,
+    now: DateTime<Utc>,
+) -> Result<bool> {
+    let r = sqlx::query(
+        "update webhook_delivery set delivered_at = null, abandoned_at = null, next_attempt = ? where id = ? and tenant_id = ?",
+    )
+    .bind(now)
+    .bind(id)
+    .bind(tenant_id)
+    .execute(pool)
+    .await?;
+    Ok(r.rows_affected() > 0)
+}
+
+pub async fn get_tenant_provider(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    id: u64,
+) -> Result<Option<ProviderConfigRow>> {
+    Ok(sqlx::query_as(&format!(
+        "select {PROVIDER_COLS} from provider_config where id = ? and tenant_id = ?"
+    ))
+    .bind(id)
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await?)
+}
+
+pub async fn update_provider_fees(
+    pool: &MySqlPool,
+    id: u64,
+    name: &str,
+    fee_rate: Option<f64>,
+    fee_base: Option<u64>,
+    fee_currency: Option<&str>,
+) -> Result<()> {
+    sqlx::query("update provider_config set name = ?, fee_rate = ?, fee_base = ?, fee_currency = ? where id = ?")
+        .bind(name)
+        .bind(fee_rate)
+        .bind(fee_base)
+        .bind(fee_currency)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn provider_attempt_count(pool: &MySqlPool, id: u64) -> Result<i64> {
+    Ok(sqlx::query_scalar("select count(*) from payment_attempt where provider_config_id = ? or watch_provider_id = ?")
+        .bind(id)
+        .bind(id)
+        .fetch_one(pool)
+        .await?)
+}
+
+pub async fn delete_provider(pool: &MySqlPool, tenant_id: u64, id: u64) -> Result<bool> {
+    sqlx::query("delete from provider_cursor where provider_config_id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    let r = sqlx::query("delete from provider_config where id = ? and tenant_id = ?")
+        .bind(id)
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
+    Ok(r.rows_affected() > 0)
+}
+
+pub async fn set_tenant_trusted(pool: &MySqlPool, id: u64, trusted: bool) -> Result<bool> {
+    let r = sqlx::query("update tenant set trusted = ? where id = ?")
+        .bind(trusted)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(r.rows_affected() > 0)
+}
+
+pub async fn count_all<'e, E: Executor<'e, Database = MySql>>(ex: E, table: &str) -> Result<i64> {
+    Ok(sqlx::query_scalar(&format!("select count(*) from {table}"))
+        .fetch_one(ex)
+        .await?)
+}
+
+pub async fn deliveries_for_payment(pool: &MySqlPool, id: &PaymentId) -> Result<Vec<DeliveryRow>> {
+    Ok(sqlx::query_as(
+        "select id, tenant_id, event_id, event_type, attempts, created, next_attempt, delivered_at, abandoned_at, last_error from webhook_delivery where payment_id = ? order by id",
+    )
+    .bind(&id[..])
+    .fetch_all(pool)
+    .await?)
+}
+
+pub async fn pending_delivery_count(pool: &MySqlPool, tenant_id: u64) -> Result<i64> {
+    Ok(sqlx::query_scalar(
+        "select count(*) from webhook_delivery where tenant_id = ? and delivered_at is null and abandoned_at is null",
+    )
+    .bind(tenant_id)
+    .fetch_one(pool)
     .await?)
 }

@@ -1,7 +1,8 @@
 use super::{ApiError, ApiResult, AppState, bearer};
 use crate::crypto::{hash_api_key, new_api_key, new_webhook_secret};
-use crate::db::{self, DeliveryRow, NewProviderConfig, ProviderConfigRow, TenantSettings};
-use crate::model::{METHODS, normalize_origins};
+use crate::db::{self, DeliveryRow, NewProviderConfig, ProviderConfigRow};
+use crate::model::METHODS;
+use crate::validate::{self, SettingsInput};
 use axum::extract::{FromRequestParts, Path, Query, State};
 use axum::http::request::Parts;
 use axum::routing::{get, post};
@@ -41,6 +42,7 @@ pub fn router() -> Router<AppState> {
             "/tenants/{id}/providers/{provider_id}/enabled",
             post(set_provider_enabled),
         )
+        .route("/invites", post(create_invite))
         .route("/deliveries", get(list_deliveries))
         .route("/deliveries/{id}/replay", post(replay_delivery))
 }
@@ -96,11 +98,6 @@ fn valid_url(url: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn valid_color(c: &str) -> bool {
-    let c = c.strip_prefix('#').unwrap_or("");
-    matches!(c.len(), 3 | 6) && c.chars().all(|ch| ch.is_ascii_hexdigit())
-}
-
 async fn create_tenant(
     _: AdminAuth,
     State(s): State<AppState>,
@@ -151,56 +148,18 @@ async fn get_tenant(
         .ok_or_else(ApiError::not_found)
 }
 
-#[derive(Deserialize)]
-struct SettingsInput {
-    webhook_url: Option<String>,
-    display_name: Option<String>,
-    logo_url: Option<String>,
-    accent_color: Option<String>,
-    #[serde(default)]
-    allowed_origins: Vec<String>,
-    default_success_url: Option<String>,
-    default_cancel_url: Option<String>,
-}
-
 async fn update_settings(
     _: AdminAuth,
     State(s): State<AppState>,
     Path(id): Path<u64>,
     Json(req): Json<SettingsInput>,
 ) -> ApiResult<TenantView> {
-    for u in [
-        &req.webhook_url,
-        &req.logo_url,
-        &req.default_success_url,
-        &req.default_cancel_url,
-    ]
-    .into_iter()
-    .flatten()
-    {
-        if !valid_url(u) {
-            return Err(ApiError::bad_request(format!("invalid url {u}")));
-        }
-    }
-    if req.accent_color.as_deref().is_some_and(|c| !valid_color(c)) {
-        return Err(ApiError::bad_request(
-            "accent_color must be #rgb or #rrggbb",
-        ));
-    }
-    if req.display_name.as_deref().is_some_and(|n| n.len() > 128) {
-        return Err(ApiError::bad_request("display_name too long"));
-    }
-    let origins = normalize_origins(&req.allowed_origins.join(" "))
+    let tenant = db::get_tenant(s.pool(), id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    let settings = validate::settings(tenant.trusted, req)
+        .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
-    let settings = TenantSettings {
-        webhook_url: req.webhook_url,
-        display_name: req.display_name,
-        logo_url: req.logo_url,
-        accent_color: req.accent_color,
-        allowed_origins: (!origins.is_empty()).then(|| origins.join(" ")),
-        default_success_url: req.default_success_url,
-        default_cancel_url: req.default_cancel_url,
-    };
     if !db::update_tenant_settings(s.pool(), id, &settings).await? {
         return Err(ApiError::not_found());
     }
@@ -261,9 +220,15 @@ async fn create_provider(
     if req.name.trim().is_empty() || req.provider_type.trim().is_empty() {
         return Err(ApiError::bad_request("name and provider_type required"));
     }
-    if req.provider_type == "mock" && !s.allow_mock {
-        return Err(ApiError::bad_request("mock providers are disabled"));
-    }
+    validate::provider_config(
+        true,
+        s.allow_mock,
+        &req.method,
+        &req.provider_type,
+        &req.config,
+    )
+    .await
+    .map_err(|e| ApiError::bad_request(e.to_string()))?;
     if req.fee_rate.is_some_and(|r| !(0.0..=100.0).contains(&r)) {
         return Err(ApiError::bad_request("fee_rate must be 0-100"));
     }
@@ -340,4 +305,45 @@ async fn replay_delivery(
     } else {
         Err(ApiError::not_found())
     }
+}
+
+#[derive(Deserialize)]
+struct InviteInput {
+    email: String,
+    #[serde(default)]
+    operator: bool,
+}
+
+async fn create_invite(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    Json(i): Json<InviteInput>,
+) -> ApiResult<Value> {
+    let email = crate::accounts::normalize_email(&i.email)
+        .ok_or_else(|| ApiError::bad_request("invalid email"))?;
+    if crate::accounts::account_by_email(s.pool(), &email)
+        .await?
+        .is_some()
+    {
+        return Err(ApiError(
+            axum::http::StatusCode::CONFLICT,
+            "an account with this email already exists".into(),
+        ));
+    }
+    let token = crate::accounts::insert_invite(
+        s.pool(),
+        &crate::accounts::NewInvite {
+            email: &email,
+            tenant_id: None,
+            role: None,
+            operator: i.operator,
+            created_by: None,
+        },
+    )
+    .await?;
+    Ok(Json(serde_json::json!({
+        "invite_url": format!("{}/console/invite/{token}", s.service.public_url),
+        "email": email,
+        "expires_in_days": crate::accounts::INVITE_DAYS,
+    })))
 }

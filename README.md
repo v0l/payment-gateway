@@ -17,7 +17,18 @@ GATEWAY_ALLOW_MOCK=1                              # tests only, never in product
 
 Migrations run on start. One process runs the API, the provider watchers (LND streams), the expiry sweep and the webhook sender, so run a single replica.
 
-## Set up a tenant
+## Console
+
+Open `/console`. Create the first operator account with the admin token, then everything else is in the console:
+
+```
+curl -X POST $GW/admin/invites -H "Authorization: Bearer $ADMIN" -H 'content-type: application/json' \
+  -d '{"email":"you@example.com","operator":true}'
+```
+
+Open the returned `invite_url`, choose a password, then create projects, add providers (credentials are write-only), watch payments and webhooks, refund, and invite teammates. Customer projects start in test mode until an operator lifts the limits from the project's Settings page.
+
+## Set up a tenant with the admin API
 
 ```
 curl -X POST $GW/admin/tenants -H "Authorization: Bearer $ADMIN" -H 'content-type: application/json' \

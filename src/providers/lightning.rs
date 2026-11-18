@@ -11,7 +11,6 @@ use payments_rs::lightning::{
     PayInvoiceRequest, setup_crypto_provider,
 };
 use serde_json::{Value, json};
-use std::path::Path;
 use std::sync::Arc;
 
 #[async_trait]
@@ -54,18 +53,12 @@ impl LightningProvider {
 
     pub async fn lnd(config: &Value) -> Result<Self> {
         setup_crypto_provider();
-        let field = |k: &str| {
-            config
-                .get(k)
-                .and_then(Value::as_str)
-                .with_context(|| format!("lnd config needs {k}"))
-        };
-        let node = LndNode::new(
-            field("url")?,
-            Path::new(field("cert_path")?),
-            Path::new(field("macaroon_path")?),
-        )
-        .await?;
+        let url = config
+            .get("url")
+            .and_then(Value::as_str)
+            .context("lnd config needs url")?;
+        let creds = super::creds::lnd_creds(config)?;
+        let node = LndNode::new(url, &creds.cert, &creds.macaroon).await?;
         let node = Arc::new(node);
         Ok(Self::new(node.clone()).with_lookup(Arc::new(LndLookup(node))))
     }

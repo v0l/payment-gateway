@@ -98,6 +98,16 @@ The payment id is 32 random bytes and acts as the capability for the public endp
 - Settlement is a single DB transaction: attempt paid, payment paid, webhook row inserted. Delivery happens after commit from the webhook table.
 - Altcoins go through FixedFloat into the tenant's on-chain wallet. The payment is paid when the swap lands, not when the customer sends.
 
+## Self-service console (SaaS)
+
+The gateway is a multi-tenant service. Operators sign in at `/console`, which is a dependency-free single page served from the binary.
+
+- **Accounts:** email and password (argon2id), cookie sessions with a CSRF token, login lockout, invite-only signup. Operators create invites in the console or with the admin token. TOTP is planned.
+- **Projects:** one account owns many projects, each a tenant with its own API key, providers, webhook and branding. Roles per project: viewer, admin, owner. Teammates join by invite link.
+- **Test mode:** customer projects start untrusted. An operator lifts the limits per project. Untrusted projects cannot use mock providers, local credential files, custom provider URLs, or non-public addresses, and their webhooks are only sent to public https hosts. Operators and trusted projects keep file paths and internal hosts.
+- **Secrets:** provider credentials are sealed at rest and never returned. The console shows `set` and keeps the stored value when a field is left alone.
+- **Not built yet:** shared Lightning and on-chain for tenants that have no node (custody: ledger, platform fee, withdrawals, payouts), TOTP, password reset by email, billing for platform fees, per-project usage limits.
+
 ## Milestones
 
 1. Skeleton: workspace, config, migrations, tenants and API keys, admin API, health, CI

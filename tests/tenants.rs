@@ -141,12 +141,12 @@ async fn provider_configs_are_scoped_per_tenant_and_secrets_never_returned() {
 async fn mock_providers_are_refused_when_mocks_are_disabled() {
     let h = harness().await;
     let t = tenant(&h).await;
-    let app = payment_gateway::api::router(payment_gateway::api::AppState {
-        service: h.service.clone(),
-        admin_token: ADMIN.into(),
-        allow_mock: false,
-        sandbox: None,
-    });
+    let app = payment_gateway::api::router(payment_gateway::api::AppState::new(
+        h.service.clone(),
+        ADMIN.into(),
+        false,
+        None,
+    ));
     let (s, _) = call(
         &app,
         "POST",

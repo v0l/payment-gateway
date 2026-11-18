@@ -1,3 +1,4 @@
+pub mod creds;
 pub mod fixedfloat;
 pub mod lightning;
 pub mod mock;
@@ -214,6 +215,13 @@ impl Registry {
             .await?
             .context("unknown provider config")?;
         let config = self.open_config(&row)?;
+        let trusted = db::get_tenant(&self.pool, row.tenant_id)
+            .await?
+            .map(|t| t.trusted)
+            .unwrap_or(false);
+        if !trusted && let Some(url) = config.get("url").and_then(Value::as_str) {
+            crate::ssrf::resolve_public(url).await?;
+        }
         let provider = self.factory.build(&row, config).await?;
         self.cache.lock().unwrap().insert(id, provider.clone());
         Ok(provider)

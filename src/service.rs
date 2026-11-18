@@ -1140,11 +1140,20 @@ impl Service {
             .webhook_url
             .as_deref()
             .ok_or_else(|| anyhow!("tenant has no webhook_url"))?;
+        let client = if tenant.trusted {
+            self.http.clone()
+        } else {
+            let target = crate::ssrf::resolve_public(url).await?;
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(15))
+                .redirect(reqwest::redirect::Policy::none())
+                .resolve(&target.host, target.addr)
+                .build()?
+        };
         let secret = String::from_utf8(self.sealer.open(&tenant.webhook_secret)?)?;
         let ts = Utc::now().timestamp();
         let sig = webhook_signature(&secret, ts, body);
-        let rsp = self
-            .http
+        let rsp = client
             .post(url)
             .header("content-type", "application/json")
             .header("x-gateway-event-id", event_id)
