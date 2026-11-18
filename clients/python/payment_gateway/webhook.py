@@ -22,10 +22,10 @@ def sign_webhook(raw_body: Union[str, bytes], secret: str, timestamp: int) -> st
     return mac.hexdigest()
 
 
-def _header(headers: Mapping[str, Any], name: str) -> Optional[str]:
-    for key in headers:
+def _header(headers: Any, name: str) -> Optional[str]:
+    items = headers.items() if hasattr(headers, "items") else headers
+    for key, value in items:
         if key.lower() == name:
-            value = headers[key]
             if isinstance(value, (list, tuple)):
                 return value[0] if value else None
             return value
@@ -34,7 +34,7 @@ def _header(headers: Mapping[str, Any], name: str) -> Optional[str]:
 
 def verify_webhook(
     raw_body: Union[str, bytes],
-    headers: Mapping[str, Any],
+    headers: Any,
     secret: str,
     tolerance_seconds: int = DEFAULT_TOLERANCE_SECONDS,
     now: Optional[float] = None,

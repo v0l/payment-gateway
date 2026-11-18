@@ -41,7 +41,7 @@ LOG_LEVEL=warn \
 echo $! >"$state/pid"
 
 url="http://127.0.0.1:$port"
-for _ in $(seq 1 100); do
+for _ in $(seq 1 600); do
   if curl -fs "$url/health" >/dev/null 2>&1; then
     break
   fi

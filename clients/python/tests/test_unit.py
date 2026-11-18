@@ -52,6 +52,11 @@ class WebhookTests(unittest.TestCase):
         verify_webhook(v["body"], headers, v["secret"], 300, t + 300)
         verify_webhook(v["body"], headers, v["secret"], 0, t + 10**6)
 
+    def test_headers_object_that_iterates_pairs(self):
+        v = VECTORS["vectors"][0]
+        headers = PairIterHeaders([("X-Gateway-Signature", v["header"])])
+        verify_webhook(v["body"], headers, v["secret"], 300, v["timestamp"])
+
     def test_missing_and_malformed(self):
         v = VECTORS["vectors"][0]
         with self.assertRaises(WebhookVerificationError) as ctx:
@@ -60,6 +65,20 @@ class WebhookTests(unittest.TestCase):
         with self.assertRaises(WebhookVerificationError) as ctx:
             verify_webhook(v["body"], {HEADER: "t=abc,v1=00"}, v["secret"])
         self.assertEqual(ctx.exception.reason, "malformed_header")
+
+
+class PairIterHeaders:
+    def __init__(self, items):
+        self._items = items
+
+    def __iter__(self):
+        return iter(self._items)
+
+    def get(self, key, default=None):
+        for k, v in self._items:
+            if k.lower() == key.lower():
+                return v
+        return default
 
 
 def scripted(responses):
