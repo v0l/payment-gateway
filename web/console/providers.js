@@ -4,19 +4,34 @@ var PROVIDER_TEMPLATES = {
   "onchain/lnd": { fields: [["url", "LND gRPC url (https://host:10009)"], ["cert", "tls.cert (PEM)", "area"], ["macaroon", "Macaroon (hex)", "area"], ["address_type", "Address type (p2tr, p2wkh, np2wkh)"], ["min_confirmations", "Confirmations needed (1-100)"]], note: "" },
   "stripe/stripe": { fields: [["secret_key", "Secret key (sk_live_...)"], ["webhook_secret", "Webhook signing secret (whsec_...)"]], note: "Add the webhook URL shown after saving to Stripe, for checkout.session events." },
   "revolut/revolut": { fields: [["token", "Merchant API key"], ["api_version", "API version (2024-09-01)"]], note: "The webhook is registered for you." },
+  "paypal/paypal": { fields: [["client_id", "Client ID"], ["client_secret", "Client secret"], ["mode", "Mode (sandbox or live)"], ["webhook_id", "Webhook ID (from the PayPal developer dashboard)"]], note: "Subscribe the webhook URL shown after saving to CHECKOUT.ORDER.APPROVED, PAYMENT.CAPTURE.COMPLETED, PAYMENT.CAPTURE.REFUNDED and CUSTOMER.DISPUTE events." },
   "fixedfloat/fixedfloat": { fields: [["api_key", "API key"], ["api_secret", "API secret"], ["coins", "Coins, comma separated (XMR,LTC)"]], note: "Needs an on-chain provider in the same project." }
 };
+
+function healthText(r) {
+  var h = r.health;
+  if (r.auto_disabled_at) return "auto-disabled after repeated failures";
+  if (!h) return "no calls yet";
+  return h.successes + " ok, " + h.errors + " errors" + (h.last_error ? " (last: " + h.last_error + ")" : "");
+}
+
+function testProvider(pid, id, box) {
+  var out = el("div");
+  box.insertBefore(out, box.firstChild);
+  api("POST", "/projects/" + pid + "/providers/" + id + "/test").then(function (r) { msg(out, r.message, !r.ok); }).catch(function (e) { msg(out, e.message, true); });
+}
 
 function providers(pid) {
   projectShell(pid, "providers", function (p, body) {
     var list = el("div"); body.appendChild(list);
     function load() {
       api("GET", "/projects/" + pid + "/providers").then(function (rows) {
-        list.replaceChildren(rows.length ? el("table", {}, [el("tr", {}, ["Name", "Method", "Fee", "Status", ""].map(function (h) { return el("th", { text: h }); }))].concat(rows.map(function (r) {
+        list.replaceChildren(rows.length ? el("table", {}, [el("tr", {}, ["Name", "Method", "Fee", "Status", "Health (24h)", ""].map(function (h) { return el("th", { text: h }); }))].concat(rows.map(function (r) {
           return el("tr", {}, [el("td", { text: r.name }), el("td", { text: r.method + "/" + r.provider_type }),
             el("td", { class: "muted", text: (r.fee_rate ? r.fee_rate + "%" : "") + (r.fee_base ? " + " + r.fee_base + " " + (r.fee_currency || "") : "") }),
             el("td", {}, [pill(r.enabled ? "enabled" : "disabled", r.enabled ? "ok" : "bad")]),
-            el("td", {}, [el("a", { text: r.enabled ? "disable" : "enable", onclick: function () { api("POST", "/projects/" + pid + "/providers/" + r.id + "/enabled", { enabled: !r.enabled }).then(load); } }), " ",
+            el("td", { class: "muted", text: healthText(r) }),
+            el("td", {}, [el("a", { text: "test", onclick: function () { testProvider(pid, r.id, list); } }), " ", el("a", { text: r.enabled ? "disable" : "enable", onclick: function () { api("POST", "/projects/" + pid + "/providers/" + r.id + "/enabled", { enabled: !r.enabled }).then(load); } }), " ",
               el("a", { text: "edit", onclick: function () { go("#/p/" + pid + "/providers/" + r.id); } })])]);
         }))) : el("p", { class: "muted", text: "No providers yet. Add one to take payments." }));
       });
@@ -69,13 +84,16 @@ function providerForm(pid, id) {
             if (!row) setTimeout(function () { go("#/p/" + pid + "/providers"); }, 1200);
           }).catch(function (e) { msg(out, e.message, true); });
       });
+      var test = row ? el("button", { text: "Test connection", onclick: function () {
+        busy(test, function () { return api("POST", "/projects/" + pid + "/providers/" + row.id + "/test"); }).then(function (r) { msg(out, r.message, !r.ok); }).catch(function (e) { msg(out, e.message, true); });
+      } }) : null;
       var del = row ? el("button", { class: "danger", text: "Delete", onclick: function () {
         if (!confirm("Delete this provider?")) return;
         api("DELETE", "/projects/" + pid + "/providers/" + row.id).then(function () { go("#/p/" + pid + "/providers"); }).catch(function (e) { msg(out, e.message, true); });
       } }) : null;
       body.appendChild(el("div", { class: "card" }, [field("Provider", sel), field("Name", name), cfgBox,
         el("h3", { text: "Processing fee added to the customer total" }), el("div", { class: "row" }, [rate, base, fcur]),
-        el("div", { class: "row" }, [btn, del]), out]));
+        el("div", { class: "row" }, [btn, test, del]), out]));
     });
   });
 }

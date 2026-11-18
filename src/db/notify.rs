@@ -11,6 +11,14 @@ pub async fn notification_recipients(pool: &MySqlPool, tenant_id: u64) -> Result
     .await?)
 }
 
+pub async fn operator_emails(pool: &MySqlPool) -> Result<Vec<String>> {
+    Ok(sqlx::query_scalar(
+        "select email from account where is_operator = 1 and disabled = 0 order by id",
+    )
+    .fetch_all(pool)
+    .await?)
+}
+
 pub async fn claim_notification(
     pool: &MySqlPool,
     tenant_id: u64,

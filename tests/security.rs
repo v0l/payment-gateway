@@ -2019,3 +2019,130 @@ async fn pay_in_full_existing(h: &Harness, t: &TenantFixture, p: &Value) -> Stri
     .unwrap();
     id
 }
+
+const MARKER_SECRET: &str = "MARKER-SECRET-7f3a91c2";
+
+async fn untrusted_project(h: &Harness, email: &str) -> Project {
+    let p = project(h, email).await;
+    payment_gateway::db::set_tenant_trusted(&h.pool, p.id, false)
+        .await
+        .unwrap();
+    p
+}
+
+#[tokio::test]
+async fn provider_test_connection_is_private_to_the_project_and_needs_a_session() {
+    let h = harness().await;
+    let a = project(&h, &unique("ta@x.example")).await;
+    let b = project(&h, &unique("tb@x.example")).await;
+    let ln = admin_provider(&h, &a, "lightning").await;
+    let uri = format!("/projects/{}/providers/{ln}/test", a.id);
+    let r = b.owner.req("POST", &uri, json!({})).await;
+    assert_eq!(r.status, StatusCode::NOT_FOUND, "{}", r.text);
+    let own_uri = format!("/projects/{}/providers/{ln}/test", b.id);
+    let r = b.owner.req("POST", &own_uri, json!({})).await;
+    assert_eq!(r.status, StatusCode::NOT_FOUND, "{}", r.text);
+    let anon = Console {
+        app: h.app.clone(),
+        cookie: String::new(),
+        csrf: String::new(),
+    };
+    let r = anon.req("POST", &uri, json!({})).await;
+    assert!(
+        matches!(r.status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN),
+        "{}",
+        r.text
+    );
+    let r = a.owner.req("POST", &uri, json!({})).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.text);
+    assert_eq!(r.json["ok"], true);
+}
+
+#[tokio::test]
+async fn provider_test_connection_cannot_probe_internal_hosts() {
+    let h = harness().await;
+    let a = untrusted_project(&h, &unique("probe@x.example")).await;
+    let internal = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::any())
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({"id": "acct"})))
+        .mount(&internal)
+        .await;
+    let (s, r) = call(
+        &h.app,
+        "POST",
+        &format!("/admin/tenants/{}/providers", a.id),
+        Some(ADMIN),
+        json!({"method": "stripe", "provider_type": "stripe", "name": "p",
+               "config": {"secret_key": MARKER_SECRET, "url": internal.uri()}}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let pid = r["id"].as_u64().unwrap();
+    let res = a
+        .owner
+        .req(
+            "POST",
+            &format!("/projects/{}/providers/{pid}/test", a.id),
+            json!({}),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.text);
+    assert_eq!(res.json["ok"], false, "{}", res.text);
+    assert!(
+        internal.received_requests().await.unwrap().is_empty(),
+        "the internal host was contacted"
+    );
+    assert!(!res.text.contains(MARKER_SECRET));
+}
+
+#[tokio::test]
+async fn provider_test_connection_never_echoes_secret_markers() {
+    let h = harness().await;
+    let a = project(&h, &unique("redact@x.example")).await;
+    let (s, r) = call(
+        &h.app,
+        "POST",
+        &format!("/admin/tenants/{}/providers", a.id),
+        Some(ADMIN),
+        json!({"method": "stripe", "provider_type": "mock", "name": "p",
+               "config": {"secret": MARKER_SECRET, "fail_test": true}}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let pid = r["id"].as_u64().unwrap();
+    let res = a
+        .owner
+        .req(
+            "POST",
+            &format!("/projects/{}/providers/{pid}/test", a.id),
+            json!({}),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.text);
+    assert_eq!(res.json["ok"], false);
+    assert!(res.json["message"].as_str().unwrap().contains("redacted"));
+    assert!(!res.text.contains(MARKER_SECRET), "{}", res.text);
+    let audit = payment_gateway::audit::list(
+        &h.pool,
+        &payment_gateway::audit::Filter {
+            tenant_id: Some(a.id),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert!(!format!("{audit:?}").contains(MARKER_SECRET));
+}
+
+#[test]
+fn sanitizer_redacts_every_secret_key_and_the_certificate() {
+    let cfg = json!({
+        "secret_key": "MARKER-sk-1111", "webhook_secret": "MARKER-wh-2222",
+        "token": "MARKER-tok-3333", "client_secret": "MARKER-cs-4444",
+        "api_secret": "MARKER-as-5555", "macaroon": "MARKER-mac-6666",
+        "client_id": "public-id"
+    });
+    let all = "a MARKER-sk-1111 b MARKER-wh-2222 c MARKER-tok-3333 d MARKER-cs-4444 e MARKER-as-5555 f MARKER-mac-6666";
+    let out = payment_gateway::validate::sanitize_test_error(all, Some(&cfg));
+    assert!(!out.contains("MARKER"), "{out}");
+}

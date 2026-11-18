@@ -1,0 +1,1 @@
+{"id": "WH-DISPUTE-1", "event_version": "1.0", "resource_type": "dispute", "event_type": "CUSTOMER.DISPUTE.CREATED", "resource": {"dispute_id": "PP-D-27803", "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED", "status": "OPEN", "disputed_transactions": [{"seller_transaction_id": "__CAPTURE__"}]}}

@@ -12,6 +12,7 @@ pub const SECRET_KEYS: &[&str] = &[
     "token",
     "api_secret",
     "api_key",
+    "client_secret",
     "macaroon",
     "macaroon_path",
     "cert_path",
@@ -47,6 +48,7 @@ pub fn supported(method: &str, provider_type: &str) -> bool {
             | ("onchain", "lnd")
             | ("stripe", "stripe")
             | ("revolut", "revolut")
+            | ("paypal", "paypal")
             | ("fixedfloat", "fixedfloat")
     )
 }
@@ -107,6 +109,18 @@ pub async fn provider_config(
         ("revolut", _) => {
             need(config, "token")?;
             need(config, "api_version")?;
+            if !trusted {
+                forbid(config, &["url"])?;
+            }
+        }
+        ("paypal", _) => {
+            need(config, "client_id")?;
+            need(config, "client_secret")?;
+            if let Some(m) = str_field(config, "mode")
+                && !matches!(m, "sandbox" | "live")
+            {
+                bail!("mode must be sandbox or live");
+            }
             if !trusted {
                 forbid(config, &["url"])?;
             }
@@ -282,6 +296,21 @@ fn seller_field(
         bail!("{name} must not contain control characters");
     }
     Ok(Some(v))
+}
+
+pub fn sanitize_test_error(error: &str, config: Option<&Value>) -> String {
+    let mut text = crate::logsafe::clean(error);
+    if let Some(obj) = config.and_then(Value::as_object) {
+        for (k, v) in obj {
+            if let Some(secret) = v.as_str()
+                && secret.len() >= 4
+                && (SECRET_KEYS.contains(&k.as_str()) || k == "cert")
+            {
+                text = text.replace(secret, "[redacted]");
+            }
+        }
+    }
+    text.chars().take(200).collect()
 }
 
 #[cfg(test)]

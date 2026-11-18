@@ -13,9 +13,17 @@ pub(super) struct ProviderView {
     config: Value,
     hook_url: String,
     platform_managed: bool,
+    health: Option<db::ProviderHealthRow>,
+    auto_disabled_at: Option<DateTime<Utc>>,
 }
 
-pub(super) fn provider_view(s: &AppState, tenant: u64, p: &ProviderConfigRow) -> ProviderView {
+pub(super) fn provider_view(
+    s: &AppState,
+    tenant: u64,
+    p: &ProviderConfigRow,
+    health: Option<db::ProviderHealthRow>,
+    auto_disabled_at: Option<DateTime<Utc>>,
+) -> ProviderView {
     let config = s
         .service
         .registry
@@ -34,6 +42,8 @@ pub(super) fn provider_view(s: &AppState, tenant: u64, p: &ProviderConfigRow) ->
         config,
         hook_url: s.service.hook_url(tenant, p.id),
         platform_managed: p.shared_provider_id.is_some(),
+        health,
+        auto_disabled_at,
     }
 }
 
@@ -43,11 +53,24 @@ pub(super) async fn list_providers(
     Path(id): Path<u64>,
 ) -> ApiResult<Vec<ProviderView>> {
     sess.project(&s, id, Role::Viewer).await?;
+    let health = db::list_tenant_provider_health(s.pool(), id).await?;
+    let disabled = db::tenant_auto_disabled(s.pool(), id).await?;
     Ok(Json(
         db::list_provider_configs(s.pool(), id, false)
             .await?
             .iter()
-            .map(|p| provider_view(&s, id, p))
+            .map(|p| {
+                provider_view(
+                    &s,
+                    id,
+                    p,
+                    health
+                        .iter()
+                        .find(|h| h.provider_config_id == p.id)
+                        .cloned(),
+                    disabled.iter().find(|d| d.0 == p.id).map(|d| d.1),
+                )
+            })
             .collect(),
     ))
 }
@@ -204,7 +227,7 @@ pub(super) async fn update_provider(
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     let row = updated;
-    Ok(Json(provider_view(&s, id, &row)))
+    Ok(Json(provider_view(&s, id, &row, None, None)))
 }
 
 #[derive(Deserialize)]
@@ -230,6 +253,9 @@ pub(super) async fn set_provider_enabled(
     }
     if !db::set_provider_config_enabled(s.pool(), id, pid, e.enabled).await? {
         return Err(ApiError::not_found());
+    }
+    if e.enabled {
+        db::clear_auto_disabled(s.pool(), pid).await?;
     }
     s.service.registry.invalidate(pid);
     let action = if e.enabled {
@@ -270,4 +296,35 @@ pub(super) async fn remove_provider(
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(json!({"deleted": true})))
+}
+
+pub(super) async fn test_provider(
+    sess: Session,
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    Path((id, pid)): Path<(u64, u64)>,
+) -> ApiResult<Value> {
+    sess.project(&s, id, Role::Admin).await?;
+    let row = db::get_tenant_provider(s.pool(), id, pid)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    let config = s.service.registry.open_config(&row).ok();
+    let outcome = match s.service.registry.get(pid).await {
+        Ok(provider) => provider.test_connection().await,
+        Err(e) => Err(e),
+    };
+    let (ok, message) = match outcome {
+        Ok(m) => (true, m),
+        Err(e) => (
+            false,
+            validate::sanitize_test_error(&format!("{e:#}"), config.as_ref()),
+        ),
+    };
+    sess.event(Action::ProviderTested)
+        .tenant(id)
+        .target("provider", pid)
+        .details(json!({"ok": ok}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
+    Ok(Json(json!({"ok": ok, "message": message})))
 }

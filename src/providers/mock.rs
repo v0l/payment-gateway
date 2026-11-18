@@ -200,6 +200,22 @@ impl Provider for MockProvider {
                 lookup,
                 reason: "declined".into(),
             }],
+            Some("refunded") => vec![ProviderEvent::Refunded {
+                lookup,
+                external_id: v["refund_id"].as_str().unwrap_or("re_mock").to_string(),
+                amount: v["amount"].as_u64(),
+            }],
+            Some(kind @ ("dispute_open" | "dispute_won" | "dispute_lost")) => {
+                vec![ProviderEvent::Dispute {
+                    lookup,
+                    state: match kind {
+                        "dispute_open" => super::DisputeState::Open,
+                        "dispute_won" => super::DisputeState::Won,
+                        _ => super::DisputeState::Lost,
+                    },
+                    reason: None,
+                }]
+            }
             _ => vec![ProviderEvent::Paid {
                 reference: lookup.clone(),
                 lookup,
@@ -215,6 +231,21 @@ impl Provider for MockProvider {
                 }),
             }],
         })
+    }
+
+    fn event_id(&self, body: &[u8]) -> Option<String> {
+        serde_json::from_slice::<Value>(body)
+            .ok()?
+            .get("event_id")?
+            .as_str()
+            .map(str::to_string)
+    }
+
+    async fn test_connection(&self) -> Result<String> {
+        if self.config.get("fail_test").is_some() {
+            bail!("mock failure with {}", self.secret());
+        }
+        Ok("Connected to mock".into())
     }
 
     async fn reconcile(&self, attempt: &AttemptRow) -> Result<Option<ProviderEvent>> {

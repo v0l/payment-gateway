@@ -151,7 +151,7 @@ impl Service {
         let metrics: Arc<crate::metrics::Metrics> = Default::default();
         let mut registry = registry;
         registry.metrics = metrics.clone();
-        Arc::new(Self {
+        let service = Arc::new(Self {
             pool,
             sealer,
             registry,
@@ -167,7 +167,11 @@ impl Service {
             provider_failures: Default::default(),
             metrics,
             payouts: Default::default(),
-        })
+        });
+        let as_recorder: Arc<dyn crate::providers::HealthRecorder> = service.clone();
+        let recorder = Arc::downgrade(&as_recorder);
+        let _ = service.registry.health.set(recorder);
+        service
     }
 
     pub fn pay_url(&self, id: &PaymentId) -> String {
@@ -257,10 +261,12 @@ mod tests {
 mod attempts;
 mod deliveries;
 mod expiry;
+mod health;
 mod limits;
 mod notify;
 mod payments;
 mod payout_send;
+mod provider_events;
 mod refunds;
 mod retry;
 mod saved;

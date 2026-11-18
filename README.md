@@ -2,7 +2,7 @@
 
 A self contained payment service. Apps ask it to collect money and it tells them when it is paid. It knows nothing about VMs, subscriptions or credit: that stays in the app.
 
-Methods: Lightning (LND), on-chain Bitcoin (LND), Stripe, Revolut, and altcoins through FixedFloat swaps into the on-chain wallet. Design notes are in [DESIGN.md](DESIGN.md).
+Methods: Lightning (LND), on-chain Bitcoin (LND), Stripe, Revolut, PayPal, and altcoins through FixedFloat swaps into the on-chain wallet. Design notes are in [DESIGN.md](DESIGN.md).
 
 ## Run
 
@@ -106,11 +106,20 @@ curl -X POST $GW/admin/tenants/1/providers -H "Authorization: Bearer $ADMIN" -H 
 | onchain | lnd | `url`, `cert_path`, `macaroon_path`, `address_type` (p2tr, p2wkh, np2wkh), `min_confirmations` |
 | stripe | stripe | `secret_key`, `webhook_secret` |
 | revolut | revolut | `url`, `token`, `api_version`, `public_key` (webhook secret is registered and stored automatically) |
+| paypal | paypal | `client_id`, `client_secret`, `mode` (`sandbox` or `live`, default sandbox), `webhook_id`, optional `url` (operator only) |
 | fixedfloat | fixedfloat | `api_key`, `api_secret`, `coins` (for example `["XMR","LTC"]`), optional `refcode`, `afftax`. Needs an onchain provider on the same tenant to receive into |
 
 `fee_rate` (percent), `fee_base` and `fee_currency` add a processing fee to what the customer pays on that method.
 
 Stripe webhooks go to the `hook_url` returned when the provider is created (`/hook/{tenant}/{provider}`), subscribed to `checkout.session.completed`, `checkout.session.async_payment_succeeded` and `checkout.session.async_payment_failed`.
+
+Stripe also needs `charge.refunded`, `charge.refund.updated`, `charge.dispute.created` and `charge.dispute.closed`. Revolut registers its own webhook, including `ORDER_PAYMENT_DECLINED` and the dispute events. PayPal needs a webhook subscribed to `CHECKOUT.ORDER.APPROVED`, `PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.CAPTURE.DENIED`, `PAYMENT.CAPTURE.REFUNDED` and `CUSTOMER.DISPUTE.*`, and its id stored as `webhook_id`. A PayPal customer returns to `/pay/{id}/return`, which captures the approved order.
+
+Provider callbacks are limited to 256 KiB, must carry a valid signature, are rejected outside a 5 minute replay window and are processed once per provider event id. A charge on a saved method that needs customer authentication returns the payment pending with a `checkout_url` instead of failing.
+
+Disputes show on the payment as `disputed` and `dispute_status` (`open`, `won`, `lost`) and fire `payment.disputed` and `payment.dispute_closed`. Each provider keeps a rolling 24 hour success and error count and its last error, shown in the console. After 10 failures in a row a customer provider is disabled and the project owners are mailed; providers of trusted projects are never disabled, the operators are mailed instead.
+
+`POST /console/api/projects/{id}/providers/{pid}/test` checks the credentials without creating a payment and returns `{ok, message}`; secrets are never echoed.
 
 Branding, allowed iframe origins and default return URLs: `POST /admin/tenants/{id}/settings`.
 
@@ -155,7 +164,7 @@ The tenant's `allowed_origins` must include the embedding site. Card checkouts c
 
 ## Webhooks
 
-`POST` to the tenant `webhook_url`, JSON `{id, type, created, data:{payment, detail}}`, with headers `X-Gateway-Event-Id` and `X-Gateway-Signature: t=<unix>,v1=<hex>` where `v1 = HMAC-SHA256(webhook_secret, "{t}.{body}")`. Reject old timestamps and dedupe on the event id. Failed deliveries retry with backoff for 3 days. Events: `payment.paid`, `payment.expired`, `payment.cancelled`, `payment.late_payment`, `attempt.failed`, `refund.completed`, `refund.failed`, `withdrawal.requested`, `withdrawal.completed`, `withdrawal.failed` (the withdrawal events carry `data.withdrawal` and follow endpoint filters such as `withdrawal.*`).
+`POST` to the tenant `webhook_url`, JSON `{id, type, created, data:{payment, detail}}`, with headers `X-Gateway-Event-Id` and `X-Gateway-Signature: t=<unix>,v1=<hex>` where `v1 = HMAC-SHA256(webhook_secret, "{t}.{body}")`. Reject old timestamps and dedupe on the event id. Failed deliveries retry with backoff for 3 days. Events: `payment.paid`, `payment.expired`, `payment.cancelled`, `payment.late_payment`, `attempt.failed`, `refund.completed`, `refund.failed`, `withdrawal.requested`, `withdrawal.completed`, `withdrawal.failed` (the withdrawal events carry `data.withdrawal` and follow endpoint filters such as `withdrawal.*`), `payment.disputed`, `payment.dispute_closed`.
 
 The `webhook_url` setting is the project's first (default) endpoint. A project can have several endpoints (console, Webhooks tab), each with its own event filter (`*`, exact types or prefixes such as `payment.*`), signing secret (shown once), enable switch, `Send test event` button (a signed `webhook.test` event) and delivery stats. The same events can be pulled with `GET /v1/events?type=&cursor=`.
 
