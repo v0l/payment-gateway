@@ -64,6 +64,7 @@ async fn build_harness(mail: bool) -> Harness {
         .execute(&admin)
         .await
         .unwrap();
+    admin.close().await;
     let (prefix, _) = base.rsplit_once('/').unwrap();
     let pool = db::connect(&format!("{prefix}/{name}")).await.unwrap();
     let sealer = Sealer::new(&[9u8; 32]);
