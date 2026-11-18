@@ -84,6 +84,26 @@ async fn dashboard_numbers_match_the_fixture() {
     assert_eq!(ln["payments"], 2);
     assert_eq!(r["top_customers"][0]["customer_ref"], "cus_1");
     assert_eq!(r["top_customers"][0]["volume"], 4000);
+    let daily = r["daily"].as_array().unwrap();
+    assert_eq!(
+        daily
+            .iter()
+            .map(|d| d["volume"].as_i64().unwrap())
+            .sum::<i64>(),
+        4500
+    );
+    assert_eq!(
+        daily
+            .iter()
+            .map(|d| d["payments"].as_i64().unwrap())
+            .sum::<i64>(),
+        3
+    );
+    assert!(
+        daily
+            .iter()
+            .all(|d| d["day"].as_str().unwrap().len() == 10 && d["currency"] == "EUR")
+    );
     let (_, r30) = c
         .req(
             "GET",
@@ -129,6 +149,7 @@ async fn dashboard_rejects_other_windows_and_is_tenant_scoped() {
     assert_eq!(r["paid"], 0);
     assert!(r["success_rate"].is_null());
     assert!(r["volume"].as_array().unwrap().is_empty());
+    assert!(r["daily"].as_array().unwrap().is_empty());
     assert!(r["top_customers"].as_array().unwrap().is_empty());
     assert!(r["pending"].as_array().unwrap().is_empty());
 }

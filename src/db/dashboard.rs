@@ -11,6 +11,14 @@ pub struct VolumeRow {
 }
 
 #[derive(Debug, Clone, Serialize, FromRow)]
+pub struct DailyVolume {
+    pub day: String,
+    pub currency: String,
+    pub payments: i64,
+    pub volume: i64,
+}
+
+#[derive(Debug, Clone, Serialize, FromRow)]
 pub struct TopCustomer {
     pub customer_ref: String,
     pub payments: i64,
@@ -28,6 +36,7 @@ pub struct PendingValue {
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardStats {
     pub volume: Vec<VolumeRow>,
+    pub daily: Vec<DailyVolume>,
     pub paid: i64,
     pub failed: i64,
     pub success_rate: Option<f64>,
@@ -44,6 +53,13 @@ pub async fn dashboard_stats(
 ) -> Result<DashboardStats> {
     let volume: Vec<VolumeRow> = sqlx::query_as(&format!(
         "select p.currency, coalesce((select min(a.method) from payment_attempt a where a.payment_id = p.id and a.status = 'paid'), 'manual') as method, count(*) as payments, cast(sum(p.amount) as signed) as volume from payment p where p.tenant_id = ? and p.created >= ? and p.status in {PAID_STATES} group by p.currency, method order by p.currency, method"
+    ))
+    .bind(tenant_id)
+    .bind(since)
+    .fetch_all(pool)
+    .await?;
+    let daily: Vec<DailyVolume> = sqlx::query_as(&format!(
+        "select date_format(created, '%Y-%m-%d') as day, currency, count(*) as payments, cast(sum(amount) as signed) as volume from payment where tenant_id = ? and created >= ? and status in {PAID_STATES} group by day, currency order by day, currency"
     ))
     .bind(tenant_id)
     .bind(since)
@@ -86,6 +102,7 @@ pub async fn dashboard_stats(
     .await?;
     Ok(DashboardStats {
         volume,
+        daily,
         paid,
         failed,
         success_rate,
