@@ -160,3 +160,65 @@ async fn customers_of_another_project_are_invisible() {
         .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn customer_page_lists_subscriptions_with_plan_status_and_next_charge() {
+    let h = harness().await;
+    let a = signed_in(&h, "a@example.com", false).await;
+    let b = signed_in(&h, "b@example.com", false).await;
+    let pa = project(&a, "a").await;
+    let pb = project(&b, "b").await;
+    let now = chrono::Utc::now();
+    let plan_id = db::insert_plan(
+        &h.pool,
+        &db::NewPlan {
+            tenant_id: pa.id,
+            name: "Pro",
+            description: None,
+            amount: 1900,
+            currency: "EUR",
+            interval_unit: "month",
+            interval_count: 1,
+            trial_days: 0,
+            grace_days: 3,
+            created: now,
+        },
+    )
+    .await
+    .unwrap();
+    let next = now + chrono::Duration::days(20);
+    let sub_id = db::insert_subscription(
+        &h.pool,
+        &db::NewSubscription {
+            tenant_id: pa.id,
+            customer_ref: "cus_sub",
+            plan_id,
+            saved_method_id: None,
+            status: "active",
+            period_index: 0,
+            anchor: now,
+            anchor_index: 0,
+            current_period_start: now,
+            current_period_end: next,
+            trial_end: None,
+            next_charge: Some(next),
+            setup_payment_id: None,
+            created: now,
+        },
+    )
+    .await
+    .unwrap();
+    let path = |p: &Project| format!("/projects/{}/customers/cus_sub", p.id);
+    let (s, r) = a.req("GET", &path(&pa), Value::Null).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let sub = &r["subscriptions"][0];
+    assert_eq!(sub["id"], sub_id);
+    assert_eq!(sub["status"], "active");
+    assert_eq!(sub["plan_name"], "Pro");
+    assert_eq!(sub["amount"], 1900);
+    assert!(sub["next_charge"].is_string());
+    let (s, _) = b.req("GET", &path(&pb), Value::Null).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = b.req("GET", &path(&pa), Value::Null).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+}

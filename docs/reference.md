@@ -84,6 +84,23 @@ Open the returned `invite_url`, choose a password, then create projects, add pro
 
 Two factor: each account can enrol a TOTP authenticator in Account settings (RFC 6238, SHA1, 6 digits, 30 s, one step of drift). Activation needs a valid code and returns 10 single use recovery codes, shown once and stored hashed. With 2FA on, `POST /console/api/login` returns `{"two_factor": true, "challenge": ...}` and no session; `POST /console/api/login/2fa` with `challenge` plus `code` or `recovery_code` creates it. A TOTP step cannot be used twice, and failed codes count against the login limiter. Disabling and regenerating recovery codes need the password and a current code. Owners can set `require_2fa` on a project (`POST /console/api/projects/{id}/require-2fa`), which blocks console access to it for members without 2FA. Operators must have 2FA once `GATEWAY_OPERATOR_2FA_GRACE` is not `1`; set it to `1` while bootstrapping.
 
+### Console v2
+
+All routes are under `/console/api/projects/{id}` and need a project role (viewer reads, admin writes, owner for settings that change the project itself).
+
+- `GET payments` takes `status`, `method`, `q` (reference or id prefix), `customer` (ref or email), `from`, `to` (dates), `min_amount`, `max_amount` (minor units) and the `before` cursor. Bad values return 400 with the field name.
+- `GET payments-export` streams the same filter as CSV. Cells starting with `=`, `+`, `-`, `@`, tab or CR get a leading `'`. Every export is audit logged.
+- `GET/POST saved-views`, `DELETE saved-views/{view}`: per account filters, at most 20.
+- `GET/POST payments/{payment}/notes`: internal notes, admin to add, audit logged.
+- `POST payments-bulk-cancel {older_than_hours}`: cancels stale pending payments (200 per call).
+- `POST payments/{payment}/mark-paid {reason}`: admin only, and only after an owner turns on `POST manual-paid {enabled}` (off by default). Emits `payment.paid` with `data.detail.manual = true` and the reason.
+- `POST payments/{payment}/resend-webhook`, `POST deliveries-resend-failed`, `GET deliveries/{id}` (request, response status, body snippet, duration), `GET webhook-health`, `POST webhook-verify {body, secret, signature}`.
+- `GET payments/{payment}/refund-preview?amount=&attempt_id=&destination=`: refundable amount, charge, fee kept, remaining. Lightning destinations must be a bolt11 invoice not above the refund, on-chain destinations a valid address; the refund endpoint applies the same check.
+- `GET customers`, `GET customers/{ref}` (payments, saved methods, subscriptions with status, plan and next charge), `DELETE customers/{ref}/saved-methods/{id}`.
+- `GET dashboard?days=7|30|90`: volume by currency and method, success rate, average settlement seconds, pending value, failed webhooks, top customers.
+- `GET settings`, `POST settings/legal`, `POST settings/notifications`, `POST settings/enabled` (owner), `POST delete-request` (returns a token once), `POST delete-confirm {token}` after 24 hours. Deletion is refused while payments are pending or any ledger balance is non-zero.
+- Operators: `GET /console/api/operator/tenants`, `operator/tenants/{id}/support` (read only, audit logged), `operator/search?q=` (payment id prefix, reference, invoice hash, txid), `operator/health`.
+
 ## Set up a tenant with the admin API
 
 ```

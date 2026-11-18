@@ -26,9 +26,35 @@ pub(super) async fn get_customer(
     };
     let payments = db::search_payments(s.pool(), id, &filter, 100).await?;
     let methods = db::customer_saved_methods(s.pool(), id, &customer).await?;
-    if payments.is_empty() && methods.is_empty() {
+    if payments.is_empty() && methods.is_empty() && subscriptions.is_empty() {
         return Err(ApiError::not_found());
     }
+    let plans: std::collections::HashMap<u64, db::PlanRow> =
+        db::list_plans(s.pool(), id, None, 100)
+            .await?
+            .into_iter()
+            .map(|p| (p.id, p))
+            .collect();
+    let subscriptions: Vec<Value> =
+        db::list_subscriptions(s.pool(), id, None, Some(&customer), None, 50)
+            .await?
+            .iter()
+            .take(50)
+            .map(|sub| {
+                let plan = plans.get(&sub.plan_id);
+                json!({
+                    "id": sub.id,
+                    "status": sub.status,
+                    "plan_id": sub.plan_id,
+                    "plan_name": plan.map(|p| p.name.clone()),
+                    "amount": plan.map(|p| p.amount),
+                    "currency": plan.map(|p| p.currency.clone()),
+                    "next_charge": sub.next_charge,
+                    "current_period_end": sub.current_period_end,
+                    "cancel_at_period_end": sub.cancel_at_period_end,
+                })
+            })
+            .collect();
     let email = payments.iter().find_map(|p| p.customer_email.clone());
     let mut totals: std::collections::BTreeMap<String, u64> = Default::default();
     for p in payments
@@ -49,7 +75,7 @@ pub(super) async fn get_customer(
             "id": m.id, "brand": m.brand, "last4": m.last4,
             "exp_month": m.exp_month, "exp_year": m.exp_year, "created": m.created,
         })).collect::<Vec<_>>(),
-        "subscriptions": [],
+        "subscriptions": subscriptions,
     })))
 }
 

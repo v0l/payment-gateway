@@ -42,7 +42,10 @@ function customerDetail(pid, ref) {
               } })])]);
           })) : el("p", { class: "muted", text: "No saved methods." }),
           el("h3", { text: "Subscriptions" }),
-          c.subscriptions.length ? el("p", { text: String(c.subscriptions.length) }) : el("p", { class: "muted", text: "No subscriptions." }),
+          c.subscriptions.length ? el("table", {}, [el("tr", {}, ["Plan", "Amount", "Status", "Next charge"].map(function (h) { return el("th", { text: h }); }))].concat(c.subscriptions.map(function (x) {
+            var open = function () { go("#/p/" + pid + "/subscriptions/" + x.id); };
+            return el("tr", { class: "click", tabindex: "0", onclick: open, onkeydown: function (e) { if (e.key === "Enter") open(); } }, [el("td", { text: x.plan_name || "plan " + x.plan_id }), el("td", { text: x.amount === null ? "" : fmtAmount(x.amount, x.currency) }), el("td", {}, [pill(x.status + (x.cancel_at_period_end ? ", ends" : ""), x.status === "active" ? "ok" : x.status === "past_due" ? "bad" : "pending")]), el("td", { class: "muted", text: x.next_charge ? new Date(x.next_charge).toLocaleDateString() : "" })]);
+          }))) : el("p", { class: "muted", text: "No subscriptions." }),
           out);
       }).catch(function (e) { msg(box, e.message, true); });
     }
