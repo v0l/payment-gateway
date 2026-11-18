@@ -5,6 +5,7 @@ pub mod ledger;
 pub mod ops;
 mod page;
 mod public;
+mod receipt;
 mod sandbox;
 mod tenant;
 
@@ -211,6 +212,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/v1", tenant::router())
         .merge(public::router())
         .merge(docs::router())
+        .merge(receipt::router())
         .merge(sandbox::router())
         .merge(console::router())
         .layer(axum::middleware::from_fn_with_state(

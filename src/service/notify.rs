@@ -21,6 +21,15 @@ impl Service {
         });
     }
 
+    pub fn send_receipt_mail(&self, tenant: &Tenant, p: &PaymentRow) {
+        let Some(to) = p.customer_email.as_deref() else {
+            return;
+        };
+        let seller = tenant.legal_name.as_deref().unwrap_or(&tenant.name);
+        let url = format!("{}/receipt/{}", self.public_url, hex::encode(&p.id));
+        self.send_mail(templates::receipt(to, seller, &url));
+    }
+
     pub async fn notify_owners(
         &self,
         tenant_id: u64,

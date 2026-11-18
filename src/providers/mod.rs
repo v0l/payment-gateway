@@ -31,6 +31,7 @@ pub struct AttemptRequest {
     pub option: Option<String>,
     pub save_method: bool,
     pub receive: Option<Arc<dyn Provider>>,
+    pub lines: Vec<crate::invoice::ChargeLine>,
 }
 
 #[derive(Debug, Clone)]

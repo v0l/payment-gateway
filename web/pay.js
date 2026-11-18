@@ -250,13 +250,31 @@
     return kids;
   }
 
+  function summary() {
+    if (!state.line_items || !state.line_items.length) return null;
+    var rows = state.line_items.map(function (l) {
+      return el("tr", {}, [
+        el("td", { text: (l.quantity > 1 ? l.quantity + " x " : "") + l.name }),
+        el("td", { class: "num money", text: money(l.total, state.currency) })
+      ]);
+    });
+    if (state.discount) rows.push(el("tr", {}, [el("td", { text: "Discount" + (state.discount.code ? " " + state.discount.code : "") }), el("td", { class: "num money", text: "-" + money(state.discount.amount, state.currency) })]));
+    if (state.tax) rows.push(el("tr", {}, [el("td", { text: "Tax" }), el("td", { class: "num money", text: money(state.tax, state.currency) })]));
+    rows.push(el("tr", { class: "total" }, [el("td", { text: "Total" }), el("td", { class: "num money", text: money(state.amount, state.currency) })]));
+    return el("details", { class: "summary" }, [
+      el("summary", { text: "Order summary (" + state.line_items.length + (state.line_items.length === 1 ? " item)" : " items)") }),
+      el("table", {}, rows)
+    ]);
+  }
+
   function render() {
     document.title = "Pay " + state.tenant.name;
     applyAccent();
     var card = el("div", { class: "card" }, [
       brand(),
       el("div", { class: "amount", text: money(state.amount, state.currency) }),
-      state.description ? el("p", { class: "desc", text: state.description }) : null
+      state.description ? el("p", { class: "desc", text: state.description }) : null,
+      summary()
     ]);
     if (state.status !== "pending") {
       terminal().forEach(function (n) { card.appendChild(n); });

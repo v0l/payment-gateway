@@ -65,6 +65,10 @@ struct TenantView {
     allowed_origins: Vec<String>,
     default_success_url: Option<String>,
     default_cancel_url: Option<String>,
+    legal_name: Option<String>,
+    address: Option<String>,
+    tax_id: Option<String>,
+    support_email: Option<String>,
 }
 
 impl From<db::Tenant> for TenantView {
@@ -81,6 +85,10 @@ impl From<db::Tenant> for TenantView {
             allowed_origins,
             default_success_url: t.default_success_url,
             default_cancel_url: t.default_cancel_url,
+            legal_name: t.legal_name,
+            address: t.address,
+            tax_id: t.tax_id,
+            support_email: t.support_email,
         }
     }
 }

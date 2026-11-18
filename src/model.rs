@@ -1,4 +1,5 @@
 use crate::db::{AttemptRow, PaymentRow, RefundRow};
+use crate::invoice::{AppliedDiscount, DiscountView, Line, LineView};
 use crate::rates;
 use anyhow::{Result, bail};
 use chrono::{DateTime, Utc};
@@ -53,10 +54,13 @@ pub fn options_from_config(method: &str, config: &Value) -> Vec<String> {
 #[derive(Debug, Deserialize)]
 pub struct CreatePayment {
     pub reference: Option<String>,
+    #[serde(default)]
     pub amount: u64,
     pub currency: String,
     #[serde(default)]
     pub tax: u64,
+    pub line_items: Option<Vec<crate::invoice::LineItemInput>>,
+    pub discount: Option<crate::invoice::DiscountInput>,
     pub expires_in: Option<i64>,
     pub description: Option<String>,
     pub customer_ref: Option<String>,
@@ -158,6 +162,10 @@ pub struct PaymentView {
     pub description: Option<String>,
     pub customer_ref: Option<String>,
     pub metadata: Value,
+    pub line_items: Vec<LineView>,
+    pub subtotal: Option<u64>,
+    pub discount: Option<DiscountView>,
+    pub receipt_url: String,
     pub pay_url: String,
     pub attempts: Vec<AttemptView>,
     pub refunds: Vec<RefundView>,
@@ -170,6 +178,7 @@ impl PaymentView {
         attempts: &[AttemptRow],
         refunds: &[RefundRow],
     ) -> Self {
+        let breakdown = p.breakdown();
         Self {
             id: hex::encode(&p.id),
             reference: p.reference.clone(),
@@ -187,6 +196,19 @@ impl PaymentView {
                 .as_deref()
                 .and_then(|m| serde_json::from_str(m).ok())
                 .unwrap_or(Value::Null),
+            line_items: breakdown
+                .as_ref()
+                .map(|b| b.lines.iter().map(Line::view).collect())
+                .unwrap_or_default(),
+            subtotal: breakdown.as_ref().map(|b| b.subtotal),
+            discount: breakdown
+                .as_ref()
+                .and_then(|b| b.discount.as_ref().map(AppliedDiscount::view)),
+            receipt_url: format!(
+                "{}/receipt/{}",
+                public_url.trim_end_matches('/'),
+                hex::encode(&p.id)
+            ),
             pay_url: format!(
                 "{}/pay/{}",
                 public_url.trim_end_matches('/'),

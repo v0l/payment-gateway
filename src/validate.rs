@@ -183,6 +183,10 @@ pub struct SettingsInput {
     pub allowed_origins: Vec<String>,
     pub default_success_url: Option<String>,
     pub default_cancel_url: Option<String>,
+    pub legal_name: Option<String>,
+    pub address: Option<String>,
+    pub tax_id: Option<String>,
+    pub support_email: Option<String>,
 }
 
 pub fn valid_url(url: &str) -> bool {
@@ -226,6 +230,16 @@ pub async fn settings(trusted: bool, input: SettingsInput) -> Result<TenantSetti
     if input.display_name.as_deref().is_some_and(|n| n.len() > 128) {
         bail!("display_name too long");
     }
+    let legal_name = seller_field(input.legal_name, 255, "legal_name", true)?;
+    let address = seller_field(input.address, 1024, "address", false)?;
+    let tax_id = seller_field(input.tax_id, 64, "tax_id", true)?;
+    let support_email = seller_field(input.support_email, 255, "support_email", true)?;
+    if support_email
+        .as_deref()
+        .is_some_and(|e| !e.contains('@') || e.contains(char::is_whitespace))
+    {
+        bail!("support_email must be an email address");
+    }
     let origins = normalize_origins(&input.allowed_origins.join(" "))?;
     for u in [&input.default_success_url, &input.default_cancel_url]
         .into_iter()
@@ -243,7 +257,31 @@ pub async fn settings(trusted: bool, input: SettingsInput) -> Result<TenantSetti
         allowed_origins: (!origins.is_empty()).then(|| origins.join(" ")),
         default_success_url: input.default_success_url,
         default_cancel_url: input.default_cancel_url,
+        legal_name,
+        address,
+        tax_id,
+        support_email,
     })
+}
+
+fn seller_field(
+    v: Option<String>,
+    max: usize,
+    name: &str,
+    single_line: bool,
+) -> Result<Option<String>> {
+    let Some(v) = v.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    if v.chars().count() > max {
+        bail!("{name} too long");
+    }
+    if v.chars()
+        .any(|c| c.is_control() && !(!single_line && c == '\n'))
+    {
+        bail!("{name} must not contain control characters");
+    }
+    Ok(Some(v))
 }
 
 #[cfg(test)]

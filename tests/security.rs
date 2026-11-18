@@ -1648,3 +1648,187 @@ async fn lightning_address_and_lnurl_resolution_refuse_internal_hosts() {
     let r = resolve_invoice(DestinationKind::Lnurl, &internal_lnurl, 2_000_000, false).await;
     assert!(r.is_err(), "internal lnurl must be refused");
 }
+
+async fn pay_in_full(h: &Harness, t: &TenantFixture, reference: &str) -> String {
+    use payment_gateway::providers::{EventSink, ProviderEvent};
+    let ln = provider(h, t, "lightning", json!({}), None).await;
+    let p = new_payment(h, t, eur(reference, 900)).await;
+    let id = p["id"].as_str().unwrap().to_string();
+    let (_, r) = attempt(h, t, &id, json!({"method": "lightning"})).await;
+    let hash = r["attempts"][0]["details"]["payment_hash"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    payment_gateway::service::ProviderSink {
+        service: h.service.clone(),
+        provider_id: ln,
+    }
+    .event(
+        ProviderEvent::Paid {
+            lookup: hash.clone(),
+            reference: hash,
+            amount: None,
+            confirmed: true,
+            saved: None,
+        },
+        None,
+    )
+    .await
+    .unwrap();
+    id
+}
+
+#[tokio::test]
+async fn receipt_page_forbids_framing_and_scripts_and_uses_the_pay_page_capability_id() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let id = pay_in_full(&h, &t, "r-sec").await;
+    assert_eq!(id.len(), 64);
+    let r = send(
+        &h.app,
+        "GET",
+        &format!("/receipt/{id}"),
+        None,
+        &[],
+        Value::Null,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK);
+    let csp = r.headers["content-security-policy"].to_str().unwrap();
+    assert!(
+        csp.contains("script-src 'self'")
+            && csp.contains("frame-ancestors 'none'")
+            && !csp.contains("unsafe-inline"),
+        "{csp}"
+    );
+    assert_eq!(r.headers["x-frame-options"], "DENY");
+    assert_eq!(r.headers["x-content-type-options"], "nosniff");
+    assert_eq!(r.headers["referrer-policy"], "no-referrer");
+    assert!(
+        r.headers["cache-control"]
+            .to_str()
+            .unwrap()
+            .contains("no-store")
+    );
+    assert!(!r.text.contains(&t.key) && !r.text.contains(&t.webhook_secret));
+    assert!(!r.text.contains("style="), "no inline styles");
+
+    let mut near = id.clone();
+    near.replace_range(63.., if id.ends_with('0') { "1" } else { "0" });
+    for uri in [
+        format!("/receipt/{near}"),
+        format!("/receipt/{}", &id[..62]),
+        format!("/receipt/{}", id.to_uppercase() + "00"),
+        "/receipt/..%2F..%2Fconsole".to_string(),
+    ] {
+        let r = send(&h.app, "GET", &uri, None, &[], Value::Null).await;
+        assert_eq!(r.status, StatusCode::NOT_FOUND, "{uri}");
+    }
+}
+
+#[tokio::test]
+async fn receipt_escapes_tenant_supplied_seller_text_and_rejects_control_characters() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let evil = "<script>alert(1)</script><img src=x onerror=alert(1)>";
+    let (s, r) = call(
+        &h.app,
+        "POST",
+        &format!("/admin/tenants/{}/settings", t.id),
+        Some(ADMIN),
+        json!({
+            "display_name": evil,
+            "legal_name": evil,
+            "address": format!("{evil}\n\"'><svg onload=alert(1)>"),
+            "tax_id": evil,
+            "support_email": "a@b.test"
+        }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let (_, p) = call(
+        &h.app,
+        "POST",
+        "/v1/payments",
+        Some(&t.key),
+        json!({"reference": evil, "amount": 900, "currency": "EUR", "customer_email": "x\"><script>@b.test", "description": evil,
+               "line_items": [{"name": evil, "description": evil, "sku": evil, "unit_amount": 900}]}),
+    )
+    .await;
+    assert!(p["id"].is_string(), "{p}");
+    let id = pay_in_full_existing(&h, &t, &p).await;
+    let r = send(
+        &h.app,
+        "GET",
+        &format!("/receipt/{id}"),
+        None,
+        &[],
+        Value::Null,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert!(!r.text.contains("<script>alert"), "{}", r.text);
+    assert!(!r.text.contains("<img"), "{}", r.text);
+    assert!(!r.text.contains("<svg"), "{}", r.text);
+    assert!(r.text.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+
+    for field in ["legal_name", "tax_id", "support_email"] {
+        for bad in ["a\r\nX-Evil: 1", "a\u{0}b", "a\nb"] {
+            let (s, _) = call(
+                &h.app,
+                "POST",
+                &format!("/admin/tenants/{}/settings", t.id),
+                Some(ADMIN),
+                json!({ field: bad }),
+            )
+            .await;
+            assert_eq!(s, StatusCode::BAD_REQUEST, "{field} {bad:?}");
+        }
+    }
+    let (s, _) = call(
+        &h.app,
+        "POST",
+        &format!("/admin/tenants/{}/settings", t.id),
+        Some(ADMIN),
+        json!({"address": "line\r\nX-Evil: 1"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = call(
+        &h.app,
+        "POST",
+        &format!("/admin/tenants/{}/settings", t.id),
+        Some(ADMIN),
+        json!({"address": "x".repeat(1025)}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+async fn pay_in_full_existing(h: &Harness, t: &TenantFixture, p: &Value) -> String {
+    use payment_gateway::providers::{EventSink, ProviderEvent};
+    let ln = provider(h, t, "lightning", json!({}), None).await;
+    let id = p["id"].as_str().unwrap().to_string();
+    let (_, r) = attempt(h, t, &id, json!({"method": "lightning"})).await;
+    let hash = r["attempts"][0]["details"]["payment_hash"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    payment_gateway::service::ProviderSink {
+        service: h.service.clone(),
+        provider_id: ln,
+    }
+    .event(
+        ProviderEvent::Paid {
+            lookup: hash.clone(),
+            reference: hash,
+            amount: None,
+            confirmed: true,
+            saved: None,
+        },
+        None,
+    )
+    .await
+    .unwrap();
+    id
+}

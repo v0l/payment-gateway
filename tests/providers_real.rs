@@ -36,6 +36,7 @@ fn request(amount: u64, currency: &str) -> AttemptRequest {
         option: None,
         save_method: false,
         receive: None,
+        lines: vec![],
     }
 }
 

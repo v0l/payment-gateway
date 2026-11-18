@@ -102,6 +102,46 @@ impl StripeProvider {
     }
 }
 
+fn line_item_fields(req: &AttemptRequest) -> Vec<(String, String)> {
+    if req.lines.is_empty() {
+        return vec![
+            kv("line_items[0][quantity]", 1),
+            kv(
+                "line_items[0][price_data][currency]",
+                req.currency.to_lowercase(),
+            ),
+            kv("line_items[0][price_data][unit_amount]", req.amount),
+            kv(
+                "line_items[0][price_data][product_data][name]",
+                &req.description,
+            ),
+        ];
+    }
+    let mut out = vec![];
+    for (i, l) in req.lines.iter().enumerate() {
+        out.push(kv(&format!("line_items[{i}][quantity]"), l.quantity));
+        out.push(kv(
+            &format!("line_items[{i}][price_data][currency]"),
+            req.currency.to_lowercase(),
+        ));
+        out.push(kv(
+            &format!("line_items[{i}][price_data][unit_amount]"),
+            l.unit_amount,
+        ));
+        out.push(kv(
+            &format!("line_items[{i}][price_data][product_data][name]"),
+            &l.name,
+        ));
+        if let Some(d) = &l.description {
+            out.push(kv(
+                &format!("line_items[{i}][price_data][product_data][description]"),
+                d,
+            ));
+        }
+    }
+    out
+}
+
 fn kv(k: &str, v: impl ToString) -> (String, String) {
     (k.to_string(), v.to_string())
 }
@@ -128,17 +168,8 @@ impl Provider for StripeProvider {
                     .max(chrono::Utc::now().timestamp() + 1800),
             ),
             kv("metadata[payment_id]", &pid),
-            kv("line_items[0][quantity]", 1),
-            kv(
-                "line_items[0][price_data][currency]",
-                req.currency.to_lowercase(),
-            ),
-            kv("line_items[0][price_data][unit_amount]", req.amount),
-            kv(
-                "line_items[0][price_data][product_data][name]",
-                &req.description,
-            ),
         ];
+        form.extend(line_item_fields(&req));
         if let Some(email) = &req.customer_email {
             form.push(kv("customer_email", email));
         }

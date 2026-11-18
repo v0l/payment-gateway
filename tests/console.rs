@@ -141,6 +141,7 @@ fn console_and_pay_css_take_colours_from_tokens() {
     for css in [
         include_str!("../web/console.css"),
         include_str!("../web/pay.css"),
+        include_str!("../web/receipt.css"),
         include_str!("../web/components.css"),
     ] {
         let loose = css.lines().filter(|l| {

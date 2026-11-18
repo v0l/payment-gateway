@@ -1,0 +1,8 @@
+ALTER TABLE payment
+    ADD COLUMN line_items MEDIUMTEXT NULL;
+
+ALTER TABLE tenant
+    ADD COLUMN legal_name VARCHAR(255) NULL,
+    ADD COLUMN address VARCHAR(1024) NULL,
+    ADD COLUMN tax_id VARCHAR(64) NULL,
+    ADD COLUMN support_email VARCHAR(255) NULL;
