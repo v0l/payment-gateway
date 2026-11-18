@@ -1,0 +1,57 @@
+# Agent guide
+
+Rust service (axum, sqlx on MySQL/MariaDB). Read `DESIGN.md` for the model and `README.md` for the API. This file is how to work in the repo.
+
+## Layout
+
+- `src/api/`: `admin.rs` (admin token API), `tenant.rs` (`/v1`, API key auth), `public.rs` (pay page, embed, SSE, provider webhooks), `console.rs` (`/console/api`, session auth), `sandbox.rs` (regtest tools, only when `SANDBOX_*` env is set)
+- `src/service.rs`: payments, attempts, settlement, expiry, refunds, webhook delivery. All money state changes go through here, inside one DB transaction with the payment row locked.
+- `src/providers/`: one file per provider behind the `Provider` trait (`mod.rs`). Mock provider is `mock.rs`, used by almost every test.
+- `src/db.rs`, `migrations/`: queries and schema. Migrations are forward only. Never edit an applied migration, add a new one.
+- `src/validate.rs`, `src/ssrf.rs`: customer supplied config and URL checks. Anything a customer can type that makes the server open a connection or read a file must go through these.
+- `src/accounts.rs`, `src/limiter.rs`, `src/crypto.rs`: accounts and sessions, login limiter, sealing of secrets at rest.
+- `web/`: dependency free front end (`pay.*`, `console.*`, `sandbox.*`, `gateway.js`). No build step. CSP is `script-src 'self'`, so no inline scripts or styles.
+- `tests/`: integration tests over a real database. `tests/common/mod.rs` has the harness.
+- `regtest/compose.yaml`: bitcoind and two LND nodes for the real lightning and on-chain test.
+
+## Build and test
+
+```
+docker run -d --name pgw-test-db -e MARIADB_ROOT_PASSWORD=test -p 127.0.0.1:33907:3306 mariadb:11.4
+export TEST_DATABASE_URL=mysql://root:test@127.0.0.1:33907/
+CARGO_BUILD_JOBS=2 cargo test
+CARGO_BUILD_JOBS=2 cargo clippy --all-targets
+cargo fmt
+node --check web/console.js   # and every other web js file you touch
+```
+
+- Always set `CARGO_BUILD_JOBS=2`. A default build uses 9 GB or more and several agents run at once. When using the bash tool pass `memory_mb: 0` for cargo.
+- If the test container is not running, start it. Each test creates its own database, so tests never collide.
+- Real LND test: `docker compose -f regtest/compose.yaml up -d`, copy certs and macaroons as `tests/regtest_e2e.rs` describes, run `REGTEST=1 cargo test --test regtest_e2e`, then `docker compose down -v`.
+- Build needs `protoc`.
+
+## Rules
+
+- A bug is not fixed without a regression test that failed first. A feature is not done without tests for the happy path, the failure paths and tenant isolation.
+- Do not add code comments. Names carry the meaning.
+- Commit messages: a short subject, no body unless it records something the diff cannot show, no trailers.
+- No em or en dashes in docs, UI text, or commit messages.
+- Money is integer minor units (msats for BTC). Never use floats for amounts that are stored or compared.
+- Settlement must stay exactly once: lock the payment row, check state, write, emit the webhook row in the same transaction. Do not run a query on the pool while holding a transaction that locks a row it needs.
+- Secrets are sealed at rest and never returned by any endpoint or written to logs. Add a test that a new secret field is not echoed.
+- Customer facing features must work for an untrusted project (see `validate.rs`). Operator only behaviour is gated on `trusted` or `is_operator`.
+- Every tenant scoped query takes the tenant id. Add a test where tenant B cannot read or change tenant A's data.
+- Keep files under about 600 lines. Split by concern instead of growing `service.rs`, `db.rs` and `console.js`.
+
+## Definition of done
+
+1. `cargo test` passes in full, `cargo clippy --all-targets` has no warnings, `cargo fmt` is clean, changed web js passes `node --check`.
+2. New behaviour is covered by tests as above. For UI changes, also run the binary and check the page in a headless browser.
+3. `README.md` or `DESIGN.md` updated when public behaviour changes.
+4. One focused commit series on your branch. Move the issue to review with a short note on how you verified it.
+
+## Do not
+
+- Do not deploy, push images, or touch the cluster. Deploys are done by the maintainer.
+- Do not run the regtest stack on the real cluster ports, or leave containers running.
+- Do not commit secrets or `.env` files.
