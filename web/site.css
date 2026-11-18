@@ -35,4 +35,9 @@ blockquote { margin: var(--space-4) 0; padding: var(--space-2) var(--space-4); b
 .wide section { margin-top: var(--space-6); }
 footer { border-top: 1px solid var(--line); padding: var(--space-4) var(--space-5); color: var(--muted); }
 footer ul { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-4); margin: 0; padding: 0; }
-@media (max-width: 52rem) { .layout { grid-template-columns: 1fr; } }
+@media (max-width: 52rem) {
+  .layout { grid-template-columns: 1fr; padding: var(--space-4); }
+  .side { order: 2; border-top: 1px solid var(--line); }
+  .top { padding: var(--space-3) var(--space-4); }
+  .hero h1 { font-size: 2rem; }
+}
