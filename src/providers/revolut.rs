@@ -7,13 +7,16 @@ use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use payments_rs::currency::{Currency, CurrencyAmount};
 use payments_rs::fiat::{
-    LineItem, RevolutApi, RevolutConfig, RevolutCustomer, RevolutOrderState,
+    LineItem, RevolutApi, RevolutConfig, RevolutCustomer, RevolutOrder, RevolutOrderState,
     RevolutSavedPaymentMethodType,
 };
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
+
+const CHARGE_POLLS: usize = 20;
+const CHARGE_POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 const WEBHOOK_EVENTS: &[&str] = &[
     "ORDER_COMPLETED",
@@ -154,6 +157,22 @@ impl RevolutProvider {
             confirmed: true,
             saved,
         }])
+    }
+
+    async fn settled_order(&self, mut order: RevolutOrder) -> Result<RevolutOrder> {
+        for _ in 0..CHARGE_POLLS {
+            if !matches!(
+                order.state,
+                RevolutOrderState::Pending
+                    | RevolutOrderState::Processing
+                    | RevolutOrderState::Authorised
+            ) {
+                break;
+            }
+            tokio::time::sleep(CHARGE_POLL_INTERVAL).await;
+            order = self.api.get_order(&order.id).await?;
+        }
+        Ok(order)
     }
 
     async fn saved_for_order(&self, order_id: &str) -> Result<Option<SavedMethodInfo>> {
@@ -429,6 +448,7 @@ impl Provider for RevolutProvider {
                 Some(req.description),
             )
             .await?;
+        let order = self.settled_order(order).await?;
         if !matches!(order.state, RevolutOrderState::Completed) {
             bail!("charge not completed: {:?}", order.state);
         }

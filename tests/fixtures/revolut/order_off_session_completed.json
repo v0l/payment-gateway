@@ -1,0 +1,61 @@
+{
+  "id": "6afdec7f-182f-a53f-96b2-1e1a321c6d2e",
+  "token": "85c7388b-4edd-42de-93e3-5cf043d7a970",
+  "type": "payment",
+  "state": "completed",
+  "created_at": "2026-11-18T18:20:47.958727Z",
+  "updated_at": "2026-11-18T18:20:50.714692Z",
+  "amount": 700,
+  "currency": "EUR",
+  "refunded_amount": 0,
+  "outstanding_amount": 0,
+  "capture_mode": "automatic",
+  "description": "Payment live-1795026022396-2",
+  "payments": [
+    {
+      "id": "6afdec80-33dd-a442-b69a-6616f80ee10d",
+      "state": "captured",
+      "created_at": "2026-11-18T18:20:48.067220Z",
+      "updated_at": "2026-11-18T18:20:50.695344Z",
+      "token": "42e29fd7-3aef-4471-93e6-e6a4296bd220",
+      "amount": 700,
+      "authorised_amount": 700,
+      "currency": "EUR",
+      "settled_amount": 700,
+      "settled_currency": "EUR",
+      "risk_level": "low",
+      "fees": [],
+      "payment_method": {
+        "id": "6afdec6f-a354-ac69-a873-e85031c96db0",
+        "type": "card",
+        "card_brand": "visa",
+        "funding": "debit",
+        "commercial": false,
+        "card_country_code": "GB",
+        "card_bin": "492942",
+        "card_last_four": "5709",
+        "card_expiry": "12/30",
+        "cardholder_name": "Test Person",
+        "checks": {
+          "cvv_verification": "not_processed",
+          "address": "n_a",
+          "postcode": "n_a",
+          "cardholder": "n_a"
+        },
+        "fingerprint": "adSgD4PMwMaitUCQpu+jx8QXw7N5liDmOctT71AaT1I=",
+        "network_transaction_id": "497814781501632",
+        "authorisation_code": "100000",
+        "capture_deadline": "2026-11-25T18:20:48.067220Z"
+      },
+      "payer": {
+        "email": "live-1795026022396@example.com"
+      }
+    }
+  ],
+  "enforce_challenge": "automatic",
+  "authorisation_type": "final",
+  "customer": {
+    "id": "1ccf0f10-e010-4e39-9717-69b7f9949db3",
+    "email": "live-1795026022396@example.com"
+  }
+}

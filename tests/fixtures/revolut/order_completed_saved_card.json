@@ -1,0 +1,72 @@
+{
+  "id": "6afdec66-c139-a860-8899-165a530df636",
+  "token": "41a9b851-4869-467d-b45d-354e9126f86c",
+  "type": "payment",
+  "state": "completed",
+  "created_at": "2026-11-18T18:20:22.550180Z",
+  "updated_at": "2026-11-18T18:20:36.374035Z",
+  "amount": 1500,
+  "currency": "EUR",
+  "refunded_amount": 0,
+  "outstanding_amount": 0,
+  "capture_mode": "automatic",
+  "description": "Payment live-1795026022396",
+  "payments": [
+    {
+      "id": "6afdec6e-e905-a294-a39e-c2b5605e33f5",
+      "state": "captured",
+      "created_at": "2026-11-18T18:20:30.940550Z",
+      "updated_at": "2026-11-18T18:20:39.773195Z",
+      "token": "acd9d8bb-bf47-4837-afc2-a43d69566370",
+      "amount": 1500,
+      "authorised_amount": 1500,
+      "currency": "EUR",
+      "settled_amount": 1462,
+      "settled_currency": "EUR",
+      "risk_level": "low",
+      "fees": [
+        {
+          "type": "acquiring",
+          "amount": 38,
+          "currency": "EUR"
+        }
+      ],
+      "payment_method": {
+        "id": "6afdec6f-a354-ac69-a873-e85031c96db0",
+        "type": "card",
+        "card_brand": "visa",
+        "funding": "debit",
+        "commercial": false,
+        "card_country_code": "GB",
+        "card_bin": "492942",
+        "card_last_four": "5709",
+        "card_expiry": "12/30",
+        "cardholder_name": "Test Person",
+        "checks": {
+          "three_ds": {
+            "eci": "05",
+            "state": "verified",
+            "version": 2
+          },
+          "cvv_verification": "not_processed",
+          "address": "n_a",
+          "postcode": "n_a",
+          "cardholder": "n_a"
+        },
+        "fingerprint": "adSgD4PMwMaitUCQpu+jx8QXw7N5liDmOctT71AaT1I=",
+        "network_transaction_id": "562516362982563",
+        "authorisation_code": "100000",
+        "capture_deadline": "2026-11-25T18:20:30.940550Z"
+      },
+      "payer": {
+        "email": "live-1795026022396@example.com"
+      }
+    }
+  ],
+  "enforce_challenge": "automatic",
+  "authorisation_type": "final",
+  "customer": {
+    "id": "1ccf0f10-e010-4e39-9717-69b7f9949db3",
+    "email": "live-1795026022396@example.com"
+  }
+}
