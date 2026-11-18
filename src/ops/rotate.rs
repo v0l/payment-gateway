@@ -21,6 +21,11 @@ pub const SEALED_COLUMNS: &[SealedColumn] = &[
         key: "id",
         column: "config",
     },
+    SealedColumn {
+        table: "shared_provider",
+        key: "id",
+        column: "config",
+    },
 ];
 
 pub const NOT_SEALED_BINARY_COLUMNS: &[(&str, &str)] = &[
