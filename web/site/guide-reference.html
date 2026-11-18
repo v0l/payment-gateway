@@ -51,6 +51,19 @@
 <table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
 <p>Request body <code>RefundInput</code>:</p>
 <table><thead><tr><th scope="col">Field</th><th scope="col">Type</th></tr></thead><tbody><tr><td><code>amount</code></td><td>integer</td></tr><tr><td><code>destination</code></td><td>string</td></tr></tbody></table>
+<h2 id="get-plans">GET /plans</h2>
+<p>List billing plans. Required scope: <code>payments:read</code>.</p>
+<table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>limit</code></td><td>query</td><td>no</td></tr><tr><td><code>cursor</code></td><td>query</td><td>no</td></tr></tbody></table>
+<h2 id="post-plans">POST /plans</h2>
+<p>Create a billing plan. Required scope: <code>payments:write</code>.</p>
+<p>Request body <code>CreatePlan</code>:</p>
+<table><thead><tr><th scope="col">Field</th><th scope="col">Type</th></tr></thead><tbody><tr><td><code>amount</code></td><td>integer</td></tr><tr><td><code>currency</code></td><td>string</td></tr><tr><td><code>description</code></td><td>string</td></tr><tr><td><code>grace_days</code></td><td>integer</td></tr><tr><td><code>interval</code></td><td>string</td></tr><tr><td><code>interval_count</code></td><td>integer</td></tr><tr><td><code>name</code></td><td>string</td></tr><tr><td><code>trial_days</code></td><td>integer</td></tr></tbody></table>
+<h2 id="get-plans-id">GET /plans/{id}</h2>
+<p>Get a billing plan. Required scope: <code>payments:read</code>.</p>
+<table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
+<h2 id="post-plans-id-archive">POST /plans/{id}/archive</h2>
+<p>Archive a billing plan. Required scope: <code>payments:write</code>.</p>
+<table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
 <h2 id="get-rates">GET /rates</h2>
 <p>Current BTC rates. Required scope: <code>payments:read</code>.</p>
 <h2 id="get-refunds">GET /refunds</h2>
@@ -67,6 +80,32 @@
 <table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
 <p>Request body <code>CreatePayment</code>:</p>
 <table><thead><tr><th scope="col">Field</th><th scope="col">Type</th></tr></thead><tbody><tr><td><code>amount</code></td><td>integer</td></tr><tr><td><code>cancel_url</code></td><td>string</td></tr><tr><td><code>currency</code></td><td>string</td></tr><tr><td><code>customer_email</code></td><td>string</td></tr><tr><td><code>customer_ref</code></td><td>string</td></tr><tr><td><code>description</code></td><td>string</td></tr><tr><td><code>discount</code></td><td>any</td></tr><tr><td><code>line_items</code></td><td>array</td></tr><tr><td><code>metadata</code></td><td>object</td></tr><tr><td><code>methods</code></td><td>array</td></tr><tr><td><code>reference</code></td><td>string</td></tr><tr><td><code>success_url</code></td><td>string</td></tr><tr><td><code>tax</code></td><td>integer</td></tr></tbody></table>
+<h2 id="get-subscriptions">GET /subscriptions</h2>
+<p>List subscriptions. Required scope: <code>payments:read</code>.</p>
+<table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>limit</code></td><td>query</td><td>no</td></tr><tr><td><code>cursor</code></td><td>query</td><td>no</td></tr><tr><td><code>customer_ref</code></td><td>query</td><td>no</td></tr><tr><td><code>status</code></td><td>query</td><td>no</td></tr></tbody></table>
+<h2 id="post-subscriptions">POST /subscriptions</h2>
+<p>Create a subscription. Required scope: <code>payments:write</code>.</p>
+<p>Request body <code>CreateSubscription</code>:</p>
+<table><thead><tr><th scope="col">Field</th><th scope="col">Type</th></tr></thead><tbody><tr><td><code>customer_ref</code></td><td>string</td></tr><tr><td><code>plan_id</code></td><td>integer</td></tr><tr><td><code>saved_method_id</code></td><td>integer</td></tr></tbody></table>
+<h2 id="get-subscriptions-id">GET /subscriptions/{id}</h2>
+<p>Get a subscription with its billing history. Required scope: <code>payments:read</code>.</p>
+<table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
+<h2 id="post-subscriptions-id-cancel">POST /subscriptions/{id}/cancel</h2>
+<p>Cancel a subscription now or at period end. Required scope: <code>payments:write</code>.</p>
+<table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
+<p>Request body <code>CancelSubscription</code>:</p>
+<table><thead><tr><th scope="col">Field</th><th scope="col">Type</th></tr></thead><tbody><tr><td><code>at_period_end</code></td><td>boolean</td></tr></tbody></table>
+<h2 id="post-subscriptions-id-change-plan">POST /subscriptions/{id}/change-plan</h2>
+<p>Change plan, optionally prorating. Required scope: <code>payments:write</code>.</p>
+<table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
+<p>Request body <code>ChangePlan</code>:</p>
+<table><thead><tr><th scope="col">Field</th><th scope="col">Type</th></tr></thead><tbody><tr><td><code>plan_id</code></td><td>integer</td></tr><tr><td><code>proration</code></td><td>string</td></tr></tbody></table>
+<h2 id="post-subscriptions-id-pause">POST /subscriptions/{id}/pause</h2>
+<p>Pause a subscription. Required scope: <code>payments:write</code>.</p>
+<table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
+<h2 id="post-subscriptions-id-resume">POST /subscriptions/{id}/resume</h2>
+<p>Resume a subscription. Required scope: <code>payments:write</code>.</p>
+<table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
 </article>
 </main>
 </div>
