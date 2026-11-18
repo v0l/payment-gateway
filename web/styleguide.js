@@ -21,10 +21,11 @@
   function section(title, kids) { return el("section", {}, [el("h3", { text: title })].concat(kids)); }
 
   var TOKENS = ["bg", "card", "code", "text", "muted", "line", "line-strong", "accent", "ok", "warn", "bad", "info"];
-  var PAYMENT = ["pending", "paid", "expired", "cancelled", "failed", "partially_refunded", "refunded"];
-  var WITHDRAWAL = ["requested", "processing", "completed", "failed"];
-  var WEBHOOK = ["delivered", "retrying", "failed"];
-  var PILL_CLASS = { refunded: "info", requested: "pending", processing: "info", delivered: "ok", retrying: "pending" };
+  var PAYMENT = ["pending", "paid", "expired", "cancelled", "failed", "disputed", "partially_refunded", "refunded"];
+  var ATTEMPT = ["pending", "paid", "expired", "cancelled", "failed"];
+  var REFUND = ["pending", "completed", "refund_failed"];
+  var WITHDRAWAL = ["requested", "processing", "completed", "failed", "cancelled"];
+  var WEBHOOK = ["delivered", "waiting", "retrying", "failed"];
 
   function swatches() {
     return el("div", { class: "swatches" }, TOKENS.map(function (t) {
@@ -75,9 +76,9 @@
 
   function badges() {
     function group(name, list) {
-      return el("div", { class: "row" }, [el("span", { class: "muted", text: name })].concat(list.map(function (s) { return pill(s, PILL_CLASS[s]); })));
+      return el("div", { class: "row" }, [el("span", { class: "muted", text: name })].concat(list.map(function (s) { return pill(s); })));
     }
-    return el("div", {}, [group("Payment", PAYMENT), group("Withdrawal", WITHDRAWAL), group("Webhook", WEBHOOK)]);
+    return el("div", {}, [group("Payment", PAYMENT), group("Attempt", ATTEMPT), group("Refund", REFUND), group("Withdrawal", WITHDRAWAL), group("Webhook", WEBHOOK)]);
   }
 
   function money() {

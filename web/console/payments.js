@@ -16,13 +16,13 @@ function payments(pid) {
     }
     function draw() {
       list.replaceChildren(rows.length ? el("table", {}, [el("tr", {}, ["Id", "Reference", "Amount", "Status", "Method", "Created"].map(function (h) { return el("th", { text: h }); }))].concat(rows.map(function (r) {
-        var paid = r.attempts.filter(function (a) { return a.status === "paid"; })[0];
+        var shown = r.attempts.filter(function (a) { return a.status === "paid"; })[0] || r.attempts[r.attempts.length - 1];
         var tr = el("tr", { class: "click", onclick: function () { go("#/p/" + pid + "/payments/" + r.id); } }, [
           el("td", { class: "mono", text: r.id.slice(0, 8) }), el("td", { text: r.reference }), el("td", { text: fmtAmount(r.amount, r.currency) }),
-          el("td", {}, [pill(r.status)]), el("td", { text: paid ? paid.method : "" }), el("td", { class: "muted", text: ago(r.created) })]);
+          el("td", {}, [pill(r.status)]), el("td", { text: shown ? shown.method : "-" }), el("td", { class: "muted", text: ago(r.created) })]);
         return tr;
       }))) : el("p", { class: "muted", text: "No payments match." }));
-      more.replaceChildren(next ? el("button", { text: "Load more", onclick: function () { load(false); } }) : null);
+      more.replaceChildren(next ? el("button", { text: "Load more", onclick: function () { load(false); } }) : el("span", { class: "muted", text: rows.length ? "No more payments" : "" }));
     }
     q.addEventListener("keydown", function (e) { if (e.key === "Enter") load(true); });
     st.addEventListener("change", function () { load(true); });

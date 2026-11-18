@@ -29,3 +29,5 @@ Console density is compact: 14 px text, 8 px cell padding, 12 px card radius, 14
 - Destructive actions (delete provider, rotate key, remove member, disable 2FA) use the confirm dialog pattern. Secrets returned once use the `secret` box.
 - Polling views stop their timer when the route changes.
 - Amounts use `fmtAmount` (Intl currency, sats for BTC). Do not format money by hand.
+- Payments list: 50 rows per page. While the API returns a cursor the control is a "Load more" button; at the end it is the muted text "No more payments". Never pass a possibly null value to `replaceChildren`, it renders as the text "null".
+- The Method column shows the method of the paid attempt, else of the latest attempt (the list API returns attempts), and "-" when the payment has none yet.

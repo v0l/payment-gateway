@@ -151,6 +151,29 @@ fn console_and_pay_css_take_colours_from_tokens() {
     }
 }
 
+#[test]
+fn console_never_hands_null_to_replace_children_which_renders_the_text_null() {
+    for (name, js) in [
+        ("payments", include_str!("../web/console/payments.js")),
+        ("providers", include_str!("../web/console/providers.js")),
+    ] {
+        for line in js.lines().filter(|l| l.contains("replaceChildren(")) {
+            assert!(!line.contains(": null)"), "{name}: {line}");
+        }
+    }
+}
+
+#[test]
+fn expired_and_cancelled_pills_are_neutral_and_failures_stay_red() {
+    let css = include_str!("../web/console.css");
+    let red = css
+        .lines()
+        .find(|l| l.contains("var(--bad)") && l.starts_with(".pill"))
+        .unwrap();
+    assert!(red.contains(".pill.failed") && red.contains(".pill.disputed"));
+    assert!(!red.contains("expired") && !red.contains("cancelled"));
+}
+
 #[tokio::test]
 async fn api_needs_a_session() {
     let h = harness().await;

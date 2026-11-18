@@ -91,14 +91,15 @@ Classes are in `console.css` (existing) and `components.css` (new). See the styl
 - **Inputs and validation.** Label above, always visible, sentence case. Hint below in `--muted`. Validate on submit and on blur, not on every key. An invalid field gets `field invalid`, a red border, `aria-invalid="true"` and a hint that says how to fix it ("Use an https URL that is reachable from the internet."). Do not clear what the person typed.
 - **Tables and paging.** Left aligned text, amounts right aligned where columns are numeric, muted header 12 px, row dividers only. Clickable rows get `click` and must also contain a link for keyboard use. Paging is Previous / Next with a "1 to 25 of 140" count, aligned right. Wide tables scroll inside `main`.
 - **Tabs.** `tabs` with the current tab marked `on`. Tabs switch views within one project and keep the URL hash. At most 8. See the console guide.
-- **Badges and status pills.** `pill <status>`. Always lower case, the raw status word with underscores shown as written by the API.
+- **Badges and status pills.** `pill <status>`. Always lower case, the raw status word with underscores shown as written by the API. Tone follows what the status means for the person, not whether the payment completed. Red is only for something that broke or needs action. A customer letting a payment lapse or a merchant cancelling is an ordinary outcome and stays neutral.
 
-  | Colour | Payment | Withdrawal | Webhook |
-  | --- | --- | --- | --- |
-  | green `ok` | paid | completed | delivered |
-  | amber `pending` | pending, partially_refunded | requested | retrying |
-  | red `bad` | expired, cancelled, failed | failed | failed |
-  | blue `info` | refunded | processing | none |
+  | Tone | Class | Payment | Attempt | Refund | Withdrawal | Webhook |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | green | `ok` | paid | paid | completed | completed | delivered |
+  | amber | `pending` | pending, partially_refunded | pending | pending | requested | waiting, retrying |
+  | blue | `info` | refunded | none | none | processing | none |
+  | neutral | `expired`, `cancelled` | expired, cancelled | expired, cancelled | none | cancelled | none |
+  | red | `failed`, `disputed`, `refund_failed`, `bad` | failed, disputed | failed | refund_failed | failed | failed (abandoned) |
 
   Unknown statuses fall back to a neutral outlined pill.
 - **Money.** Stored and compared as integer minor units; BTC is msats. Never use floats for storing or comparing. Display only: fiat with `Intl.NumberFormat(undefined, {style:"currency"})` so the person's locale decides separators; BTC amounts as whole sats with thousands separators and the word "sats" ("250,000 sats", rounded up from msats on the pay page). Show msats only in the console where sub-sat precision matters, written "250,000,000 msats". Wrap in `.money` (tabular figures, no wrapping). Show the currency code when it is not obvious from the symbol. A fee is shown beside the amount as "+1.50 EUR fee", never folded in silently.

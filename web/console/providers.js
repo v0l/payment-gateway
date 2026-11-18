@@ -64,7 +64,7 @@ function providerForm(pid, id) {
         busy(btn, function () { return row ? api("POST", "/projects/" + pid + "/providers/" + row.id, payload) : api("POST", "/projects/" + pid + "/providers", payload); })
           .then(function (r) {
             var hook = (r && r.hook_url) || (row && row.hook_url);
-            out.replaceChildren(el("div", { class: "ok-msg", text: "Saved." }), hook ? el("p", { class: "muted" }, ["Webhook URL for this provider: ", el("span", { class: "mono", text: hook })]) : null);
+            out.replaceChildren(el("div", { class: "ok-msg", text: "Saved." }), hook ? el("p", { class: "muted" }, ["Webhook URL for this provider: ", el("span", { class: "mono", text: hook })]) : "");
             if (!row) setTimeout(function () { go("#/p/" + pid + "/providers"); }, 1200);
           }).catch(function (e) { msg(out, e.message, true); });
       });
