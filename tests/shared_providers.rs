@@ -137,7 +137,7 @@ async fn platform_fee_rounds_up_and_tenant_never_gets_more_than_received() {
     let (_, hash, _) = pay(&h, &t, sid, 5001).await;
     sink(&h, sid).event(paid(&hash, None), None).await.unwrap();
     let received = 100_020_000i64;
-    let fee = (received * 1 + 9_999) / 10_000;
+    let fee = (received + 9_999) / 10_000;
     assert_eq!(platform(&h, AccountKind::PlatformFees).await, fee);
     assert_eq!(balance(&h, &t).await + fee, received);
 }

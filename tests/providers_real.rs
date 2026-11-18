@@ -924,7 +924,7 @@ async fn shared_lnd_lightning_flow_settles_through_the_fake_node_and_posts_the_l
         "POST",
         "/v1/payments",
         Some(&t.key),
-        common::eur("fl", 5000).into(),
+        common::eur("fl", 5000),
     )
     .await;
     let id = p["id"].as_str().unwrap();
