@@ -32,7 +32,7 @@ State colours (green, amber, red, teal for info) are unchanged in role. Cobalt o
 ```
 +---------+--------------------------------------------+
 | navy    |  Project name (30px)                        |
-| rail    |  tabs: underline only, wrap, no scroll      |
+| rail    |  (project areas live in the rail only)      |
 | 236px   |  [7 | 30 | 90 days]                          |
 |         |  +--------------------------------------+   |
 |         |  | 61,000 sats            [BTC|EUR]     |   |
@@ -58,7 +58,19 @@ Left aligned throughout, amounts right aligned in tables. Under 800 px the rail 
 
 ### Critique notes
 
-The first pass left the rail as a centred column at 390 px and an empty grey gap in the ledger strip; both were fixed (rail strip, hairline shadows instead of a grey gap). The chart uses the brass bar for today so the latest day is findable without a legend.
+Screenshots are `docs/design/screenshots/console-v3-before-*` and `console-v3-after-*` at 1280, 820 and 390 px. Each after shot was checked against the plan. Fixes made from that review:
+
+- Overview: the ledger strip left one figure alone on a second row with empty cells. It now flexes in one row. At 390 px it stacks with hairlines.
+- Navigation: project areas were in both the rail and a tab bar that wrapped to two lines. The tab bar is gone. The rail groups the areas in five blocks and becomes a scrolling strip at 390 px, with the current link scrolled into view. On short pages the mobile strip was stretched to the viewport height by the grid, fixed with `grid-template-rows: auto 1fr`.
+- Payments: fourteen equal controls over three rows with clipped placeholders. Search, status, method and dates are one row, customer, amounts and saved views sit in a disclosure, Export CSV and Cancel stale pending moved into a menu, and New payment is the only filled button.
+- Payment detail: the page printed the text "nullnull" from empty line item sections. Fixed, and the amount is now the largest value in the card with the refund controls under a rule.
+- Dialogs: a second `confirmDialog` in `shared.js` overrode the object style one, so the bulk cancel dialog showed "[object Object]" and no labels. Renamed it `confirmChoice`. A test now enforces a single definition.
+- Settings: one column of eleven full width fields became a two column form, with the two text areas full width.
+- Operator Projects: volume was an unformatted integer, now formatted money. Billing: the standing pill and its text sit on one line.
+- Webhooks: the lone checkbox and button now share one toolbar row.
+- Focus: every control shows a 2 px focus ring (brass on the rail, cobalt elsewhere). The dialog opens on the safe button, Tab reaches the danger button, Escape returns focus to the control that opened it. With `prefers-reduced-motion: reduce` transitions are 0.01 ms.
+
+Still plain by design: Treasury, Audit, Accounts and Plans are ruled tables on the shared system.
 
 ## Principles
 
@@ -98,101 +110,7 @@ Rule: never convey state by colour alone. A pill always carries its status word.
 
 ### Contrast (WCAG AA)
 
-`node scripts/contrast.mjs` reads `tokens.css`, checks every pair below in both themes and exits non zero on failure. Text pairs need 4.5:1, control borders and focus ring 3:1. Current result: 38 of 38 pass.
-
-Run the script for the current ratios; every pair passes in both themes.
-
-### Type
-
-- Bricolage Grotesque (variable, self-hosted) for everything: headings are bold with tight tracking (-0.03em), body at 14 px. Its slightly quirky grotesque shapes carry the personality, so no second display face.
-- IBM Plex Mono (self-hosted, 400 and 500) for ids, keys and codes only.
-- Scale: 11, 12, 14, 16, 20, 24, 34 (figures), 40, hero figure `clamp(36px, 7vw, 56px)`.
-
-### Layout
-
-```
-+---------+--------------------------------------------+
-| navy    |  Project name (30px)                        |
-| rail    |  tabs: underline only, wrap, no scroll      |
-| 236px   |  [7 | 30 | 90 days]                          |
-|         |  +--------------------------------------+   |
-|         |  | 61,000 sats            [BTC|EUR]     |   |
-|         |  | paid across 7 payments                |   |
-|         |  | ||  |  ||||     |   daily bars      |   |
-|         |  | ====== method share bar ======        |   |
-|         |  +--------------------------------------+   |
-|         |  | pending | success | settle | webhooks |   |
-|         |  Top customers (ruled table, left aligned)  |
-+---------+--------------------------------------------+
-```
-
-Left aligned throughout, amounts right aligned in tables. Under 800 px the rail becomes a single scrolling strip above the content.
-
-### Defaults avoided
-
-- Cream paper with a serif and a clay accent: used cool blue grey paper and a grotesque instead.
-- Identical rounded stat cards with soft grey shadows: the figures sit in one ruled strip, and the hero is a single large panel. No shadows on cards.
-- Uppercase muted section labels: headings are sentence case 16 px bold.
-- Monospace for small data labels: mono is only for ids and keys.
-- A tracked caps eyebrow, numbered markers, dash-joined meta strings and arrows on links: none.
-- Pills are 3 px rectangles with a status dot, not capsules, so state does not rely on colour alone.
-
-### Critique notes
-
-The first pass left the rail as a centred column at 390 px and an empty grey gap in the ledger strip; both were fixed (rail strip, hairline shadows instead of a grey gap). The chart uses the brass bar for today so the latest day is findable without a legend.
-
-## Principles
-
-The product handles other people's money, so it should feel like a good bank statement: calm, exact and quiet.
-
-1. **Numbers first.** Amounts, statuses and ids are the content. They use tabular figures, never wrap mid-value and never share a line with decoration.
-2. **One memorable thing.** The identity is a cobalt accent and a navy rail on cool blue greys (paper in light, ink in dark). Everything else stays neutral. Colour means something: teal is the action, green/amber/red/blue are states. Nothing is coloured for decoration.
-3. **Say what happened.** Every state names its cause and the next step. Errors do not apologise.
-4. **No surprises with money.** Destructive and irreversible actions ask first, name what will be lost, and use the same verb on the button as in the dialog title.
-5. **Works everywhere.** 360 px wide, keyboard only, light or dark, reduced motion, no external fonts, scripts or images.
-6. **Borders over shadows.** Structure comes from 1 px lines. Shadow is reserved for things that float (dialogs, toasts) plus a faint lift on cards.
-
-Not used on purpose: gradients, glass, all caps labels beyond the small section headings in the console nav, emoji as icons, animated entrances.
-
-## Tokens
-
-All tokens are CSS custom properties in `web/tokens.css`. Dark values apply with `prefers-color-scheme: dark`, or with `data-theme="dark"` / `data-theme="light"` on any element to force one (the styleguide uses this). Never write a colour literal in `console.css`, `pay.css` or `components.css`; a test enforces it.
-
-### Colour
-
-| Token | Light | Dark | Use |
-| --- | --- | --- | --- |
-| `--bg` | `#eef1f6` | `#0a1120` | page |
-| `--card` | `#ffffff` | `#111b2e` | cards, inputs, dialogs |
-| `--code` | `#e4e9f1` | `#1a2640` | code, hover rows, secret boxes |
-| `--text` | `#0f1a2e` | `#e5ebf7` | body |
-| `--muted` | `#52607a` | `#9aa8c4` | hints, metadata, table heads |
-| `--line` | `#d6ddea` | `#243250` | decorative dividers |
-| `--line-strong` | `#7384a3` | `#5f7196` | borders of controls (3:1 needed) |
-| `--accent` / `--accent-text` | `#2440d4` / `#ffffff` | `#8aa0ff` / `#0a1230` | primary action, links, focus |
-| `--ok`, `--ok-bg` | `#1a6b39`, `#e3f3e8` | `#62c786`, `#12301e` | paid, completed, delivered |
-| `--warn`, `--warn-bg` | `#86500a`, `#fbf0d9` | `#e5b45a`, `#36280c` | pending, needs attention, one time secrets |
-| `--bad`, `--bad-bg` | `#b3261e`, `#fbe6e4` | `#f0877f`, `#3a1714` | failed, expired, destructive |
-| `--info`, `--info-bg` | `#0b6572`, `#dcf0f2` | `#52c3d1`, `#0e2d33` | informational, processing, refunded |
-
-Rule: never convey state by colour alone. A pill always carries its status word.
-
-### Contrast (WCAG AA)
-
-`node scripts/contrast.mjs` reads `tokens.css`, checks every pair below in both themes and exits non zero on failure. Text pairs need 4.5:1, control borders and focus ring 3:1. Current result: 38 of 38 pass.
-
-| Pair | Light | Dark |
-| --- | --- | --- |
-| text on bg / card | 15.85 / 17.39 | 15.65 / 14.31 |
-| muted on bg / card / code | 5.71 / 6.26 / 5.33 | 7.94 / 7.26 / 6.34 |
-| accent on bg / card | 6.14 / 6.73 | 9.02 / 8.25 |
-| accent-text on accent | 6.73 | 7.98 |
-| ok on card / ok-bg | 6.55 / 5.69 | 8.21 / 6.84 |
-| warn on card / warn-bg | 6.63 / 5.87 | 9.01 / 7.51 |
-| bad on card / bad-bg | 6.54 / 5.46 | 6.94 / 6.46 |
-| info on card / info-bg | 6.71 / 5.67 | 7.71 / 6.77 |
-| line-strong on card / bg (3:1) | 3.70 / 3.37 | 3.44 / 3.76 |
-| focus on card (3:1) | 6.73 | 8.25 |
+`node scripts/contrast.mjs` reads `tokens.css`, checks every pair below in both themes and exits non zero on failure. Text pairs need 4.5:1, control borders and focus ring 3:1. Every pair passes in both themes.
 
 ### Type
 
@@ -229,7 +147,7 @@ Classes are in `console.css` (existing) and `components.css` (new). See the styl
 - **Buttons.** One `primary` per view (the thing most people do next). Default for secondary. `danger` for destructive, never filled red. Disabled while a request runs and the label changes to the progress form ("Saving"). Labels are verb plus object: "Save changes", "Create project", not "Submit" or "OK".
 - **Inputs and validation.** Label above, always visible, sentence case. Hint below in `--muted`. Validate on submit and on blur, not on every key. An invalid field gets `field invalid`, a red border, `aria-invalid="true"` and a hint that says how to fix it ("Use an https URL that is reachable from the internet."). Do not clear what the person typed.
 - **Tables and paging.** Left aligned text, amounts right aligned where columns are numeric, muted header 12 px, row dividers only. Clickable rows get `click` and must also contain a link for keyboard use. Paging is Previous / Next with a "1 to 25 of 140" count, aligned right. Wide tables scroll inside `main`.
-- **Tabs.** `tabs` with the current tab marked `on`. Tabs switch views within one project and keep the URL hash. At most 8. See the console guide.
+- **Navigation.** One rail, no tab bar. See the console guide.
 - **Badges and status pills.** `pill <status>`. Always lower case, the raw status word with underscores shown as written by the API. Tone follows what the status means for the person, not whether the payment completed. Red is only for something that broke or needs action. A customer letting a payment lapse or a merchant cancelling is an ordinary outcome and stays neutral.
 
   | Tone | Class | Payment | Attempt | Refund | Withdrawal | Webhook |

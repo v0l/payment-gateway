@@ -188,6 +188,30 @@ fn console_never_hands_null_to_replace_children_which_renders_the_text_null() {
 }
 
 #[test]
+fn console_defines_confirm_dialog_once_so_later_scripts_cannot_override_it() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/console");
+    let mut definitions = 0;
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let js = std::fs::read_to_string(entry.unwrap().path()).unwrap();
+        definitions += js.matches("function confirmDialog(").count();
+    }
+    assert_eq!(definitions, 1);
+}
+
+#[test]
+fn mobile_shell_keeps_the_navigation_row_to_its_content_height() {
+    let css = include_str!("../web/console.css");
+    assert!(css.contains("grid-template-columns: 1fr; grid-template-rows: auto 1fr;"));
+}
+
+#[test]
+fn payment_detail_without_line_items_renders_no_null_text() {
+    let js = include_str!("../web/console/payments.js");
+    assert!(!js.contains("box.replaceChildren(\n"));
+    assert!(js.contains("].filter(Boolean)"));
+}
+
+#[test]
 fn expired_and_cancelled_pills_are_neutral_and_failures_stay_red() {
     let css = include_str!("../web/console.css");
     let red = css

@@ -10,7 +10,7 @@ function platformBilling(pid) {
       var bad = a.standing !== "current";
       body.appendChild(el("div", { class: "card" }, [
         el("h3", { text: a.plan.name + " plan" }),
-        el("p", {}, [pill(a.standing, bad ? "failed" : "ok"), " " + STANDING_TEXT[a.standing]]),
+        el("p", { class: "standing" }, [pill(a.standing, bad ? "failed" : "ok"), STANDING_TEXT[a.standing]]),
         el("p", { class: "muted", text: "Monthly price " + fmtAmount(a.plan.monthly_price, a.plan.currency) + ". This period: " + a.usage_count + " settled payments, " + fmtAmount(a.usage_volume, a.plan.currency) + " volume, estimated usage fee " + fmtAmount(a.estimated_usage_fee, a.plan.currency) + ". Credit: " + fmtAmount(a.credit, a.plan.currency) + "." })
       ]));
       body.appendChild(el("h3", { text: "Invoices" }));

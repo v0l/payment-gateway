@@ -68,12 +68,6 @@
     ]);
   }
 
-  function tabs() {
-    return el("div", { class: "tabs" }, ["Overview", "Payments", "Providers", "Settings"].map(function (t, i) {
-      return el("a", { href: "#", class: i === 1 ? "on" : "", text: t });
-    }));
-  }
-
   function badges() {
     function group(name, list) {
       return el("div", { class: "row" }, [el("span", { class: "muted", text: name })].concat(list.map(function (s) { return pill(s); })));
@@ -156,7 +150,6 @@
       section("Type", [el("div", {}, [el("div", { class: "stat" }, [el("div", { class: "n", text: "Balance 1,234.50" }), el("div", { class: "l", text: "Small label" })]), el("p", { text: "Body text at 14px. Plain words, short sentences." }), el("p", { class: "muted", text: "Muted text for hints and metadata." }), el("p", { class: "mono", text: "pay_8f3k2 monospace for ids" })])]),
       section("Buttons", [buttons()]),
       section("Inputs and validation", [inputs()]),
-      section("Tabs", [tabs()]),
       section("Tables and paging", [el("div", { class: "card" }, [tables()])]),
       section("Status pills", [badges()]),
       section("Money", [money()]),

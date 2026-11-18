@@ -6,12 +6,12 @@ The operator and project console at `/console`. Components and tokens are in the
 
 - Two columns: a 236 px navy navigation rail and the main area (max 1180 px, padded 32/40). Under 800 px the navigation stacks above the content. The page never scrolls sideways at 360 px; a wide table scrolls inside `main`.
 - The navigation lists every project the account belongs to. The open project expands into its areas; others show "Open". Below it: "+ New project", the Operator section (operators only), then the account email, Account and Sign out.
-- The main area starts with the project name (`h2`), a one line `sub` giving role and the "test limits" pill for untrusted projects, then the tab bar, then content.
+- The main area starts with the project name (`h2`), a one line `sub` giving role and the "test limits" pill for untrusted projects, then content. There is no tab bar.
 - Content is a vertical stack of `card`s and `grid` stat tiles. Use `h3` for section headings inside a tab (16 px bold, sentence case, never uppercase). The overview opens with the `hero` panel (paid volume figure, daily SVG chart from `chart.js`, method share bar) followed by the `ledger` figure strip.
 
-## Tab pattern
+## Project navigation
 
-Tabs wrap onto more lines instead of scrolling. They are links to `#/p/{id}/{tab}`, so reload and back keep your place. Order is fixed: Overview, Payments, Providers, Webhooks, Balance, Payouts, Team, Activity, Settings. Order by how often it is used, with Settings last. Do not add a tenth tab; group instead. The current tab is `on` and mirrored in the navigation. A tab never changes the project.
+The navy rail is the only place project areas are listed, so there is no tab bar above the content. The open project expands into five groups separated by a gap: Overview, Payments and Customers; Plans, Subscriptions and Billing; Balance and Payouts; Providers, API keys and Webhooks; Team, Activity and Settings. Order within a group is by how often it is used, with Settings last. Links go to `#/p/{id}/{area}`, so reload and back keep your place. The current link is `on`. Under 800 px the rail is one horizontally scrolling strip and the current link is scrolled into view. A new area goes into an existing group.
 
 ## Operator and tenant areas
 

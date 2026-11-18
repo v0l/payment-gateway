@@ -13,10 +13,10 @@ function emptyState(title, hint) {
   return el("div", { class: "empty" }, [el("b", { text: title }), el("p", { class: "muted", text: hint })]);
 }
 
-function confirmDialog(title, body, safeLabel, dangerLabel, onConfirm) {
+function confirmChoice(title, body, safeLabel, dangerLabel, onConfirm) {
   var safe = el("button", { text: safeLabel });
   var danger = el("button", { class: "danger", text: dangerLabel });
-  var scrim = el("div", { class: "dialog-scrim" }, [el("div", { class: "dialog", role: "alertdialog", "aria-modal": "true", "aria-label": title }, [
+  var scrim = el("div", { class: "dialog-scrim modal" }, [el("div", { class: "dialog", role: "alertdialog", "aria-modal": "true", "aria-label": title }, [
     el("h4", { text: title }), el("p", { class: "muted", text: body }), el("div", { class: "row" }, [safe, danger])
   ])]);
   function close() { document.removeEventListener("keydown", onKey); scrim.remove(); }
@@ -45,7 +45,7 @@ function sharedMethods(pid, container) {
         var btn = el("button", { class: r.enabled ? "" : "primary", text: r.enabled ? "Disable method" : "Enable method" });
         btn.addEventListener("click", function () {
           if (!r.enabled) return toggle(r, btn);
-          confirmDialog("Disable " + r.name + "?", "New payments can no longer use this method. Payments already started and your balance stay as they are.", "Keep method", "Disable method", function () { toggle(r, btn); });
+          confirmChoice("Disable " + r.name + "?", "New payments can no longer use this method. Payments already started and your balance stay as they are.", "Keep method", "Disable method", function () { toggle(r, btn); });
         });
         return el("tr", {}, [el("td", {}, [r.name, " ", pill("platform managed", "info")]), el("td", { text: r.method }), el("td", { text: r.network }),
           el("td", {}, [feeMoney(r.fee_bps, r.fee_base_msat)]), el("td", {}, [pill(r.enabled ? "enabled" : "disabled", r.enabled ? "ok" : "neutral")]), el("td", {}, [btn])]);
@@ -72,7 +72,7 @@ function sharedAdmin() {
         toggleBtn.addEventListener("click", function () {
           function run() { busy(toggleBtn, function () { return api("POST", "/admin/shared/" + r.id, { enabled: !r.enabled }); }).then(load).catch(function (e) { msg(out, e.message, true); }); }
           if (!r.enabled) return run();
-          confirmDialog("Disable " + r.name + "?", "Projects can no longer start payments on it. Existing balances and refunds are not affected.", "Keep provider", "Disable provider", run);
+          confirmChoice("Disable " + r.name + "?", "Projects can no longer start payments on it. Existing balances and refunds are not affected.", "Keep provider", "Disable provider", run);
         });
         var feeBtn = el("button", { text: "Override fee", onclick: function () { feeOverride(r); } });
         return el("tr", {}, [el("td", { text: r.name }), el("td", { text: r.method + "/" + r.provider_type }), el("td", { text: r.network }),

@@ -39,20 +39,20 @@ function paymentDetail(pid, id) {
             refundFlow(pid, id, pay, amt.value, dest.value.trim(), out, load);
           } }));
         }
-        box.replaceChildren(
+        box.replaceChildren.apply(box, [
           el("div", { class: "card" }, [el("dl", { class: "kv" }, [
             el("dt", { text: "Id" }), el("dd", { class: "mono", text: pay.id }),
             el("dt", { text: "Reference" }), el("dd", { text: pay.reference }),
-            el("dt", { text: "Amount" }), el("dd", { text: fmtAmount(pay.amount, pay.currency) }),
+            el("dt", { text: "Amount" }), el("dd", { class: "detail-amount" }, [moneyEl(pay.amount, pay.currency)]),
             el("dt", { text: "Status" }), el("dd", {}, [pill(pay.status), pay.dispute_status ? " " : "", pay.dispute_status ? pill(pay.dispute_status === "open" ? "disputed" : "dispute " + pay.dispute_status, pay.dispute_status === "won" ? "ok" : "bad") : ""]),
             el("dt", { text: "Created" }), el("dd", { text: new Date(pay.created).toLocaleString() }),
             el("dt", { text: "Expires" }), el("dd", { text: new Date(pay.expires).toLocaleString() }),
-            el("dt", { text: "Paid" }), el("dd", { text: pay.paid_at ? new Date(pay.paid_at).toLocaleString() : "" }),
+            el("dt", { text: "Paid" }), el("dd", { text: pay.paid_at ? new Date(pay.paid_at).toLocaleString() : "not yet" }),
             el("dt", { text: "Customer" }), el("dd", { text: pay.customer_ref || "" }),
             el("dt", { text: "Receipt" }), el("dd", {}, [pay.receipt_url ? el("a", { href: pay.receipt_url, target: "_blank", rel: "noopener", text: pay.receipt_url }) : null]),
             el("dt", { text: "Pay page" }), el("dd", {}, [el("a", { href: pay.pay_url, target: "_blank", rel: "noopener", text: pay.pay_url })]),
-            el("dt", { text: "Metadata" }), el("dd", { class: "mono", text: pay.metadata ? JSON.stringify(pay.metadata) : "" })
-          ]), actions, out]),
+            el("dt", { text: "Metadata" }), el("dd", { class: "mono", text: pay.metadata ? JSON.stringify(pay.metadata) : "none" })
+          ]), actions.childNodes.length ? el("div", { class: "detail-actions" }, [actions]) : null, out]),
           (pay.line_items && pay.line_items.length) ? el("h3", { text: "Line items" }) : null,
           (pay.line_items && pay.line_items.length) ? el("table", {}, [el("tr", {}, ["Item", "Qty", "Unit", "Discount", "Tax", "Total"].map(function (h) { return el("th", { text: h }); }))].concat(pay.line_items.map(function (l) {
             return el("tr", {}, [el("td", { text: l.name + (l.sku ? " (" + l.sku + ")" : "") }), el("td", { text: String(l.quantity) }), el("td", { text: fmtAmount(l.unit_amount, pay.currency) }),
@@ -76,7 +76,7 @@ function paymentDetail(pid, id) {
               el("td", {}, [el("a", { text: "replay", onclick: function () { api("POST", "/projects/" + pid + "/deliveries/" + x.id + "/replay", {}).then(load); } }), " ", el("a", { text: "detail", onclick: function () { deliveryDetail(pid, x.id, deliveryHolder); } })])]);
           })) : el("p", { class: "muted", text: "None." }),
           deliveryHolder
-        );
+        ].filter(Boolean));
       }).catch(function (e) { box.replaceChildren(el("div", { class: "err", text: e.message })); });
     }
     load();

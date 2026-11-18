@@ -50,3 +50,4 @@
 .mono-wrap { font-family: var(--font-mono); word-break: break-all; }
 body > .toast { position: fixed; left: var(--space-4); bottom: var(--space-4); z-index: 60; }
 .btn-link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; font: inherit; }
+.dialog button:focus { outline: 2px solid var(--focus); outline-offset: 2px; }

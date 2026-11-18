@@ -25,14 +25,14 @@ function downloadCsv(pid, values, out) {
 function payments(pid) {
   projectShell(pid, "payments", function (p, body) {
     var inputs = {
-      q: el("input", { placeholder: "Reference or id", "aria-label": "Reference or id" }),
+      q: el("input", { placeholder: "Search reference or id", "aria-label": "Reference or id" }),
       status: el("select", { "aria-label": "Status" }, STATUSES.map(function (s) { return el("option", { value: s, text: s || "any status" }); })),
       method: el("select", { "aria-label": "Method" }, METHOD_OPTIONS.map(function (s) { return el("option", { value: s, text: s || "any method" }); })),
       customer: el("input", { placeholder: "Customer ref or email", "aria-label": "Customer" }),
       from: el("input", { type: "date", "aria-label": "From date" }),
       to: el("input", { type: "date", "aria-label": "To date" }),
-      min_amount: el("input", { type: "number", min: "0", placeholder: "Min amount (minor units)", "aria-label": "Minimum amount" }),
-      max_amount: el("input", { type: "number", min: "0", placeholder: "Max amount (minor units)", "aria-label": "Maximum amount" })
+      min_amount: el("input", { type: "number", min: "0", placeholder: "Min amount", "aria-label": "Minimum amount in minor units", title: "Minor units, for example cents" }),
+      max_amount: el("input", { type: "number", min: "0", placeholder: "Max amount", "aria-label": "Maximum amount in minor units", title: "Minor units, for example cents" })
     };
     var list = el("div", { class: "list-area" }); var more = el("div"); var out = el("div");
     var viewSelect = el("select", { "aria-label": "Saved views" });
@@ -72,21 +72,35 @@ function payments(pid) {
     FILTER_KEYS.forEach(function (k) {
       inputs[k].addEventListener(inputs[k].tagName === "SELECT" ? "change" : "keydown", function (e) { if (e.type === "change" || e.key === "Enter") load(true); });
     });
-    var viewName = el("input", { placeholder: "View name", "aria-label": "View name" });
+    var viewName = el("input", { placeholder: "Name this view", "aria-label": "View name" });
     var canWrite = p.role !== "viewer";
-    body.appendChild(el("div", { class: "filters" }, FILTER_KEYS.map(function (k) { return inputs[k]; })));
-    body.appendChild(el("div", { class: "row" }, [
-      el("button", { text: "Search", onclick: function () { load(true); } }),
-      el("button", { text: "Clear", onclick: function () { FILTER_KEYS.forEach(function (k) { inputs[k].value = ""; }); viewSelect.value = ""; load(true); } }),
-      el("button", { text: "Export CSV", onclick: function () { downloadCsv(pid, values(), out); } }),
-      viewSelect, viewName,
-      el("button", { text: "Save view", onclick: function () {
+    var menu = el("details", { class: "menu" });
+    function menuItem(label, danger, fn) {
+      return el("button", { class: "menu-item" + (danger ? " danger" : ""), text: label, disabled: danger && !canWrite, onclick: function () { menu.querySelector("summary").focus(); menu.open = false; fn(); } });
+    }
+    menu.addEventListener("keydown", function (e) { if (e.key === "Escape") { menu.open = false; menu.querySelector("summary").focus(); } });
+    document.addEventListener("click", function (e) { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+    menu.appendChild(el("summary", { text: "More actions" }));
+    menu.appendChild(el("div", { class: "menu-list" }, [
+      menuItem("Export CSV", false, function () { downloadCsv(pid, values(), out); }),
+      menuItem("Cancel stale pending", true, function () { bulkCancelDialog(pid, out, function () { load(true); }); })
+    ]));
+    var primaryFilters = ["q", "status", "method", "from", "to"];
+    var moreFilters = ["customer", "min_amount", "max_amount"];
+    var more_ = el("details", { class: "more-filters" }, [
+      el("summary", { text: "More filters and saved views" }),
+      el("div", { class: "filters" }, moreFilters.map(function (k) { return inputs[k]; })),
+      el("div", { class: "viewgroup", role: "group", "aria-label": "Saved views" }, [viewSelect, viewName, el("button", { text: "Save view", onclick: function () {
         var f = {}; var v = values(); Object.keys(v).forEach(function (k) { if (v[k]) f[k] = v[k]; });
         api("POST", "/projects/" + pid + "/saved-views", { name: viewName.value, filter: f }).then(function () { viewName.value = ""; msg(out, "View saved."); loadViews(); }).catch(function (e) { msg(out, e.message, true); });
-      } }),
-      el("button", { class: "danger", text: "Cancel stale pending", disabled: !canWrite, onclick: function () { bulkCancelDialog(pid, out, function () { load(true); }); } }),
-      el("button", { class: "primary", text: "New payment", onclick: function () { go("#/p/" + pid + "/payments/new"); } })
-    ]));
+      } })])
+    ]);
+    body.appendChild(el("div", { class: "toolbar" }, [el("div", { class: "toolbar-actions" }, [menu, el("button", { class: "primary", text: "New payment", onclick: function () { go("#/p/" + pid + "/payments/new"); } })])]));
+    body.appendChild(el("div", { class: "filters primary-filters" }, primaryFilters.map(function (k) { return inputs[k]; }).concat([
+      el("button", { text: "Search", onclick: function () { load(true); } }),
+      el("button", { class: "btn-link", text: "Clear filters", onclick: function () { FILTER_KEYS.forEach(function (k) { inputs[k].value = ""; }); viewSelect.value = ""; load(true); } })
+    ])));
+    body.appendChild(more_);
     body.appendChild(out); body.appendChild(list); body.appendChild(more);
     loadViews(); load(true);
   });

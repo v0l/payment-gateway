@@ -23,8 +23,8 @@ function settings(pid) {
       payload.allowed_origins = f.allowed_origins.value.split(/\s+/).filter(Boolean);
       busy(btn, function () { return api("POST", "/projects/" + pid + "/settings", payload); }).then(function () { msg(out, "Saved."); }).catch(function (e) { msg(out, e.message, true); });
     });
-    body.appendChild(el("div", { class: "card" }, [field("Webhook URL (https)", f.webhook_url), field("Display name on pay page", f.display_name), field("Logo URL", f.logo_url), field("Accent colour", f.accent_color),
-      field("Allowed embed origins", f.allowed_origins), field("Default success URL", f.default_success_url), field("Default cancel URL", f.default_cancel_url),
+    body.appendChild(el("div", { class: "card form" }, [field("Webhook URL (https)", f.webhook_url), field("Display name on pay page", f.display_name), field("Logo URL", f.logo_url), field("Accent colour", f.accent_color),
+      field("Default success URL", f.default_success_url), field("Default cancel URL", f.default_cancel_url), field("Allowed embed origins", f.allowed_origins),
       field("Legal name (receipts)", f.legal_name), field("Address (receipts)", f.address), field("Tax ID (receipts)", f.tax_id), field("Support email (receipts)", f.support_email), btn, out]));
     var brandingBox = el("div", { class: "card" });
     body.appendChild(el("h3", { text: "Pay page branding" }));

@@ -18,9 +18,9 @@ function operatorTenants() {
     });
   }).catch(function (e) { msg(healthBox, e.message, true); });
   api("GET", "/operator/tenants").then(function (r) {
-    box.replaceChildren(el("table", {}, [el("tr", {}, ["Project", "Status", "Payments", "Volume 30d (EUR)", "Daily limit", "Last activity", ""].map(function (h) { return el("th", { text: h }); }))].concat(r.tenants.map(function (t) {
+    box.replaceChildren(el("table", {}, [el("tr", {}, ["Project", "Status", "Payments", "Volume 30d", "Daily limit", "Last activity", ""].map(function (h) { return el("th", { text: h }); }))].concat(r.tenants.map(function (t) {
       return el("tr", {}, [el("td", { text: t.name }), el("td", {}, [pill(t.enabled ? (t.trusted ? "live" : "test") : "disabled", t.enabled ? (t.trusted ? "ok" : "pending") : "bad")]),
-        el("td", { text: t.payments }), el("td", { text: t.volume_30d }), el("td", { text: t.limit_payments_per_day === null ? "default" : t.limit_payments_per_day }),
+        el("td", { text: t.payments }), el("td", { class: "num", text: fmtAmount(t.volume_30d, "EUR") }), el("td", { text: t.limit_payments_per_day === null ? "default" : t.limit_payments_per_day }),
         el("td", { class: "muted", text: t.last_payment ? ago(t.last_payment) : "never" }), el("td", {}, [el("a", { href: "#/support/" + t.id, text: "support view" })])]);
     }))));
   }).catch(function (e) { msg(box, e.message, true); });

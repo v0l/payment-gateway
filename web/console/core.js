@@ -95,8 +95,9 @@ function layout(active, projectId, content) {
     var open = String(p.id) === String(projectId);
     navs.push(el("div", { class: "sep", text: p.name }));
     if (open) {
-      [["Overview", "overview"], ["Payments", "payments"], ["Customers", "customers"], ["Providers", "providers"], ["API keys", "keys"], ["Webhooks", "webhooks"], ["Plans", "plans"], ["Subscriptions", "subscriptions"], ["Billing", "billing"], ["Balance", "balance"], ["Payouts", "payouts"], ["Team", "team"], ["Activity", "activity"], ["Settings", "settings"]].forEach(function (x) {
-        navs.push(link(x[0], "#/p/" + p.id + "/" + x[1], x[1]));
+      [[["Overview", "overview"], ["Payments", "payments"], ["Customers", "customers"]], [["Plans", "plans"], ["Subscriptions", "subscriptions"], ["Billing", "billing"]], [["Balance", "balance"], ["Payouts", "payouts"]], [["Providers", "providers"], ["API keys", "keys"], ["Webhooks", "webhooks"]], [["Team", "team"], ["Activity", "activity"], ["Settings", "settings"]]].forEach(function (group, gi) {
+        if (gi) navs.push(el("div", { class: "gap" }));
+        group.forEach(function (x) { navs.push(link(x[0], "#/p/" + p.id + "/" + x[1], x[1])); });
       });
     } else { navs.push(link("Open", "#/p/" + p.id + "/overview", "")); }
   });
@@ -107,18 +108,14 @@ function layout(active, projectId, content) {
   } })]));
   var banner = el("div");
   root.replaceChildren(el("div", { class: "shell" }, [el("nav", {}, navs), el("main", {}, [banner, content])]));
+  var current = root.querySelector("nav a.on");
+  if (current && current.scrollIntoView) current.scrollIntoView({ block: "nearest", inline: "center" });
   if (me.is_operator && typeof treasuryBanner === "function") { treasuryBanner(banner); }
-}
-
-function tabs(pid, active) {
-  return el("div", { class: "tabs" }, [["overview", "Overview"], ["payments", "Payments"], ["customers", "Customers"], ["providers", "Providers"], ["keys", "API keys"], ["webhooks", "Webhooks"], ["plans", "Plans"], ["subscriptions", "Subscriptions"], ["billing", "Billing"], ["balance", "Balance"], ["payouts", "Payouts"], ["team", "Team"], ["activity", "Activity"], ["settings", "Settings"]].map(function (t) {
-    return el("a", { href: "#/p/" + pid + "/" + t[0], class: t[0] === active ? "on" : "", text: t[1] });
-  }));
 }
 
 function projectShell(pid, tab, build) {
   api("GET", "/projects/" + pid).then(function (p) {
-    var body = el("div", {}, [el("h2", { text: p.display_name || p.name }), el("p", { class: "sub" }, [p.role + (p.trusted ? "" : " ") , p.trusted ? "" : pill("test limits", "pending")]), tabs(pid, tab)]);
+    var body = el("div", {}, [el("h2", { text: p.display_name || p.name }), el("p", { class: "sub" }, [p.role + (p.trusted ? "" : " ") , p.trusted ? "" : pill("test limits", "pending")])]);
     layout(tab, pid, body);
     build(p, body);
   }).catch(function (e) { layout("", pid, el("div", { class: "err", text: e.message })); });

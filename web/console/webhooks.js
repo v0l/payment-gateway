@@ -14,8 +14,7 @@ function webhooks(pid) {
       });
     }
     only.addEventListener("change", load);
-    body.appendChild(el("div", { class: "row" }, [el("label", {}, [only, " only undelivered"])]));
-    body.appendChild(el("div", { class: "row" }, [el("button", { text: "Resend all failed", disabled: p.role === "viewer", onclick: function () {
+    body.appendChild(el("div", { class: "row toolbar-row" }, [el("label", { class: "check" }, [only, "Only undelivered"]), el("button", { text: "Resend all failed", disabled: p.role === "viewer", onclick: function () {
       api("POST", "/projects/" + pid + "/deliveries-resend-failed", {}).then(function (r) { msg(toolOut, r.queued + " queued for delivery."); load(); }).catch(function (e) { msg(toolOut, e.message, true); });
     } })]));
     body.appendChild(toolOut); body.appendChild(list); body.appendChild(detailBox); load();
