@@ -74,7 +74,10 @@ function subscriptionDetail(pid, id) {
   projectShell(pid, "subscriptions", function (p, body) {
     var box = el("div"); body.appendChild(box);
     function load() {
-      api("GET", "/projects/" + pid + "/subscriptions/" + id).then(function (s) {
+      Promise.all([api("GET", "/projects/" + pid + "/subscriptions/" + id), api("GET", "/projects/" + pid + "/plans")]).then(function (res) {
+        var s = res[0], allPlans = res[1];
+        var current = allPlans.filter(function (x) { return x.id === s.plan_id; })[0];
+        var others = allPlans.filter(function (x) { return x.active && x.id !== s.plan_id; });
         var out = el("div");
         var run = function (action, payload) {
           return api("POST", "/projects/" + pid + "/subscriptions/" + id + "/" + action, payload || {}).then(load).catch(function (e) { msg(out, e.message, true); });
@@ -93,10 +96,10 @@ function subscriptionDetail(pid, id) {
           } }));
         }
         if (s.status === "active" || s.status === "trialing") {
-          var np = el("input", { type: "number", placeholder: "new plan id" });
+          var np = el("select", { "aria-label": "New plan" }, [el("option", { value: "", text: others.length ? "Choose a plan" : "No other active plans" })].concat(others.map(function (x) { return el("option", { value: String(x.id), text: x.name + ", " + fmtAmount(x.amount, x.currency) + " / " + (x.interval_count > 1 ? x.interval_count + " " : "") + x.interval }); })));
           var pr = el("select", {}, [el("option", { value: "none", text: "No proration" }), el("option", { value: "prorate", text: "Prorate remaining days" })]);
           actions.appendChild(np); actions.appendChild(pr);
-          actions.appendChild(el("button", { text: "Change plan", onclick: function () { run("change-plan", { plan_id: Number(np.value), proration: pr.value }); } }));
+          actions.appendChild(el("button", { text: "Change plan", onclick: function () { if (!np.value) { msg(out, "Choose a plan first", true); return; } run("change-plan", { plan_id: Number(np.value), proration: pr.value }); } }));
         }
         var head = ["Period", "From", "To", "Amount", "Status", "Failures", "Payment"];
         var hist = s.periods.length ? el("table", {}, [el("tr", {}, head.map(function (h) { return el("th", { text: h }); }))].concat(s.periods.map(function (r) {
@@ -107,13 +110,12 @@ function subscriptionDetail(pid, id) {
           el("div", { class: "card" }, [el("dl", { class: "kv" }, [
             el("dt", { text: "Customer" }), el("dd", { text: s.customer_ref }),
             el("dt", { text: "Status" }), el("dd", {}, [subPill(s.status)]),
-            el("dt", { text: "Plan" }), el("dd", { text: String(s.plan_id) }),
+            el("dt", { text: "Plan" }), el("dd", {}, current ? [el("a", { href: "#/p/" + pid + "/plans", text: current.name }), " ", moneyEl(current.amount, current.currency), " / " + (current.interval_count > 1 ? current.interval_count + " " : "") + current.interval] : [el("a", { href: "#/p/" + pid + "/plans", text: "Plan " + s.plan_id })]),
             el("dt", { text: "Current period" }), el("dd", { text: when(s.current_period_start) + " to " + when(s.current_period_end) }),
             el("dt", { text: "Next charge" }), el("dd", { text: when(s.next_charge) || "none" }),
             el("dt", { text: "Cancels at period end" }), el("dd", { text: s.cancel_at_period_end ? "yes" : "no" }),
-            el("dt", { text: "Credit" }), el("dd", {}, [moneyEl(s.credit, (s.periods[0] || {}).currency || "EUR")]),
-            el("dt", { text: "Pay link" }), el("dd", { class: "mono", text: s.pay_url || "" })
-          ]), actions, out]),
+            el("dt", { text: "Credit" }), el("dd", {}, [moneyEl(s.credit, current ? current.currency : "EUR")]),
+          ].concat(s.pay_url ? [el("dt", { text: "Pay link" }), el("dd", {}, [el("a", { class: "mono", href: s.pay_url, text: s.pay_url })])] : [])), actions, out]),
           el("h3", { text: "History" }), hist
         );
       }).catch(function (e) { msg(box, e.message, true); });
