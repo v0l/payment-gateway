@@ -26,7 +26,7 @@
         {"slug": "index", "title": "Overview"},
         {"slug": "deploy", "title": "Deploying"},
         {"slug": "lnd", "title": "LND and macaroons"},
-        {"slug": "providers", "title": "Stripe and Revolut"},
+        {"slug": "providers", "title": "Stripe, Revolut and PayPal"},
         {"slug": "backups", "title": "Backups and key rotation"},
         {"slug": "monitoring", "title": "Monitoring and alerts"},
         {"slug": "runbooks", "title": "Runbooks"}

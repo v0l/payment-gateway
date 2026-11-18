@@ -130,6 +130,8 @@
           "attempt.failed",
           "refund.completed",
           "refund.failed",
+          "payment.disputed",
+          "payment.dispute_closed",
           "withdrawal.requested",
           "withdrawal.completed",
           "withdrawal.failed"
@@ -255,6 +257,24 @@
               "null"
             ]
           },
+          "dispute_status": {
+            "description": "Latest dispute state, null when the payment was never disputed.",
+            "enum": [
+              "open",
+              "won",
+              "lost",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "disputed": {
+            "default": false,
+            "description": "True while a chargeback or dispute is open. The status itself does not change.",
+            "type": "boolean"
+          },
           "id": {
             "type": "string"
           },
@@ -289,6 +309,34 @@
           }
         },
         "type": "object"
+      },
+      "ProviderTestResult": {
+        "properties": {
+          "message": {
+            "description": "Fixed success text or a sanitized error. Never contains credentials.",
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "message"
+        ],
+        "type": "object"
+      },
+      "ProviderType": {
+        "description": "method/provider_type pairs a project can configure in the console. Config fields per type are in the README.",
+        "enum": [
+          "lightning/lnd",
+          "onchain/lnd",
+          "stripe/stripe",
+          "revolut/revolut",
+          "paypal/paypal",
+          "fixedfloat/fixedfloat"
+        ],
+        "type": "string"
       },
       "RefundInput": {
         "properties": {
@@ -1628,5 +1676,14 @@
     {
       "url": "/v1"
     }
-  ]
+  ],
+  "x-console": {
+    "POST /console/api/projects/{id}/providers/{pid}/test": {
+      "auth": "console session, project admin",
+      "response": {
+        "$ref": "#/components/schemas/ProviderTestResult"
+      },
+      "summary": "Test a provider's credentials without creating a payment"
+    }
+  }
 }
