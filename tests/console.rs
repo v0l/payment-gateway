@@ -1324,3 +1324,102 @@ async fn untrusted_projects_get_one_webhook_endpoint_and_trusted_projects_more()
         .await;
     assert_eq!(s, StatusCode::OK, "{r}");
 }
+
+async fn shared_via_admin(h: &Harness, network: &str, allow_untrusted: bool) -> u64 {
+    let (s, r) = call(
+        &h.app,
+        "POST",
+        "/admin/shared",
+        Some(ADMIN),
+        json!({"name": unique("s"), "method": "lightning", "provider_type": "mock",
+               "network": network, "config": {}, "fee_bps": 100,
+               "allow_untrusted": allow_untrusted}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    r["id"].as_u64().unwrap()
+}
+
+#[tokio::test]
+async fn test_mode_projects_cannot_enable_the_mainnet_shared_provider() {
+    let h = harness().await;
+    let c = signed_in(&h, "me@example.com", false).await;
+    let (id, key, _) = project(&c, "Shop").await;
+    let mainnet = shared_via_admin(&h, "mainnet", true).await;
+    let regtest = shared_via_admin(&h, "regtest", true).await;
+
+    let (_, listed) = c
+        .req("GET", &format!("/projects/{id}/shared"), Value::Null)
+        .await;
+    let ids: Vec<u64> = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["id"].as_u64().unwrap())
+        .collect();
+    assert_eq!(ids, vec![regtest]);
+
+    let (s, _) = c
+        .req(
+            "POST",
+            &format!("/projects/{id}/shared/{mainnet}/enabled"),
+            json!({"enabled": true}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = c
+        .req(
+            "POST",
+            &format!("/projects/{id}/shared/{regtest}/enabled"),
+            json!({"enabled": true}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, methods) = call(&h.app, "GET", "/v1/methods", Some(&key), Value::Null).await;
+    assert_eq!(methods[0]["platform_managed"], true);
+
+    let (_, op_listed) = c
+        .req("GET", &format!("/projects/{id}/providers"), Value::Null)
+        .await;
+    assert_eq!(op_listed[0]["platform_managed"], true);
+    let (s, _) = c.req("GET", "/admin/shared", Value::Null).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn operators_can_manage_shared_providers_and_projects_see_fees() {
+    let h = harness().await;
+    let op = signed_in(&h, "op@example.com", true).await;
+    let c = signed_in(&h, "me@example.com", false).await;
+    let (id, _, _) = project(&c, "Shop").await;
+    let (s, r) = op
+        .req(
+            "POST",
+            "/admin/shared",
+            json!({"name": "Platform LN", "method": "lightning", "provider_type": "mock",
+                   "network": "regtest", "config": {"macaroon": "m"}, "fee_bps": 120,
+                   "fee_base_msat": 3000, "allow_untrusted": true}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let sid = r["id"].as_u64().unwrap();
+    let (_, list) = op.req("GET", "/admin/shared", Value::Null).await;
+    assert_eq!(list[0]["config"]["macaroon"], "set");
+    let (s, _) = op
+        .req(
+            "POST",
+            &format!("/admin/shared/{sid}/projects/{id}/fee"),
+            json!({"fee_bps": 10}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, mine) = c
+        .req("GET", &format!("/projects/{id}/shared"), Value::Null)
+        .await;
+    assert_eq!(mine[0]["fee_bps"], 10);
+    assert_eq!(mine[0]["fee_base_msat"], 3000);
+    let (_, activity) = op.req("GET", "/admin/audit", Value::Null).await;
+    let text = activity.to_string();
+    assert!(text.contains("shared_provider.created") && text.contains("shared_fee.overridden"));
+    assert!(!text.contains("\"m\""));
+}
