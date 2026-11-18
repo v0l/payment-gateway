@@ -139,7 +139,9 @@ async fn stripe_recorded_responses_drive_checkout_webhook_refund_and_off_session
         .await;
     Mock::given(method("POST"))
         .and(path("/v1/refunds"))
-        .and(body_string_contains("payment_intent=pi_3Qtest1234567890abcd"))
+        .and(body_string_contains(
+            "payment_intent=pi_3Qtest1234567890abcd",
+        ))
         .and(body_string_contains("amount=1000"))
         .respond_with(ResponseTemplate::new(200).set_body_json(fixture_json("stripe/refund.json")))
         .mount(&server)
@@ -148,7 +150,8 @@ async fn stripe_recorded_responses_drive_checkout_webhook_refund_and_off_session
         .and(path("/v1/payment_intents"))
         .and(body_string_contains("off_session=true"))
         .respond_with(
-            ResponseTemplate::new(200).set_body_json(fixture_json("stripe/off_session_intent.json")),
+            ResponseTemplate::new(200)
+                .set_body_json(fixture_json("stripe/off_session_intent.json")),
         )
         .mount(&server)
         .await;
@@ -188,10 +191,16 @@ async fn stripe_recorded_responses_drive_checkout_webhook_refund_and_off_session
         .refund(&attempt_row(&session_id), refund_request(1000))
         .await
         .unwrap();
-    assert_eq!(refund.external_id.as_deref(), Some("re_3Qtest1234567890abcd"));
+    assert_eq!(
+        refund.external_id.as_deref(),
+        Some("re_3Qtest1234567890abcd")
+    );
 
     let charge = p
-        .charge_saved(&saved("cus_Rtest123456", "pm_1Qtest1234567890"), request(700))
+        .charge_saved(
+            &saved("cus_Rtest123456", "pm_1Qtest1234567890"),
+            request(700),
+        )
         .await
         .unwrap();
     assert!(charge.completed);
@@ -235,9 +244,7 @@ async fn revolut_recorded_responses_drive_order_webhook_and_refund() {
         .await;
     Mock::given(method("POST"))
         .and(path(format!("/api/orders/{order_id}/refund")))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(fixture_json("revolut/refund.json")),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture_json("revolut/refund.json")))
         .mount(&server)
         .await;
     let p = revolut(&server.uri(), "tok_fixture");

@@ -248,7 +248,11 @@ async fn confirmed_receipts_sats(h: &Harness, id: &str) -> u64 {
 async fn assert_settled_exactly_once(h: &Harness, gw: &Gateway, ids: &[String]) {
     for id in ids {
         assert_eq!(gw.status(id).await, "paid", "payment {id}");
-        assert_eq!(payment_events(h, id).await, 1, "payment.paid count for {id}");
+        assert_eq!(
+            payment_events(h, id).await,
+            1,
+            "payment.paid count for {id}"
+        );
     }
     let findings = integrity::check(&h.pool).await.unwrap();
     assert!(findings.is_empty(), "integrity findings: {findings:?}");
@@ -257,7 +261,10 @@ async fn assert_settled_exactly_once(h: &Harness, gw: &Gateway, ids: &[String]) 
 async fn many_parallel_lightning_payments(h: &Harness, gw: &Gateway, sb: &Arc<Sandbox>) {
     let mut created = vec![];
     for i in 0..20 {
-        created.push(gw.create(&format!("par-{i}"), 20_000, "lightning", 600).await);
+        created.push(
+            gw.create(&format!("par-{i}"), 20_000, "lightning", 600)
+                .await,
+        );
     }
     let mut set = tokio::task::JoinSet::new();
     for c in &created {
@@ -316,7 +323,10 @@ async fn rbf_replaced_transaction(h: &Harness, gw: &Gateway, btc: &BitcoindRpc, 
 async fn gateway_killed_mid_payment(h: &Harness, gw: &mut Gateway, sb: &Arc<Sandbox>) {
     let mut created = vec![];
     for i in 0..10 {
-        created.push(gw.create(&format!("kill-{i}"), 15_000, "lightning", 600).await);
+        created.push(
+            gw.create(&format!("kill-{i}"), 15_000, "lightning", 600)
+                .await,
+        );
     }
     let mut set = tokio::task::JoinSet::new();
     for c in &created {
@@ -326,7 +336,8 @@ async fn gateway_killed_mid_payment(h: &Harness, gw: &mut Gateway, sb: &Arc<Sand
     tokio::time::sleep(Duration::from_millis(300)).await;
     gw.kill();
     while let Some(r) = set.join_next().await {
-        r.unwrap().expect("payment settles at lnd without the gateway");
+        r.unwrap()
+            .expect("payment settles at lnd without the gateway");
     }
     gw.spawn().await;
     let ids: Vec<String> = created.iter().map(|c| c.id.clone()).collect();
@@ -338,11 +349,7 @@ async fn gateway_killed_mid_payment(h: &Harness, gw: &mut Gateway, sb: &Arc<Sand
     assert_settled_exactly_once(h, gw, &ids).await;
 }
 
-async fn lnd_restart_reconnects_the_invoice_stream(
-    h: &Harness,
-    gw: &Gateway,
-    sb: &Arc<Sandbox>,
-) {
+async fn lnd_restart_reconnects_the_invoice_stream(h: &Harness, gw: &Gateway, sb: &Arc<Sandbox>) {
     compose(&["restart", "lnd-gateway"]);
     let customer = sb.clone();
     wait_for("gateway lnd and channel", 120, || {
@@ -356,7 +363,9 @@ async fn lnd_restart_reconnects_the_invoice_stream(
     })
     .await;
     tokio::time::sleep(Duration::from_secs(10)).await;
-    let c = gw.create("after-lnd-restart", 25_000, "lightning", 600).await;
+    let c = gw
+        .create("after-lnd-restart", 25_000, "lightning", 600)
+        .await;
     sb.customer_pay_invoice(&c.bolt11()).await.unwrap();
     gw.wait_status(&c.id, "paid", 90).await;
     assert_settled_exactly_once(h, gw, &[c.id]).await;

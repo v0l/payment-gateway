@@ -108,7 +108,10 @@ async fn assert_invariants(h: &Harness) {
     .fetch_all(&h.pool)
     .await
     .unwrap();
-    assert!(double_paid.is_empty(), "payments with several paid attempts");
+    assert!(
+        double_paid.is_empty(),
+        "payments with several paid attempts"
+    );
 
     let attempts: Vec<(u64, u64, String)> = sqlx::query_as(
         "select id, charge_amount, charge_currency from payment_attempt where status = 'paid'",
@@ -184,14 +187,12 @@ async fn duplicate_and_out_of_order_events_settle_each_payment_once() {
         jobs.push((oc, paid(&m.lookup, &format!("{tx}:0"), Some(half), false)));
         jobs.push((
             oc,
-            paid(
-                &m.lookup,
-                &format!("{tx}:1"),
-                Some(m.required - half),
-                true,
-            ),
+            paid(&m.lookup, &format!("{tx}:1"), Some(m.required - half), true),
         ));
-        jobs.push((oc, paid(&m.lookup, &format!("{tx}:1"), Some(m.required - half), true)));
+        jobs.push((
+            oc,
+            paid(&m.lookup, &format!("{tx}:1"), Some(m.required - half), true),
+        ));
     }
     jobs.shuffle(&mut rand::thread_rng());
 
@@ -241,7 +242,11 @@ async fn provider_errors_do_not_leave_half_created_payments() {
         json!({"method": "lightning"}),
     )
     .await;
-    assert_ne!(s, StatusCode::OK, "create must fail while the provider is down");
+    assert_ne!(
+        s,
+        StatusCode::OK,
+        "create must fail while the provider is down"
+    );
     assert_eq!(status_of(&h, &t, &first.id).await, "pending");
     let got = get_payment(&h, &t, q["id"].as_str().unwrap()).await;
     assert_eq!(got["attempts"].as_array().unwrap().len(), 0);
@@ -255,7 +260,9 @@ async fn provider_errors_do_not_leave_half_created_payments() {
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{r}");
-    let hash = r["attempts"][0]["details"]["payment_hash"].as_str().unwrap();
+    let hash = r["attempts"][0]["details"]["payment_hash"]
+        .as_str()
+        .unwrap();
     sink(&h, ln)
         .event(paid(hash, hash, None, true), None)
         .await
@@ -488,7 +495,10 @@ async fn settlement_racing_expiry_cancel_and_attempt_creation_stays_consistent()
         task.await.unwrap();
     }
     let errors = errors.lock().unwrap().clone();
-    assert!(errors.is_empty(), "concurrent operations failed: {errors:?}");
+    assert!(
+        errors.is_empty(),
+        "concurrent operations failed: {errors:?}"
+    );
 
     for m in &made {
         let status = status_of(&h, &t, &m.id).await;

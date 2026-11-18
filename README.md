@@ -183,3 +183,10 @@ TEST_DATABASE_URL=mysql://root:test@127.0.0.1:33907/ cargo test
 ```
 
 Each test creates its own database. The build needs `protoc`.
+
+### Extra suites
+
+- `tests/chaos.rs`: mock provider fault injection with invariants (one `payment.paid` per settled payment, no over refund, receipts cover the amount).
+- `tests/providers_e2e.rs`: Stripe and Revolut flows replayed from `tests/fixtures/` (built from the documented response shapes, not yet recorded from a live account). With `STRIPE_TEST_KEY` (an `sk_test_` key) or `REVOLUT_SANDBOX_TOKEN` set, the live tests also run against the real test mode APIs.
+- `tests/regtest_e2e.rs` and `tests/regtest_long.rs`: real bitcoind and LND. `regtest/scripts/up.sh`, then `REGTEST=1 cargo test --test regtest_e2e --test regtest_long -- --test-threads=1`, then `regtest/scripts/reset.sh`. The long test covers parallel lightning payments, underpayment plus top up, overpayment, an RBF replacement, a gateway kill mid payment and an LND restart. `mine.sh`, `fund.sh` and `rebalance.sh` are helpers. The `regtest` workflow runs this on a schedule.
+- `scripts/load.sh`: load test, see `docs/performance.md`.
