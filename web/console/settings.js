@@ -20,6 +20,10 @@ function settings(pid) {
     });
     body.appendChild(el("div", { class: "card" }, [field("Webhook URL (https)", f.webhook_url), field("Display name on pay page", f.display_name), field("Logo URL", f.logo_url), field("Accent colour", f.accent_color),
       field("Allowed embed origins", f.allowed_origins), field("Default success URL", f.default_success_url), field("Default cancel URL", f.default_cancel_url), btn, out]));
+    var limitsBox = el("div", { class: "card" });
+    body.appendChild(el("h3", { text: "Limits and usage" }));
+    body.appendChild(limitsBox);
+    renderLimits(pid, limitsBox);
     var keyOut = el("div");
     var rows = [el("button", { text: "Rotate API key", onclick: function () {
       if (!confirm("The old key stops working immediately. Continue?")) return;
@@ -42,3 +46,42 @@ function settings(pid) {
   });
 }
 
+
+var LIMIT_ROWS = [
+  ["payments_per_day", "Payments per 24 hours", "payments_per_day"],
+  ["pending_payments", "Open pending payments", "pending_payments"],
+  ["amount_per_payment", "Max amount per payment (EUR cents)", null],
+  ["volume_per_day", "Volume per 24 hours (EUR cents)", "volume_per_day"],
+  ["providers", "Providers", "providers"],
+  ["webhook_endpoints", "Webhook endpoints", "webhook_endpoints"],
+  ["attempts_per_payment", "Attempts per payment", null]
+];
+function renderLimits(pid, box) {
+  api("GET", "/projects/" + pid + "/limits").then(function (v) {
+    var inputs = {}; var out = el("div");
+    var rows = LIMIT_ROWS.map(function (r) {
+      var used = r[2] ? String(v.usage[r[2]]) : "";
+      var cell;
+      if (me.is_operator) {
+        cell = el("input", { value: String(v.limits[r[0]]), type: "number", min: "0" });
+        inputs[r[0]] = cell;
+      } else {
+        cell = el("span", { text: String(v.limits[r[0]]) });
+      }
+      return el("tr", {}, [el("td", { text: r[1] }), el("td", { text: used }), el("td", {}, [cell]), el("td", { text: String(v.defaults[r[0]]) })]);
+    });
+    var head = el("tr", {}, ["Limit", "Used", "Limit", "Default"].map(function (t) { return el("th", { text: t }); }));
+    box.replaceChildren(el("table", {}, [head].concat(rows)), out);
+    if (!me.is_operator) return;
+    var save = el("button", { class: "primary", text: "Save limits" });
+    save.addEventListener("click", function () {
+      var payload = {};
+      Object.keys(inputs).forEach(function (k) {
+        var n = parseInt(inputs[k].value, 10);
+        payload[k] = n === v.defaults[k] ? null : n;
+      });
+      busy(save, function () { return api("POST", "/admin/projects/" + pid + "/limits", payload); }).then(function () { msg(out, "Saved."); }).catch(function (e) { msg(out, e.message, true); });
+    });
+    box.appendChild(save);
+  }).catch(function (e) { box.replaceChildren(el("div", { text: e.message })); });
+}

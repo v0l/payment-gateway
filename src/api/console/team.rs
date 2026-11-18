@@ -26,7 +26,7 @@ pub(super) async fn invite_member(
     let role = Role::parse(&i.role)
         .ok_or_else(|| ApiError::bad_request("role must be viewer, admin or owner"))?;
     if role > my_role {
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::FORBIDDEN,
             "you cannot grant a role above your own".into(),
         ));
@@ -66,13 +66,13 @@ pub(super) async fn remove_member(
         .await?
         .ok_or_else(ApiError::not_found)?;
     if target > my_role {
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::FORBIDDEN,
             "you cannot remove someone above your role".into(),
         ));
     }
     if target == Role::Owner && accounts::owner_count(s.pool(), id).await? <= 1 {
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::CONFLICT,
             "a project needs at least one owner".into(),
         ));

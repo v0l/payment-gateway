@@ -21,6 +21,7 @@ pub struct AppState {
     pub sandbox: Option<Arc<crate::sandbox::Sandbox>>,
     pub login_limiter: Arc<crate::limiter::Limiter>,
     pub max_projects: usize,
+    pub rate_limits: Arc<crate::ratelimit::RateLimits>,
 }
 
 impl AppState {
@@ -40,6 +41,7 @@ impl AppState {
                 std::time::Duration::from_secs(900),
             )),
             max_projects: 5,
+            rate_limits: Arc::new(crate::ratelimit::RateLimits::new(Default::default())),
         }
     }
 
@@ -48,20 +50,42 @@ impl AppState {
     }
 }
 
-pub struct ApiError(pub StatusCode, pub String);
+pub struct ApiError {
+    pub status: StatusCode,
+    pub message: String,
+    pub extra: Option<serde_json::Map<String, serde_json::Value>>,
+    pub retry_after: Option<u64>,
+}
 
 impl ApiError {
+    pub fn new(status: StatusCode, message: String) -> Self {
+        Self {
+            status,
+            message,
+            extra: None,
+            retry_after: None,
+        }
+    }
+    pub fn rate_limited(retry_after: u64) -> Self {
+        let mut e = Self::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            "rate limit exceeded, slow down".into(),
+        );
+        e.retry_after = Some(retry_after);
+        e.extra = json!({"code": "rate_limited"}).as_object().cloned();
+        e
+    }
     pub fn unauthorized() -> Self {
-        Self(StatusCode::UNAUTHORIZED, "unauthorized".into())
+        Self::new(StatusCode::UNAUTHORIZED, "unauthorized".into())
     }
     pub fn unauthorized_with(msg: &str) -> Self {
-        Self(StatusCode::UNAUTHORIZED, msg.into())
+        Self::new(StatusCode::UNAUTHORIZED, msg.into())
     }
     pub fn not_found() -> Self {
-        Self(StatusCode::NOT_FOUND, "not found".into())
+        Self::new(StatusCode::NOT_FOUND, "not found".into())
     }
     pub fn bad_request(msg: impl Into<String>) -> Self {
-        Self(StatusCode::BAD_REQUEST, msg.into())
+        Self::new(StatusCode::BAD_REQUEST, msg.into())
     }
 }
 
@@ -69,15 +93,27 @@ impl From<Error> for ApiError {
     fn from(e: Error) -> Self {
         match e {
             Error::NotFound => Self::not_found(),
-            Error::Invalid(m) => Self(StatusCode::BAD_REQUEST, m),
-            Error::Conflict(m) => Self(StatusCode::CONFLICT, m),
+            Error::Invalid(m) => Self::new(StatusCode::BAD_REQUEST, m),
+            Error::Conflict(m) => Self::new(StatusCode::CONFLICT, m),
+            Error::LimitExceeded(l) => {
+                let mut e = Self::new(StatusCode::FORBIDDEN, l.message());
+                e.extra = json!({
+                    "code": "limit_exceeded",
+                    "limit": l.name,
+                    "current": l.current,
+                    "max": l.max,
+                })
+                .as_object()
+                .cloned();
+                e
+            }
             Error::Upstream(m) => {
                 log::warn!("upstream error: {m}");
-                Self(StatusCode::BAD_GATEWAY, m)
+                Self::new(StatusCode::BAD_GATEWAY, m)
             }
             Error::Internal(e) => {
                 log::error!("{e:#}");
-                Self(StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
+                Self::new(StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
             }
         }
     }
@@ -97,7 +133,16 @@ impl From<sqlx::Error> for ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (self.0, axum::Json(json!({ "error": self.1 }))).into_response()
+        let mut body = self.extra.unwrap_or_default();
+        body.insert("error".into(), json!(self.message));
+        let mut res = (self.status, axum::Json(body)).into_response();
+        if let Some(secs) = self.retry_after {
+            res.headers_mut().insert(
+                axum::http::header::RETRY_AFTER,
+                axum::http::HeaderValue::from(secs),
+            );
+        }
+        res
     }
 }
 
@@ -111,7 +156,38 @@ pub fn router(state: AppState) -> Router {
         .merge(public::router())
         .merge(sandbox::router())
         .merge(console::router())
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit,
+        ))
+        .layer(axum::extract::DefaultBodyLimit::max(MAX_BODY_BYTES))
         .with_state(state)
+}
+
+pub const MAX_BODY_BYTES: usize = 1024 * 1024;
+
+pub fn client_ip(headers: &axum::http::HeaderMap) -> String {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next_back())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "local".into())
+}
+
+async fn rate_limit(
+    axum::extract::State(s): axum::extract::State<AppState>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
+    let ip = client_ip(req.headers());
+    match s
+        .rate_limits
+        .for_request(req.method().as_str(), req.uri().path(), &ip)
+    {
+        Ok(()) => next.run(req).await,
+        Err(secs) => ApiError::rate_limited(secs).into_response(),
+    }
 }
 
 pub fn bearer(headers: &axum::http::HeaderMap) -> Option<&str> {

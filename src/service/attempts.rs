@@ -48,18 +48,19 @@ impl Service {
             return invalid("customer_ref is required to save a payment method");
         }
 
-        if input.saved_method_id.is_none() {
-            let existing = db::attempts_for_payment(&self.pool, payment_id).await?;
-            if let Some(a) = existing.into_iter().find(|a| {
+        let existing = db::attempts_for_payment(&self.pool, payment_id).await?;
+        if input.saved_method_id.is_none()
+            && let Some(a) = existing.iter().find(|a| {
                 a.status == "pending"
                     && a.provider_config_id == cfg.id
                     && a.option_key == option_key
                     && a.save_method == input.save_method
                     && a.expires > now
-            }) {
-                return Ok((p, a));
-            }
+            })
+        {
+            return Ok((p, a.clone()));
         }
+        Self::check_attempt_count(tenant, existing.len())?;
 
         let (fee, charge, charge_cur, rate) = self.charge_numbers(&cfg, &p).await?;
         let receive_cfg = if method == "fixedfloat" {

@@ -149,3 +149,47 @@ pub async fn recent_payments(
     .fetch_all(pool)
     .await?)
 }
+
+pub async fn live_pending_count<'e, E: Executor<'e, Database = MySql>>(
+    ex: E,
+    tenant_id: u64,
+    now: DateTime<Utc>,
+) -> Result<u64> {
+    let n: i64 = sqlx::query_scalar(
+        "select count(*) from payment where tenant_id = ? and status = 'pending' and expires > ?",
+    )
+    .bind(tenant_id)
+    .bind(now)
+    .fetch_one(ex)
+    .await?;
+    Ok(n as u64)
+}
+
+pub async fn created_since_count<'e, E: Executor<'e, Database = MySql>>(
+    ex: E,
+    tenant_id: u64,
+    since: DateTime<Utc>,
+) -> Result<u64> {
+    let n: i64 =
+        sqlx::query_scalar("select count(*) from payment where tenant_id = ? and created > ?")
+            .bind(tenant_id)
+            .bind(since)
+            .fetch_one(ex)
+            .await?;
+    Ok(n as u64)
+}
+
+pub async fn volume_since_by_currency<'e, E: Executor<'e, Database = MySql>>(
+    ex: E,
+    tenant_id: u64,
+    since: DateTime<Utc>,
+) -> Result<Vec<(String, u64)>> {
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "select currency, cast(coalesce(sum(amount), 0) as signed) from payment where tenant_id = ? and created > ? group by currency",
+    )
+    .bind(tenant_id)
+    .bind(since)
+    .fetch_all(ex)
+    .await?;
+    Ok(rows.into_iter().map(|(c, n)| (c, n as u64)).collect())
+}

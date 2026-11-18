@@ -171,6 +171,8 @@ async fn update_settings(
     let settings = validate::settings(tenant.trusted, req)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    s.service
+        .check_webhook_endpoint(&tenant, settings.webhook_url.as_deref())?;
     if !db::update_tenant_settings(s.pool(), id, &settings).await? {
         return Err(ApiError::not_found());
     }
@@ -266,9 +268,10 @@ async fn create_provider(
     if req.fee_rate.is_some_and(|r| !(0.0..=100.0).contains(&r)) {
         return Err(ApiError::bad_request("fee_rate must be 0-100"));
     }
-    if db::get_tenant(s.pool(), id).await?.is_none() {
-        return Err(ApiError::not_found());
-    }
+    let tenant = db::get_tenant(s.pool(), id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    s.service.check_provider_slot(&tenant).await?;
     let sealed = s
         .service
         .sealer
@@ -382,7 +385,7 @@ async fn create_invite(
         .await?
         .is_some()
     {
-        return Err(ApiError(
+        return Err(ApiError::new(
             axum::http::StatusCode::CONFLICT,
             "an account with this email already exists".into(),
         ));

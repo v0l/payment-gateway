@@ -23,6 +23,11 @@ impl FromRequestParts<AppState> for TenantAuth {
             .await?
             .filter(|t| t.enabled)
             .ok_or_else(ApiError::unauthorized)?;
+        state
+            .rate_limits
+            .api_key
+            .check(&format!("tenant:{}", tenant.id))
+            .map_err(ApiError::rate_limited)?;
         Ok(TenantAuth(tenant))
     }
 }

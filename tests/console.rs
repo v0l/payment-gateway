@@ -869,6 +869,9 @@ async fn payments_list_filters_pages_and_never_leaks_other_projects() {
     let c = signed_in(&h, "me@example.com", false).await;
     let (pid, key, _) = project(&c, "P").await;
     let (_, other_key, _) = project(&c, "Q").await;
+    payment_gateway::db::set_tenant_trusted(&h.pool, pid, true)
+        .await
+        .unwrap();
     for i in 0..53 {
         call(
             &h.app,
@@ -1227,4 +1230,85 @@ async fn every_console_script_is_served_and_loaded_by_the_shell() {
         assert_eq!(r.headers["content-type"], "text/javascript", "{path}");
         assert!(!r.text.is_empty(), "{path}");
     }
+}
+
+#[tokio::test]
+async fn project_limits_show_usage_and_only_operators_can_edit_them() {
+    let h = harness().await;
+    let op = signed_in(&h, "op2@example.com", true).await;
+    let cust = signed_in(&h, "cust2@example.com", false).await;
+    let other = signed_in(&h, "other2@example.com", false).await;
+    let (pid, key, _) = project(&cust, "Mine").await;
+
+    let (s, v) = cust
+        .req("GET", &format!("/projects/{pid}/limits"), Value::Null)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["limits"]["pending_payments"], 50);
+    assert_eq!(v["defaults"]["pending_payments"], 50);
+    assert_eq!(v["usage"]["payments_per_day"], 0);
+
+    let (s, _) = call(&h.app, "POST", "/v1/payments", Some(&key), eur("a", 100)).await;
+    assert_eq!(s, StatusCode::CREATED);
+    let (_, v) = cust
+        .req("GET", &format!("/projects/{pid}/limits"), Value::Null)
+        .await;
+    assert_eq!(v["usage"]["payments_per_day"], 1);
+    assert_eq!(v["usage"]["pending_payments"], 1);
+    assert_eq!(v["usage"]["volume_per_day"], 100);
+
+    let (s, _) = cust
+        .req(
+            "POST",
+            &format!("/admin/projects/{pid}/limits"),
+            json!({"pending_payments": 1000}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = other
+        .req("GET", &format!("/projects/{pid}/limits"), Value::Null)
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+
+    let (s, v) = op
+        .req(
+            "POST",
+            &format!("/admin/projects/{pid}/limits"),
+            json!({"pending_payments": 1}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["limits"]["pending_payments"], 1);
+    assert_eq!(v["limits"]["providers"], 5);
+    let (s, r) = call(&h.app, "POST", "/v1/payments", Some(&key), eur("b", 100)).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert_eq!(r["code"], "limit_exceeded");
+
+    let (_, v) = op
+        .req(
+            "POST",
+            &format!("/admin/projects/{pid}/limits"),
+            json!({"pending_payments": null}),
+        )
+        .await;
+    assert_eq!(v["limits"]["pending_payments"], 50);
+}
+
+#[tokio::test]
+async fn untrusted_projects_get_one_webhook_endpoint_and_trusted_projects_more() {
+    let h = harness().await;
+    let c = signed_in(&h, "wh@example.com", false).await;
+    let (pid, _, _) = project(&c, "W").await;
+    let (_, v) = c
+        .req("GET", &format!("/projects/{pid}/limits"), Value::Null)
+        .await;
+    assert_eq!(v["limits"]["webhook_endpoints"], 1);
+    let (s, r) = c
+        .req(
+            "POST",
+            &format!("/projects/{pid}/settings"),
+            json!({"webhook_url": "https://example.com/hook"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
 }

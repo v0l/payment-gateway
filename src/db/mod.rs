@@ -28,6 +28,8 @@ pub struct Tenant {
     pub default_success_url: Option<String>,
     pub default_cancel_url: Option<String>,
     pub trusted: bool,
+    #[sqlx(flatten)]
+    pub limits: crate::limits::LimitOverrides,
 }
 
 impl Tenant {
@@ -183,7 +185,7 @@ pub async fn connect(url: &str) -> Result<MySqlPool> {
     Ok(pool)
 }
 
-const TENANT_COLS: &str = "id, name, api_key_hash, webhook_url, webhook_secret, enabled, display_name, logo_url, accent_color, allowed_origins, default_success_url, default_cancel_url, trusted";
+const TENANT_COLS: &str = "id, name, api_key_hash, webhook_url, webhook_secret, enabled, display_name, logo_url, accent_color, allowed_origins, default_success_url, default_cancel_url, trusted, limit_payments_per_day, limit_pending_payments, limit_amount_per_payment, limit_volume_per_day, limit_providers, limit_webhook_endpoints, limit_attempts_per_payment";
 const PROVIDER_COLS: &str =
     "id, tenant_id, method, provider_type, name, enabled, config, fee_rate, fee_base, fee_currency";
 const PAYMENT_COLS: &str = "id, tenant_id, reference, currency, amount, tax, status, created, expires, paid_at, description, customer_ref, customer_email, metadata, methods, idempotency_key, success_url, cancel_url";

@@ -32,6 +32,7 @@ pub enum Error {
     NotFound,
     Invalid(String),
     Conflict(String),
+    LimitExceeded(crate::limits::LimitHit),
     Upstream(String),
     Internal(anyhow::Error),
 }
@@ -218,6 +219,7 @@ mod tests {
 mod attempts;
 mod deliveries;
 mod expiry;
+mod limits;
 mod payments;
 mod refunds;
 mod saved;

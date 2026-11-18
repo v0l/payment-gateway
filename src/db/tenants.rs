@@ -107,3 +107,32 @@ pub async fn set_tenant_trusted(pool: &MySqlPool, id: u64, trusted: bool) -> Res
         .await?;
     Ok(r.rows_affected() > 0)
 }
+
+pub async fn set_tenant_limits(
+    pool: &MySqlPool,
+    id: u64,
+    o: &crate::limits::LimitOverrides,
+) -> Result<bool> {
+    let r = sqlx::query(
+        "update tenant set limit_payments_per_day = ?, limit_pending_payments = ?, limit_amount_per_payment = ?, limit_volume_per_day = ?, limit_providers = ?, limit_webhook_endpoints = ?, limit_attempts_per_payment = ? where id = ?",
+    )
+    .bind(o.limit_payments_per_day)
+    .bind(o.limit_pending_payments)
+    .bind(o.limit_amount_per_payment)
+    .bind(o.limit_volume_per_day)
+    .bind(o.limit_providers)
+    .bind(o.limit_webhook_endpoints)
+    .bind(o.limit_attempts_per_payment)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(r.rows_affected() > 0)
+}
+
+pub async fn lock_tenant<'e, E: Executor<'e, Database = MySql>>(ex: E, id: u64) -> Result<()> {
+    sqlx::query("select id from tenant where id = ? for update")
+        .bind(id)
+        .fetch_optional(ex)
+        .await?;
+    Ok(())
+}

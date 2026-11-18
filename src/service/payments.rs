@@ -94,7 +94,15 @@ impl Service {
             success_url: input.success_url.as_deref(),
             cancel_url: input.cancel_url.as_deref(),
         };
-        match db::insert_payment(&self.pool, &new).await {
+        let mut tx = self.pool.begin().await?;
+        self.check_new_payment(&mut tx, tenant, input.amount, &currency)
+            .await?;
+        let inserted = db::insert_payment(&mut *tx, &new).await;
+        let inserted = match inserted {
+            Ok(()) => tx.commit().await.map_err(anyhow::Error::from),
+            Err(e) => Err(e),
+        };
+        match inserted {
             Ok(()) => {}
             Err(e) => {
                 let e: Error = e.into();

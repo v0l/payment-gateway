@@ -34,7 +34,7 @@ pub(super) async fn login(
     let ip = format!("ip:{}", client_ip(&headers));
     let ek = format!("email:{email}");
     if s.login_limiter.blocked(&ek) || s.login_limiter.blocked(&ip) {
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::TOO_MANY_REQUESTS,
             "too many attempts, try again later".into(),
         ));
@@ -118,7 +118,7 @@ pub(super) async fn change_password(
     Json(p): Json<PasswordChange>,
 ) -> ApiResult<Value> {
     if !accounts::verify_password(&sess.account.password_hash, &p.current) {
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::FORBIDDEN,
             "current password is wrong".into(),
         ));
@@ -172,7 +172,7 @@ pub(super) async fn signup(
 ) -> Result<Response, ApiError> {
     let ip = format!("signup:{}", client_ip(&headers));
     if s.login_limiter.blocked(&ip) {
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::TOO_MANY_REQUESTS,
             "too many attempts, try again later".into(),
         ));
@@ -195,13 +195,13 @@ pub(super) async fn signup(
     let account_id = match existing_account {
         Some(existing) => {
             if invite.tenant_id.is_none() {
-                return Err(ApiError(
+                return Err(ApiError::new(
                     StatusCode::CONFLICT,
                     "an account with this email already exists".into(),
                 ));
             }
             if !accounts::verify_password(&existing.password_hash, &i.password) {
-                return Err(ApiError(
+                return Err(ApiError::new(
                     StatusCode::CONFLICT,
                     "this email already has an account: sign in, then ask for a new invite".into(),
                 ));

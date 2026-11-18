@@ -1,4 +1,4 @@
-use super::{ApiError, ApiResult, AppState};
+use super::{ApiError, ApiResult, AppState, client_ip};
 use crate::accounts::{self, AccountRow, Role, SessionRow};
 use crate::audit::{self, Action, Actor, Event, Origin};
 use crate::crypto::{hash_api_key, new_api_key, new_webhook_secret};
@@ -60,6 +60,8 @@ pub fn router() -> Router<AppState> {
         .route("/projects", get(list_projects).post(create_project))
         .route("/projects/{id}", get(get_project))
         .route("/projects/{id}/settings", post(update_settings))
+        .route("/projects/{id}/limits", get(get_limits))
+        .route("/admin/projects/{id}/limits", post(set_limits))
         .route("/projects/{id}/rotate-key", post(rotate_key))
         .route(
             "/projects/{id}/rotate-webhook-secret",
@@ -202,7 +204,10 @@ impl FromRequestParts<AppState> for Session {
                 .get("x-csrf-token")
                 .and_then(|v| v.to_str().ok());
             if sent != Some(session.csrf.as_str()) {
-                return Err(ApiError(StatusCode::FORBIDDEN, "bad csrf token".into()));
+                return Err(ApiError::new(
+                    StatusCode::FORBIDDEN,
+                    "bad csrf token".into(),
+                ));
             }
         }
         Ok(Session { session, account })
@@ -222,7 +227,7 @@ impl Session {
                 .ok_or_else(ApiError::not_found)?
         };
         if role < min {
-            return Err(ApiError(
+            return Err(ApiError::new(
                 StatusCode::FORBIDDEN,
                 format!("needs {} access", min.as_str()),
             ));
@@ -238,18 +243,12 @@ impl Session {
         if self.account.is_operator {
             Ok(())
         } else {
-            Err(ApiError(StatusCode::FORBIDDEN, "operators only".into()))
+            Err(ApiError::new(
+                StatusCode::FORBIDDEN,
+                "operators only".into(),
+            ))
         }
     }
-}
-
-fn client_ip(headers: &HeaderMap) -> String {
-    headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split(',').next_back())
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "local".into())
 }
 
 fn session_cookie(s: &AppState, token: &str, max_age: i64) -> HeaderValue {

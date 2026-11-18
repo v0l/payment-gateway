@@ -81,7 +81,7 @@ pub(super) async fn create_project(
     }
     let owned = accounts::projects_for_account(s.pool(), &sess.account).await?;
     if !sess.account.is_operator && owned.len() >= s.max_projects {
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::FORBIDDEN,
             format!("project limit of {} reached", s.max_projects),
         ));
@@ -124,6 +124,8 @@ pub(super) async fn update_settings(
     let settings = validate::settings(t.trusted, req)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    s.service
+        .check_webhook_endpoint(&t, settings.webhook_url.as_deref())?;
     db::update_tenant_settings(s.pool(), id, &settings).await?;
     let after = db::get_tenant(s.pool(), id)
         .await?
@@ -170,4 +172,48 @@ pub(super) async fn rotate_webhook_secret(
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(json!({"webhook_secret": secret})))
+}
+
+#[derive(Serialize)]
+pub(super) struct LimitsView {
+    limits: crate::limits::Limits,
+    defaults: crate::limits::Limits,
+    usage: crate::limits::Usage,
+    currency: &'static str,
+}
+
+async fn limits_view(s: &AppState, t: &Tenant) -> Result<LimitsView, ApiError> {
+    Ok(LimitsView {
+        limits: crate::limits::Limits::for_tenant(t),
+        defaults: crate::limits::Limits::defaults(t.trusted),
+        usage: s.service.usage(t).await?,
+        currency: crate::limits::LIMIT_CURRENCY,
+    })
+}
+
+pub(super) async fn get_limits(
+    sess: Session,
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> ApiResult<LimitsView> {
+    let (t, _) = sess.project(&s, id, Role::Viewer).await?;
+    Ok(Json(limits_view(&s, &t).await?))
+}
+
+pub(super) async fn set_limits(
+    sess: Session,
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+    Json(input): Json<crate::limits::LimitsInput>,
+) -> ApiResult<LimitsView> {
+    sess.operator()?;
+    let t = db::get_tenant(s.pool(), id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    let updated = input.apply(t.limits);
+    db::set_tenant_limits(s.pool(), id, &updated).await?;
+    let t = db::get_tenant(s.pool(), id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    Ok(Json(limits_view(&s, &t).await?))
 }

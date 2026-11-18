@@ -90,6 +90,7 @@ pub(super) async fn create_provider(
     Json(req): Json<ProviderInput>,
 ) -> ApiResult<Value> {
     let (t, _) = sess.project(&s, id, Role::Admin).await?;
+    s.service.check_provider_slot(&t).await?;
     if !METHODS.contains(&req.method.as_str()) {
         return Err(ApiError::bad_request("unknown method"));
     }
@@ -240,7 +241,7 @@ pub(super) async fn remove_provider(
         .await?
         .ok_or_else(ApiError::not_found)?;
     if db::provider_attempt_count(s.pool(), pid).await? > 0 {
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::CONFLICT,
             "this provider has payment history, disable it instead".into(),
         ));

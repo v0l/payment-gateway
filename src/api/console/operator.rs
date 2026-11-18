@@ -77,7 +77,7 @@ pub(super) async fn admin_invite(
         .await?
         .is_some()
     {
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::CONFLICT,
             "an account with this email already exists".into(),
         ));
