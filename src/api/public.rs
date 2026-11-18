@@ -104,9 +104,23 @@ fn gateway_js() -> Response {
 }
 
 pub(super) fn page_headers(frame_ancestors: &str) -> HeaderMap {
+    page_headers_with(frame_ancestors, "script-src 'self'", "")
+}
+
+const REVOLUT_HOSTS: &str = "https://merchant.revolut.com https://sandbox-merchant.revolut.com";
+
+fn pay_headers(frame_ancestors: &str) -> HeaderMap {
+    page_headers_with(
+        frame_ancestors,
+        &format!("script-src 'self' {REVOLUT_HOSTS}"),
+        &format!("frame-src {REVOLUT_HOSTS}; "),
+    )
+}
+
+fn page_headers_with(frame_ancestors: &str, script_src: &str, frame_src: &str) -> HeaderMap {
     let mut h = HeaderMap::new();
     let csp = format!(
-        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors {frame_ancestors}"
+        "default-src 'none'; {script_src}; style-src 'self'; img-src 'self' https: data:; connect-src 'self'; {frame_src}base-uri 'none'; form-action 'none'; frame-ancestors {frame_ancestors}"
     );
     h.insert(header::CONTENT_SECURITY_POLICY, csp.parse().unwrap());
     h.insert(
@@ -142,7 +156,7 @@ pub(super) async fn load(s: &AppState, raw: &str) -> Result<(db::PaymentRow, Ten
 
 async fn pay_page(State(s): State<AppState>, Path(id): Path<String>) -> Result<Response, ApiError> {
     load(&s, &id).await?;
-    Ok((StatusCode::OK, page_headers("'none'"), PAY_HTML).into_response())
+    Ok((StatusCode::OK, pay_headers("'none'"), PAY_HTML).into_response())
 }
 
 async fn embed_page(
@@ -156,7 +170,7 @@ async fn embed_page(
     } else {
         origins.join(" ")
     };
-    Ok((StatusCode::OK, page_headers(&ancestors), PAY_HTML).into_response())
+    Ok((StatusCode::OK, pay_headers(&ancestors), PAY_HTML).into_response())
 }
 
 #[derive(Serialize)]

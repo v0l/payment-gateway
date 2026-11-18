@@ -1,0 +1,18 @@
+{
+  "payment_methods": [
+    {
+      "id": "6afdec6f-a354-ac69-a873-e85031c96db0",
+      "type": "card",
+      "saved_for": "merchant",
+      "created_at": "2026-11-18T18:20:31.050781Z",
+      "bin": "492942",
+      "last_four": "5709",
+      "expiry_month": 12,
+      "expiry_year": 2030,
+      "cardholder_name": "Test Person",
+      "brand": "visa",
+      "funding": "debit",
+      "issuer_country": "GB"
+    }
+  ]
+}

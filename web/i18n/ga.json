@@ -23,6 +23,8 @@
   "continue_to_provider": "Lean ar aghaidh chuig an íocaíocht",
   "provider_redirect": "Tabharfar chuig ár soláthraí íocaíochta tú chun é a chríochnú.",
   "open_wallet": "Oscail sa sparán",
+  "pay_with_card_save": "Íoc le cárta agus sábháil é",
+  "card_widget_failed": "Níorbh fhéidir foirm an chárta a chríochnú. Bain triail eile as.",
   "waiting": "Ag fanacht leis an íocaíocht",
   "total": "Iomlán {amount}",
   "use_other_method": "Úsáid modh eile",
