@@ -99,6 +99,12 @@ async fn watcher_resumes_from_the_stored_cursor_after_restart() {
     }
     assert_eq!(get_payment(&h, &t, &id).await["status"], "paid");
     assert_eq!(m.watch_starts.lock().unwrap()[0], None);
+    for _ in 0..50 {
+        if db_cursor(&h, ln).await.is_some() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
     assert_eq!(db_cursor(&h, ln).await.as_deref(), Some("cursor-1"));
     drop(workers);
 

@@ -1,6 +1,7 @@
 mod admin;
 mod console;
 pub mod ledger;
+pub mod ops;
 mod public;
 mod sandbox;
 mod tenant;
@@ -24,6 +25,7 @@ pub struct AppState {
     pub max_projects: usize,
     pub rate_limits: Arc<crate::ratelimit::RateLimits>,
     pub operator_2fa_grace: bool,
+    pub ops: Arc<ops::Ops>,
 }
 
 impl AppState {
@@ -45,7 +47,13 @@ impl AppState {
             max_projects: 5,
             rate_limits: Arc::new(crate::ratelimit::RateLimits::new(Default::default())),
             operator_2fa_grace: true,
+            ops: Default::default(),
         }
+    }
+
+    pub fn with_ops(mut self, ops: ops::Ops) -> Self {
+        self.ops = Arc::new(ops);
+        self
     }
 
     pub fn pool(&self) -> &sqlx::MySqlPool {
@@ -152,8 +160,10 @@ impl IntoResponse for ApiError {
 pub type ApiResult<T> = Result<axum::Json<T>, ApiError>;
 
 pub fn router(state: AppState) -> Router {
+    let limit = state.ops.body_limit;
     Router::new()
         .route("/health", get(|| async { "ok" }))
+        .merge(ops::router())
         .nest("/admin", admin::router())
         .nest("/v1", tenant::router())
         .merge(public::router())
@@ -163,7 +173,11 @@ pub fn router(state: AppState) -> Router {
             state.clone(),
             rate_limit,
         ))
-        .layer(axum::extract::DefaultBodyLimit::max(MAX_BODY_BYTES))
+        .layer(ops::body_limit_layer(limit))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            ops::observe,
+        ))
         .with_state(state)
 }
 

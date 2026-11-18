@@ -13,5 +13,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY --from=build /src/target/release/payment-gateway /usr/local/bin/payment-gateway
 USER gateway
 EXPOSE 8080
-ENV RUST_LOG=info
+ENV LOG_LEVEL=info
 ENTRYPOINT ["/usr/local/bin/payment-gateway"]

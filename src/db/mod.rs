@@ -180,8 +180,24 @@ pub async fn migrate(pool: &MySqlPool) -> Result<()> {
     Ok(())
 }
 
+pub fn expected_migrations() -> usize {
+    sqlx::migrate!("./migrations").migrations.len()
+}
+
 pub async fn connect(url: &str) -> Result<MySqlPool> {
-    let pool = MySqlPool::connect(url).await?;
+    connect_with(url, 10, std::time::Duration::from_secs(10)).await
+}
+
+pub async fn connect_with(
+    url: &str,
+    max_connections: u32,
+    acquire_timeout: std::time::Duration,
+) -> Result<MySqlPool> {
+    let pool = sqlx::mysql::MySqlPoolOptions::new()
+        .max_connections(max_connections)
+        .acquire_timeout(acquire_timeout)
+        .connect(url)
+        .await?;
     migrate(&pool).await?;
     Ok(pool)
 }
