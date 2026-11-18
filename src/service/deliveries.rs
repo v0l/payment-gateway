@@ -10,8 +10,9 @@ impl Service {
                 continue;
             }
             let tenant = self.tenant(d.tenant_id).await?;
-            let outcome = self.post_to_target(&tenant, &d).await;
+            let (capture, outcome) = self.post_to_target(&tenant, &d).await;
             let now = self.clock.now();
+            db::record_delivery_capture(&self.pool, d.id, now, &capture).await?;
             self.metrics.inc(
                 "gateway_webhook_deliveries_total",
                 &[(
@@ -55,14 +56,28 @@ impl Service {
         Ok(sent)
     }
 
-    async fn post_to_target(&self, tenant: &Tenant, d: &DueDelivery) -> anyhow::Result<()> {
-        let id = d
-            .endpoint_id
-            .ok_or_else(|| anyhow!("delivery has no webhook endpoint"))?;
-        let endpoint = db::get_endpoint(&self.pool, tenant.id, id)
-            .await?
-            .ok_or_else(|| anyhow!("webhook endpoint was deleted"))?;
-        self.post_webhook(
+    async fn post_to_target(
+        &self,
+        tenant: &Tenant,
+        d: &DueDelivery,
+    ) -> (db::DeliveryCapture, anyhow::Result<()>) {
+        let Some(id) = d.endpoint_id else {
+            return (
+                db::DeliveryCapture::default(),
+                Err(anyhow!("delivery has no webhook endpoint")),
+            );
+        };
+        let endpoint = match db::get_endpoint(&self.pool, tenant.id, id).await {
+            Ok(Some(e)) => e,
+            Ok(None) => {
+                return (
+                    db::DeliveryCapture::default(),
+                    Err(anyhow!("webhook endpoint was deleted")),
+                );
+            }
+            Err(e) => return (db::DeliveryCapture::default(), Err(e.into())),
+        };
+        self.post_webhook_captured(
             tenant,
             &endpoint.url,
             &endpoint.secret,
@@ -85,18 +100,37 @@ impl Service {
             "data": {"message": "test event from the payment gateway"},
         })
         .to_string();
-        self.post_webhook(tenant, &endpoint.url, &endpoint.secret, &event_id, &body)
-            .await?;
+        self.post_webhook_captured(tenant, &endpoint.url, &endpoint.secret, &event_id, &body)
+            .await
+            .1?;
         Ok(event_id)
     }
 
-    pub(super) async fn post_webhook(
+    pub(super) async fn post_webhook_captured(
         &self,
         tenant: &Tenant,
         url: &str,
         sealed_secret: &[u8],
         event_id: &str,
         body: &str,
+    ) -> (db::DeliveryCapture, anyhow::Result<()>) {
+        let started = std::time::Instant::now();
+        let mut capture = db::DeliveryCapture::default();
+        let result = self
+            .send_signed(tenant, url, sealed_secret, event_id, body, &mut capture)
+            .await;
+        capture.duration_ms = Some(started.elapsed().as_millis().min(i32::MAX as u128) as i32);
+        (capture, result)
+    }
+
+    async fn send_signed(
+        &self,
+        tenant: &Tenant,
+        url: &str,
+        sealed_secret: &[u8],
+        event_id: &str,
+        body: &str,
+        capture: &mut db::DeliveryCapture,
     ) -> anyhow::Result<()> {
         let client = if tenant.trusted {
             self.http.clone()
@@ -119,8 +153,12 @@ impl Service {
             .body(body.to_string())
             .send()
             .await?;
-        if !rsp.status().is_success() {
-            return Err(anyhow!("webhook returned {}", rsp.status()));
+        let status = rsp.status();
+        capture.status = Some(status.as_u16() as i32);
+        let text = rsp.text().await.unwrap_or_default();
+        capture.response = Some(text.chars().take(500).collect());
+        if !status.is_success() {
+            return Err(anyhow!("webhook returned {status}"));
         }
         Ok(())
     }

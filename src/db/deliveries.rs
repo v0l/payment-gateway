@@ -151,6 +151,11 @@ pub struct DeliveryDetail {
     pub abandoned_at: Option<DateTime<Utc>>,
     pub last_error: Option<String>,
     pub body: String,
+    pub endpoint_id: Option<u64>,
+    pub last_status: Option<i32>,
+    pub last_response: Option<String>,
+    pub last_duration_ms: Option<i32>,
+    pub last_attempt_at: Option<DateTime<Utc>>,
 }
 
 pub async fn deliveries_for_tenant(
@@ -164,7 +169,7 @@ pub async fn deliveries_for_tenant(
         ""
     };
     Ok(sqlx::query_as(&format!(
-        "select id, event_id, event_type, attempts, created, next_attempt, delivered_at, abandoned_at, last_error, body from webhook_delivery where tenant_id = ?{extra} order by id desc limit 100"
+        "select id, event_id, event_type, attempts, created, next_attempt, delivered_at, abandoned_at, last_error, body, endpoint_id, last_status, last_response, last_duration_ms, last_attempt_at from webhook_delivery where tenant_id = ?{extra} order by id desc limit 100"
     ))
     .bind(tenant_id)
     .fetch_all(pool)
