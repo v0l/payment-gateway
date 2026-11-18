@@ -11,7 +11,7 @@ The operator and project console at `/console`. Components and tokens are in the
 
 ## Tab pattern
 
-Tabs are links to `#/p/{id}/{tab}`, so reload and back keep your place. Order is fixed: Overview, Payments, Providers, Webhooks, Balance, Team, Activity, Settings. Order by how often it is used, with Settings last. Do not add a ninth tab; group instead. The current tab is `on` and mirrored in the navigation. A tab never changes the project.
+Tabs are links to `#/p/{id}/{tab}`, so reload and back keep your place. Order is fixed: Overview, Payments, Providers, Webhooks, Balance, Payouts, Team, Activity, Settings. Order by how often it is used, with Settings last. Do not add a tenth tab; group instead. The current tab is `on` and mirrored in the navigation. A tab never changes the project.
 
 ## Operator and tenant areas
 

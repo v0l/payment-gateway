@@ -42,6 +42,13 @@ All variables are validated at start and every problem is reported at once (exit
 | `LEASE_TTL_SECS` | `30` | worker lease lifetime |
 | `WORKER_TICK_SECS` | `5` | background loop interval |
 | `GATEWAY_INSTANCE_ID` | hostname | name shown in the lease and logs |
+| `GATEWAY_PAYOUT_LND_URL`, `_CERT`, `_MACAROON` | unset | LND that sends withdrawals (all three, `_FILE` accepted); payouts stay queued without it |
+| `GATEWAY_PAYOUT_NETWORK` | `bitcoin` | network destinations must match (`bitcoin`, `testnet`, `signet`, `regtest`) |
+| `GATEWAY_PAYOUT_MIN_SATS` | `1000` | minimum withdrawal |
+| `GATEWAY_PAYOUT_DAILY_MAX_SATS` | `10000000` | daily maximum per trusted project (untrusted: `GATEWAY_PAYOUT_DAILY_MAX_UNTRUSTED_SATS`, `1000000`) |
+| `GATEWAY_PAYOUT_AUTO_SATS` | `1000000` | trusted projects send without review up to this amount |
+| `GATEWAY_PAYOUT_DESTINATION_DELAY_HOURS` | `24` | wait before a new destination can be used |
+| `GATEWAY_PAYOUT_SAT_PER_VBYTE` | `10` | on-chain fee rate |
 
 The regtest sandbox is enabled by its own `SANDBOX_*` variables. Provider HTTP calls and LND calls time out after 45 seconds; the rates client after 15.
 
@@ -140,7 +147,7 @@ The tenant's `allowed_origins` must include the embedding site. Card checkouts c
 
 ## Webhooks
 
-`POST` to the tenant `webhook_url`, JSON `{id, type, created, data:{payment, detail}}`, with headers `X-Gateway-Event-Id` and `X-Gateway-Signature: t=<unix>,v1=<hex>` where `v1 = HMAC-SHA256(webhook_secret, "{t}.{body}")`. Reject old timestamps and dedupe on the event id. Failed deliveries retry with backoff for 3 days. Events: `payment.paid`, `payment.expired`, `payment.cancelled`, `payment.late_payment`, `attempt.failed`, `refund.completed`, `refund.failed`.
+`POST` to the tenant `webhook_url`, JSON `{id, type, created, data:{payment, detail}}`, with headers `X-Gateway-Event-Id` and `X-Gateway-Signature: t=<unix>,v1=<hex>` where `v1 = HMAC-SHA256(webhook_secret, "{t}.{body}")`. Reject old timestamps and dedupe on the event id. Failed deliveries retry with backoff for 3 days. Events: `payment.paid`, `payment.expired`, `payment.cancelled`, `payment.late_payment`, `attempt.failed`, `refund.completed`, `refund.failed`, `withdrawal.requested`, `withdrawal.completed`, `withdrawal.failed` (the withdrawal events carry `data.withdrawal` and follow endpoint filters such as `withdrawal.*`).
 
 The `webhook_url` setting is the project's first (default) endpoint. A project can have several endpoints (console, Webhooks tab), each with its own event filter (`*`, exact types or prefixes such as `payment.*`), signing secret (shown once), enable switch, `Send test event` button (a signed `webhook.test` event) and delivery stats. The same events can be pulled with `GET /v1/events?type=&cursor=`.
 

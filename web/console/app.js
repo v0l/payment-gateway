@@ -16,6 +16,7 @@ function route() {
   if (parts[0] === "account") return account();
   if (parts[0] === "admin" && me.is_operator) return admin();
   if (parts[0] === "shared" && me.is_operator) return sharedAdmin();
+  if (parts[0] === "payout-queue" && me.is_operator) return payoutQueue();
   if (parts[0] === "audit" && me.is_operator) return auditLog();
   if (parts[0] === "p" && parts[1]) {
     var pid = parts[1], tab = parts[2] || "overview";
@@ -25,6 +26,7 @@ function route() {
     if (tab === "keys") return apiKeys(pid);
     if (tab === "webhooks") return webhooks(pid);
     if (tab === "balance") return balance(pid);
+    if (tab === "payouts") return payouts(pid);
     if (tab === "team") return team(pid);
     if (tab === "activity") return activity(pid);
     if (tab === "settings") return settings(pid);

@@ -31,7 +31,7 @@ tr.click { cursor: pointer; } tr.click:hover td { background: var(--code); }
 .pill.paid, .pill.completed, .pill.delivered, .pill.confirmed, .pill.ok { color: var(--ok); border-color: var(--ok); background: var(--ok-bg); }
 .pill.pending, .pill.partially_refunded, .pill.requested, .pill.waiting, .pill.retrying { color: var(--warn); border-color: var(--warn); background: var(--warn-bg); }
 .pill.failed, .pill.disputed, .pill.refund_failed, .pill.bad { color: var(--bad); border-color: var(--bad); background: var(--bad-bg); }
-.pill.info, .pill.processing, .pill.refunded { color: var(--info); border-color: var(--info); background: var(--info-bg); }
+.pill.info, .pill.processing, .pill.refunded, .pill.approved, .pill.sending { color: var(--info); border-color: var(--info); background: var(--info-bg); }
 button, input, select, textarea { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 7px 10px; }
 textarea { width: 100%; min-height: 90px; font-family: var(--font-mono); font-size: var(--fs-sm); }
 button { cursor: pointer; transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }

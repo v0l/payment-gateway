@@ -96,7 +96,13 @@ impl Service {
         self.provider_failures.lock().unwrap().remove(&provider_id);
     }
 
-    async fn notify_quietly(&self, tenant_id: u64, kind: &str, subject: &str, detail: &str) {
+    pub(super) async fn notify_quietly(
+        &self,
+        tenant_id: u64,
+        kind: &str,
+        subject: &str,
+        detail: &str,
+    ) {
         let detail: String = detail.chars().take(500).collect();
         if let Err(e) = self.notify_owners(tenant_id, kind, subject, &detail).await {
             log::warn!("notification {kind} for project {tenant_id} failed: {e:?}");

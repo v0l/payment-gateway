@@ -62,6 +62,15 @@ pub enum Action {
     TwoFactorRecoveryUsed,
     TwoFactorLoginFailed,
     ProjectRequire2faChanged,
+    PayoutDestinationAdded,
+    PayoutDestinationRemoved,
+    WithdrawalRequested,
+    WithdrawalCancelled,
+    WithdrawalApproved,
+    WithdrawalRejected,
+    WithdrawalCompleted,
+    WithdrawalFailed,
+    PayoutLimitsChanged,
 }
 
 impl Action {
@@ -123,6 +132,15 @@ impl Action {
             Self::TwoFactorRecoveryUsed => "2fa.recovery_used",
             Self::TwoFactorLoginFailed => "login.2fa_failed",
             Self::ProjectRequire2faChanged => "project.require_2fa_changed",
+            Self::PayoutDestinationAdded => "payout_destination.added",
+            Self::PayoutDestinationRemoved => "payout_destination.removed",
+            Self::WithdrawalRequested => "withdrawal.requested",
+            Self::WithdrawalCancelled => "withdrawal.cancelled",
+            Self::WithdrawalApproved => "withdrawal.approved",
+            Self::WithdrawalRejected => "withdrawal.rejected",
+            Self::WithdrawalCompleted => "withdrawal.completed",
+            Self::WithdrawalFailed => "withdrawal.failed",
+            Self::PayoutLimitsChanged => "payout_limits.changed",
         }
     }
 }

@@ -228,6 +228,7 @@ mod saved;
 mod shared;
 mod stats;
 mod tenants;
+mod withdrawals;
 
 pub use attempts::*;
 pub use deliveries::*;
@@ -241,3 +242,4 @@ pub use saved::*;
 pub use shared::*;
 pub use stats::*;
 pub use tenants::*;
+pub use withdrawals::*;

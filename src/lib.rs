@@ -17,6 +17,7 @@ pub mod metrics;
 pub mod model;
 pub mod openapi;
 pub mod ops;
+pub mod payouts;
 pub mod providers;
 pub mod ratelimit;
 pub mod rates;
