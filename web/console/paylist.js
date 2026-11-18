@@ -49,12 +49,12 @@ function payments(pid) {
       }).catch(function (e) { msg(list, e.message, true); });
     }
     function draw() {
-      list.replaceChildren(rows.length ? el("table", {}, [el("tr", {}, ["Id", "Reference", "Amount", "Status", "Method", "Created"].map(function (h) { return el("th", { text: h }); }))].concat(rows.map(function (r) {
+      list.replaceChildren(rows.length ? el("table", {}, [el("tr", {}, ["Id", "Reference", "Amount", "Status", "Method", "Created"].map(function (h) { return el("th", { class: h === "Amount" ? "num" : "", text: h }); }))].concat(rows.map(function (r) {
         var shown = r.attempts.filter(function (a) { return a.status === "paid"; })[0] || r.attempts[r.attempts.length - 1];
         return el("tr", { class: "click", tabindex: "0", onclick: function () { go("#/p/" + pid + "/payments/" + r.id); }, onkeydown: function (e) { if (e.key === "Enter") go("#/p/" + pid + "/payments/" + r.id); } }, [
-          el("td", { class: "mono", text: r.id.slice(0, 8) }), el("td", { text: r.reference }), el("td", { text: fmtAmount(r.amount, r.currency) }),
+          el("td", { class: "mono", text: r.id.slice(0, 8) }), el("td", { text: r.reference }), el("td", { class: "num" }, [moneyEl(r.amount, r.currency)]),
           el("td", {}, [pill(r.status)]), el("td", { text: shown ? shown.method : "-" }), el("td", { class: "muted", text: ago(r.created) })]);
-      }))) : el("p", { class: "muted", text: "No payments match." }));
+      }))) : el("p", { class: "muted", text: "No payments match these filters. Clear a filter or widen the dates." }));
       more.replaceChildren(next ? el("button", { text: "Load more", onclick: function () { load(false); } }) : el("span", { class: "muted", text: rows.length ? "No more payments" : "" }));
     }
     function loadViews() {

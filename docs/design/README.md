@@ -2,12 +2,70 @@
 
 One language for the console, the hosted pay page and email. Tokens live in `web/tokens.css`. The living reference is `/console/styleguide` (static, CSP safe, shows every component in light and dark). Surface guides: [console](console.md), [pay page](pay-page.md), [email](email.md).
 
+## Console identity (v3)
+
+Subject: a payment gateway console for operators and merchant developers. They read amounts, statuses and ids all day, in sats, EUR and BTC.
+
+Direction: a ledger book bound in deep navy. The memorable thing is the overview: one large paid-volume figure over a real daily volume chart, with a quiet ledger strip of figures below. Everything else stays disciplined.
+
+### Palette
+
+| Name | Light | Dark | Role |
+| --- | --- | --- | --- |
+| Paper | `#eef1f6` | `#0a1120` | page |
+| Ledger | `#ffffff` | `#111b2e` | cards, inputs |
+| Ink | `#0f1a2e` | `#e5ebf7` | text |
+| Cobalt | `#2440d4` | `#8aa0ff` | action, links, chart bars |
+| Navy | `#0c1530` | `#060a16` | navigation rail |
+| Brass | `#ffb454` | `#ffb454` | current location mark in the rail, today's bar |
+
+State colours (green, amber, red, teal for info) are unchanged in role. Cobalt on navy replaces the teal accent, which read as the generic fintech default.
+
+### Type
+
+- Bricolage Grotesque (variable, self-hosted) for everything: headings are bold with tight tracking (-0.03em), body at 14 px. Its slightly quirky grotesque shapes carry the personality, so no second display face.
+- IBM Plex Mono (self-hosted, 400 and 500) for ids, keys and codes only.
+- Scale: 11, 12, 14, 16, 20, 24, 34 (figures), 40, hero figure `clamp(36px, 7vw, 56px)`.
+
+### Layout
+
+```
++---------+--------------------------------------------+
+| navy    |  Project name (30px)                        |
+| rail    |  tabs: underline only, wrap, no scroll      |
+| 236px   |  [7 | 30 | 90 days]                          |
+|         |  +--------------------------------------+   |
+|         |  | 61,000 sats            [BTC|EUR]     |   |
+|         |  | paid across 7 payments                |   |
+|         |  | ||  |  ||||     |   daily bars      |   |
+|         |  | ====== method share bar ======        |   |
+|         |  +--------------------------------------+   |
+|         |  | pending | success | settle | webhooks |   |
+|         |  Top customers (ruled table, left aligned)  |
++---------+--------------------------------------------+
+```
+
+Left aligned throughout, amounts right aligned in tables. Under 800 px the rail becomes a single scrolling strip above the content.
+
+### Defaults avoided
+
+- Cream paper with a serif and a clay accent: used cool blue grey paper and a grotesque instead.
+- Identical rounded stat cards with soft grey shadows: the figures sit in one ruled strip, and the hero is a single large panel. No shadows on cards.
+- Uppercase muted section labels: headings are sentence case 16 px bold.
+- Monospace for small data labels: mono is only for ids and keys.
+- A tracked caps eyebrow, numbered markers, dash-joined meta strings and arrows on links: none.
+- Pills are 3 px rectangles with a status dot, not capsules, so state does not rely on colour alone.
+
+### Critique notes
+
+The first pass left the rail as a centred column at 390 px and an empty grey gap in the ledger strip; both were fixed (rail strip, hairline shadows instead of a grey gap). The chart uses the brass bar for today so the latest day is findable without a legend.
+
 ## Principles
 
 The product handles other people's money, so it should feel like a good bank statement: calm, exact and quiet.
 
 1. **Numbers first.** Amounts, statuses and ids are the content. They use tabular figures, never wrap mid-value and never share a line with decoration.
-2. **One memorable thing.** The identity is a deep teal accent on cool, slightly green greys (paper in light, ink in dark). Everything else stays neutral. Colour means something: teal is the action, green/amber/red/blue are states. Nothing is coloured for decoration.
+2. **One memorable thing.** The identity is a cobalt accent and a navy rail on cool blue greys (paper in light, ink in dark). Everything else stays neutral. Colour means something: teal is the action, green/amber/red/blue are states. Nothing is coloured for decoration.
 3. **Say what happened.** Every state names its cause and the next step. Errors do not apologise.
 4. **No surprises with money.** Destructive and irreversible actions ask first, name what will be lost, and use the same verb on the button as in the dialog title.
 5. **Works everywhere.** 360 px wide, keyboard only, light or dark, reduced motion, no external fonts, scripts or images.
@@ -23,18 +81,99 @@ All tokens are CSS custom properties in `web/tokens.css`. Dark values apply with
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `--bg` | `#f2f5f4` | `#0c1312` | page |
-| `--card` | `#ffffff` | `#141d1c` | cards, inputs, dialogs |
-| `--code` | `#e8eeec` | `#1d2928` | code, hover rows, secret boxes |
-| `--text` | `#121c1b` | `#e4ecea` | body |
-| `--muted` | `#566361` | `#9bacaa` | hints, metadata, table heads |
-| `--line` | `#d5ddda` | `#2a3836` | decorative dividers |
-| `--line-strong` | `#7a8884` | `#62736f` | borders of controls (3:1 needed) |
-| `--accent` / `--accent-text` | `#0b6572` / `#ffffff` | `#52c3d1` / `#052226` | primary action, links, focus |
+| `--bg` | `#eef1f6` | `#0a1120` | page |
+| `--card` | `#ffffff` | `#111b2e` | cards, inputs, dialogs |
+| `--code` | `#e4e9f1` | `#1a2640` | code, hover rows, secret boxes |
+| `--text` | `#0f1a2e` | `#e5ebf7` | body |
+| `--muted` | `#52607a` | `#9aa8c4` | hints, metadata, table heads |
+| `--line` | `#d6ddea` | `#243250` | decorative dividers |
+| `--line-strong` | `#7384a3` | `#5f7196` | borders of controls (3:1 needed) |
+| `--accent` / `--accent-text` | `#2440d4` / `#ffffff` | `#8aa0ff` / `#0a1230` | primary action, links, focus |
 | `--ok`, `--ok-bg` | `#1a6b39`, `#e3f3e8` | `#62c786`, `#12301e` | paid, completed, delivered |
 | `--warn`, `--warn-bg` | `#86500a`, `#fbf0d9` | `#e5b45a`, `#36280c` | pending, needs attention, one time secrets |
 | `--bad`, `--bad-bg` | `#b3261e`, `#fbe6e4` | `#f0877f`, `#3a1714` | failed, expired, destructive |
-| `--info`, `--info-bg` | `#1c5ca6`, `#e3edf9` | `#7fb1ee`, `#14273f` | informational, processing, refunded |
+| `--info`, `--info-bg` | `#0b6572`, `#dcf0f2` | `#52c3d1`, `#0e2d33` | informational, processing, refunded |
+
+Rule: never convey state by colour alone. A pill always carries its status word.
+
+### Contrast (WCAG AA)
+
+`node scripts/contrast.mjs` reads `tokens.css`, checks every pair below in both themes and exits non zero on failure. Text pairs need 4.5:1, control borders and focus ring 3:1. Current result: 38 of 38 pass.
+
+Run the script for the current ratios; every pair passes in both themes.
+
+### Type
+
+- Bricolage Grotesque (variable, self-hosted) for everything: headings are bold with tight tracking (-0.03em), body at 14 px. Its slightly quirky grotesque shapes carry the personality, so no second display face.
+- IBM Plex Mono (self-hosted, 400 and 500) for ids, keys and codes only.
+- Scale: 11, 12, 14, 16, 20, 24, 34 (figures), 40, hero figure `clamp(36px, 7vw, 56px)`.
+
+### Layout
+
+```
++---------+--------------------------------------------+
+| navy    |  Project name (30px)                        |
+| rail    |  tabs: underline only, wrap, no scroll      |
+| 236px   |  [7 | 30 | 90 days]                          |
+|         |  +--------------------------------------+   |
+|         |  | 61,000 sats            [BTC|EUR]     |   |
+|         |  | paid across 7 payments                |   |
+|         |  | ||  |  ||||     |   daily bars      |   |
+|         |  | ====== method share bar ======        |   |
+|         |  +--------------------------------------+   |
+|         |  | pending | success | settle | webhooks |   |
+|         |  Top customers (ruled table, left aligned)  |
++---------+--------------------------------------------+
+```
+
+Left aligned throughout, amounts right aligned in tables. Under 800 px the rail becomes a single scrolling strip above the content.
+
+### Defaults avoided
+
+- Cream paper with a serif and a clay accent: used cool blue grey paper and a grotesque instead.
+- Identical rounded stat cards with soft grey shadows: the figures sit in one ruled strip, and the hero is a single large panel. No shadows on cards.
+- Uppercase muted section labels: headings are sentence case 16 px bold.
+- Monospace for small data labels: mono is only for ids and keys.
+- A tracked caps eyebrow, numbered markers, dash-joined meta strings and arrows on links: none.
+- Pills are 3 px rectangles with a status dot, not capsules, so state does not rely on colour alone.
+
+### Critique notes
+
+The first pass left the rail as a centred column at 390 px and an empty grey gap in the ledger strip; both were fixed (rail strip, hairline shadows instead of a grey gap). The chart uses the brass bar for today so the latest day is findable without a legend.
+
+## Principles
+
+The product handles other people's money, so it should feel like a good bank statement: calm, exact and quiet.
+
+1. **Numbers first.** Amounts, statuses and ids are the content. They use tabular figures, never wrap mid-value and never share a line with decoration.
+2. **One memorable thing.** The identity is a cobalt accent and a navy rail on cool blue greys (paper in light, ink in dark). Everything else stays neutral. Colour means something: teal is the action, green/amber/red/blue are states. Nothing is coloured for decoration.
+3. **Say what happened.** Every state names its cause and the next step. Errors do not apologise.
+4. **No surprises with money.** Destructive and irreversible actions ask first, name what will be lost, and use the same verb on the button as in the dialog title.
+5. **Works everywhere.** 360 px wide, keyboard only, light or dark, reduced motion, no external fonts, scripts or images.
+6. **Borders over shadows.** Structure comes from 1 px lines. Shadow is reserved for things that float (dialogs, toasts) plus a faint lift on cards.
+
+Not used on purpose: gradients, glass, all caps labels beyond the small section headings in the console nav, emoji as icons, animated entrances.
+
+## Tokens
+
+All tokens are CSS custom properties in `web/tokens.css`. Dark values apply with `prefers-color-scheme: dark`, or with `data-theme="dark"` / `data-theme="light"` on any element to force one (the styleguide uses this). Never write a colour literal in `console.css`, `pay.css` or `components.css`; a test enforces it.
+
+### Colour
+
+| Token | Light | Dark | Use |
+| --- | --- | --- | --- |
+| `--bg` | `#eef1f6` | `#0a1120` | page |
+| `--card` | `#ffffff` | `#111b2e` | cards, inputs, dialogs |
+| `--code` | `#e4e9f1` | `#1a2640` | code, hover rows, secret boxes |
+| `--text` | `#0f1a2e` | `#e5ebf7` | body |
+| `--muted` | `#52607a` | `#9aa8c4` | hints, metadata, table heads |
+| `--line` | `#d6ddea` | `#243250` | decorative dividers |
+| `--line-strong` | `#7384a3` | `#5f7196` | borders of controls (3:1 needed) |
+| `--accent` / `--accent-text` | `#2440d4` / `#ffffff` | `#8aa0ff` / `#0a1230` | primary action, links, focus |
+| `--ok`, `--ok-bg` | `#1a6b39`, `#e3f3e8` | `#62c786`, `#12301e` | paid, completed, delivered |
+| `--warn`, `--warn-bg` | `#86500a`, `#fbf0d9` | `#e5b45a`, `#36280c` | pending, needs attention, one time secrets |
+| `--bad`, `--bad-bg` | `#b3261e`, `#fbe6e4` | `#f0877f`, `#3a1714` | failed, expired, destructive |
+| `--info`, `--info-bg` | `#0b6572`, `#dcf0f2` | `#52c3d1`, `#0e2d33` | informational, processing, refunded |
 
 Rule: never convey state by colour alone. A pill always carries its status word.
 
@@ -57,10 +196,10 @@ Rule: never convey state by colour alone. A pill always carries its status word.
 
 ### Type
 
-System fonts only (CSP is `'self'`, no CDNs).
+Self-hosted fonts served from `/console/fonts/` (CSP `font-src 'self'`, no CDNs), with system fallbacks.
 
-- `--font-sans`: `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif`
-- `--font-mono`: `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`, for ids, keys, invoices, codes and addresses only.
+- `--font-sans`: Bricolage Grotesque, then `system-ui`.
+- `--font-mono`: Plex Mono, then `ui-monospace`, for ids, keys, invoices, codes and addresses only.
 
 Scale: `--fs-xs` 11, `--fs-sm` 12, `--fs-base` 14, `--fs-md` 16, `--fs-lg` 20, `--fs-xl` 24, `--fs-display` 32. Line height 1.5 for text, 1.25 for headings. Weights: 400 body, 600 emphasis and buttons, 700 headings and amounts. Amounts use `font-variant-numeric: tabular-nums`. Keep lines under 75 characters. The pay page body is 16 px, the console 14 px.
 

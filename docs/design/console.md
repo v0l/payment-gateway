@@ -4,14 +4,14 @@ The operator and project console at `/console`. Components and tokens are in the
 
 ## Layout
 
-- Two columns: a 220 px navigation and the main area (max 1100 px, padded 22/26). Under 800 px the navigation stacks above the content. The page never scrolls sideways at 360 px; a wide table scrolls inside `main`.
+- Two columns: a 236 px navy navigation rail and the main area (max 1180 px, padded 32/40). Under 800 px the navigation stacks above the content. The page never scrolls sideways at 360 px; a wide table scrolls inside `main`.
 - The navigation lists every project the account belongs to. The open project expands into its areas; others show "Open". Below it: "+ New project", the Operator section (operators only), then the account email, Account and Sign out.
 - The main area starts with the project name (`h2`), a one line `sub` giving role and the "test limits" pill for untrusted projects, then the tab bar, then content.
-- Content is a vertical stack of `card`s and `grid` stat tiles. Use `h3` for section headings inside a tab (small, muted, uppercase is the only place all caps is allowed).
+- Content is a vertical stack of `card`s and `grid` stat tiles. Use `h3` for section headings inside a tab (16 px bold, sentence case, never uppercase). The overview opens with the `hero` panel (paid volume figure, daily SVG chart from `chart.js`, method share bar) followed by the `ledger` figure strip.
 
 ## Tab pattern
 
-Tabs are links to `#/p/{id}/{tab}`, so reload and back keep your place. Order is fixed: Overview, Payments, Providers, Webhooks, Balance, Payouts, Team, Activity, Settings. Order by how often it is used, with Settings last. Do not add a tenth tab; group instead. The current tab is `on` and mirrored in the navigation. A tab never changes the project.
+Tabs wrap onto more lines instead of scrolling. They are links to `#/p/{id}/{tab}`, so reload and back keep your place. Order is fixed: Overview, Payments, Providers, Webhooks, Balance, Payouts, Team, Activity, Settings. Order by how often it is used, with Settings last. Do not add a tenth tab; group instead. The current tab is `on` and mirrored in the navigation. A tab never changes the project.
 
 ## Operator and tenant areas
 
@@ -21,7 +21,7 @@ Tabs are links to `#/p/{id}/{tab}`, so reload and back keep your place. Order is
 
 ## Density
 
-Console density is compact: 14 px text, 8 px cell padding, 12 px card radius, 14 px gaps. Tables show 25 rows. Do not go below 12 px except pills (11 px). Touch targets reach 32 px high on mobile via control padding. Increase spacing, not font size, for emphasis.
+Console density is compact: 14 px text, 11 px cell padding, 10 px card radius, 16 px gaps. Tables show 25 rows. Do not go below 12 px except pills (11 px). Touch targets reach 32 px high on mobile via control padding. Increase spacing, not font size, for emphasis.
 
 ## States and behaviour
 
