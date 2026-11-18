@@ -13,3 +13,5 @@ The API is versioned by path prefix. Inside `/v1` changes are additive only: new
 - New list endpoints: `GET /v1/refunds`, `GET /v1/events` (pull feed of the same events webhooks carry).
 - `GET /v1/payments` filters: `status`, `reference`, `customer_ref`, `created_from`, `created_to`. `reference` is now optional on create (one is generated).
 - Errors: `error` stays a string. A new `error_detail` object carries `code`, `message` and optional `field`. Existing clients that read `error` keep working. New clients should read `error_detail.code`.
+- Error migration plan: `error` is a string in all `/v1` releases, so existing clients are not broken. In `/v2`, `error` becomes the object `{code, message, field?}` (today's `error_detail`) and the string moves to the deprecated `error_message` for one release. Until then `error_detail` is the stable way to read the structured form.
+- `reference` on `POST /v1/payments` is optional. When omitted the gateway generates `pay_<random>`. Sending one behaves as before, including idempotency checks that compare it.

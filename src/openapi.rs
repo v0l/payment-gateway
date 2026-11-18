@@ -215,7 +215,7 @@ pub fn spec() -> Value {
                     "type": "object",
                     "required": ["error"],
                     "properties": {
-                        "error": {"type": "string", "description": "Message. Kept for compatibility, prefer error_detail."},
+                        "error": {"type": "string", "description": "Message string. Stays a string throughout /v1. In /v2 this key becomes the object now found in error_detail and the string moves to a deprecated error_message for one release. Read error_detail.code in new code."},
                         "error_detail": {
                             "type": "object",
                             "required": ["code", "message"],

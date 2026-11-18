@@ -45,6 +45,7 @@ fn asset(body: &'static str, content_type: &'static str) -> Response {
             "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
         ),
     );
+    h.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
     h.insert(
         header::REFERRER_POLICY,
         HeaderValue::from_static("no-referrer"),
