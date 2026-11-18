@@ -20,6 +20,7 @@ allow = [
     "ISC",
     "Unicode-3.0",
     "MITNFA",
+    "0BSD",
     "Zlib",
     "CC0-1.0",
     "CDLA-Permissive-2.0",
