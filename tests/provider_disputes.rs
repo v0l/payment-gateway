@@ -156,7 +156,11 @@ async fn stripe_dispute_events_reach_the_payment_through_the_real_adapter() {
     post_hook(&h, &t, st, &[("stripe-signature", &sig)], &closed).await;
     assert_eq!(get_payment(&h, &t, &id).await["dispute_status"], "lost");
     h.service.deliver_due().await.unwrap();
-    assert!(t.receiver.types().contains(&"payment.dispute_closed".to_string()));
+    assert!(
+        t.receiver
+            .types()
+            .contains(&"payment.dispute_closed".to_string())
+    );
 }
 
 fn revolut_headers(secret: &str, body: &str) -> (String, String) {
@@ -192,13 +196,17 @@ async fn revolut_dispute_event_reaches_the_payment_through_the_real_adapter() {
     assert_eq!(lookup, order_id);
     mark_paid(&h, rv, &lookup).await;
 
-    let body = fixture("revolut/webhook_dispute_action_required.json").replace("__ORDER__", &order_id);
+    let body =
+        fixture("revolut/webhook_dispute_action_required.json").replace("__ORDER__", &order_id);
     let (sig, ts) = revolut_headers("wsk_d", &body);
     let bad = post_hook(
         &h,
         &t,
         rv,
-        &[("revolut-signature", "v1=00"), ("revolut-request-timestamp", &ts)],
+        &[
+            ("revolut-signature", "v1=00"),
+            ("revolut-request-timestamp", &ts),
+        ],
         &body,
     )
     .await;
@@ -208,7 +216,10 @@ async fn revolut_dispute_event_reaches_the_payment_through_the_real_adapter() {
             &h,
             &t,
             rv,
-            &[("revolut-signature", &sig), ("revolut-request-timestamp", &ts)],
+            &[
+                ("revolut-signature", &sig),
+                ("revolut-request-timestamp", &ts),
+            ],
             &body,
         )
         .await;
