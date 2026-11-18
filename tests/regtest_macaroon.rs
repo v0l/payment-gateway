@@ -82,7 +82,9 @@ async fn receive_macaroon_takes_lightning_and_onchain_payments_and_cannot_spend(
     assert_eq!(s, StatusCode::OK, "{r}");
     let bolt11 = r["attempts"][0]["details"]["bolt11"].as_str().unwrap();
     assert!(bolt11.starts_with("lnbcrt"), "{bolt11}");
-    sb.customer_pay_invoice(bolt11).await.expect("customer pays");
+    sb.customer_pay_invoice(bolt11)
+        .await
+        .expect("customer pays");
     let mut status = Value::Null;
     for _ in 0..60 {
         status = get_payment(&h, &t, &id).await["status"].clone();

@@ -7,6 +7,7 @@ mod page;
 mod public;
 mod receipt;
 mod sandbox;
+mod site;
 mod tenant;
 
 use crate::service::{Error, Service};
@@ -214,6 +215,7 @@ pub fn router(state: AppState) -> Router {
         .merge(public::router())
         .merge(docs::router())
         .merge(receipt::router())
+        .merge(site::router())
         .merge(sandbox::router())
         .merge(console::router())
         .layer(axum::middleware::from_fn_with_state(

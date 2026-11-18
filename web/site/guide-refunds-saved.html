@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Refunds and saved methods | Payment Gateway</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<a class="brand" href="/">Payment Gateway</a>
+<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/operator/">Operators</a> <a href="/docs">API reference</a> <a href="/legal/">Legal</a> <a class="button" href="/console">Sign in</a></nav>
+</header>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved" aria-current="page">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe and Revolut</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article>
+<h1 id="refunds-and-saved-methods">Refunds and saved methods</h1>
+<h2 id="refunds">Refunds</h2>
+<p>Refund a paid payment with <code>POST /v1/payments/{id}/refund</code>. The key needs the <code>refunds:write</code> scope. With no body the remaining amount is refunded. A partial refund sends <code>amount</code> in minor units of the payment currency, and several partial refunds can add up to the payment amount but not beyond it.</p>
+<pre><code class="language-sh">curl -X POST &quot;$GW/v1/payments/$ID/refund&quot; \
+  -H &quot;Authorization: Bearer $KEY&quot; -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;amount&quot;:500,&quot;destination&quot;:&quot;lnbc...&quot;}'</code></pre>
+<p>Lightning and on-chain refunds need a <code>destination</code> (an invoice or an address) because the gateway cannot know where the payer's funds should go. Card refunds go back to the card. The payment becomes <code>partially_refunded</code> and then <code>refunded</code>. A refund that the provider rejects is recorded as failed and can be retried. You receive <code>refund.completed</code> or <code>refund.failed</code>. List refunds with <code>GET /v1/refunds</code>.</p>
+<h2 id="saved-methods">Saved methods</h2>
+<p>A customer can save a card so later payments are charged without them present.</p>
+<ol><li>Create the payment with a <code>customer_ref</code>.</li><li>Create the attempt with <code>&quot;save_method&quot;: true</code>. The customer completes checkout once.</li><li>The saved method appears in <code>GET /v1/saved-methods?customer_ref=...</code>.</li><li>Charge it with <code>POST /v1/saved-methods/{id}/charge</code> and a normal create-payment body. The payment settles at once, or is cancelled when the charge fails.</li><li>Remove it with <code>DELETE /v1/saved-methods/{id}</code>.</li></ol>
+<p>Saving and charging need the <code>saved:write</code> scope. A saved method can only be used for the customer it was saved for.</p>
+</article>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Quickstart: hosted page
+
+Send the customer to the gateway pay page. It shows the amount, a method picker, the QR code or the card form, updates live, and redirects back to your site when the payment settles.
+
+First allow your site in the project settings: `success_url` and `cancel_url` must be on one of the project's `allowed_origins`, otherwise create is rejected. Use the console, or the admin API:
+
+```sh
+curl -X POST "$GW/admin/tenants/1/settings" \
+  -H "Authorization: Bearer $ADMIN" -H "Content-Type: application/json" \
+  -d '{"allowed_origins":["https://shop.example.com"],"display_name":"Example Shop"}'
+```
+
+Then create the payment with the return URLs and redirect to `pay_url`:
+
+```sh run
+ORIGIN=${SHOP_ORIGIN:-https://shop.example.com}
+PAYMENT=$(curl -sf -X POST "$GW/v1/payments" \
+  -H "Authorization: Bearer $KEY" \
+  -H "Idempotency-Key: quickstart-hosted-1" \
+  -H "Content-Type: application/json" \
+  -d "{\"reference\":\"quickstart-hosted-1\",\"amount\":2500,\"currency\":\"EUR\",\"success_url\":\"$ORIGIN/thanks\",\"cancel_url\":\"$ORIGIN/cart\"}")
+echo "$PAYMENT" | jq -r .pay_url
+```
+
+After payment the customer lands on `success_url` with `payment_id`, `reference`, `status` and `sig`. The signature is `HMAC-SHA256(webhook_secret, "{payment_id}.{reference}.{status}")` in hex. Check it, but still confirm with the webhook or `GET /v1/payments/{id}`. The redirect alone is not proof of payment.

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Error reference | Payment Gateway</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<a class="brand" href="/">Payment Gateway</a>
+<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/operator/">Operators</a> <a href="/docs">API reference</a> <a href="/legal/">Legal</a> <a class="button" href="/console">Sign in</a></nav>
+</header>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/errors" aria-current="page">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe and Revolut</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article>
+<h1 id="error-reference">Error reference</h1>
+<p>Every error response has the same shape. <code>error</code> is a string and stays a string for all of <code>/v1</code>. New code should read <code>error_detail</code>.</p>
+<pre><code class="language-json">{
+  &quot;error&quot;: &quot;amount must be positive&quot;,
+  &quot;error_detail&quot;: {&quot;code&quot;: &quot;invalid_request&quot;, &quot;message&quot;: &quot;amount must be positive&quot;, &quot;field&quot;: &quot;amount&quot;}
+}</code></pre>
+<table><thead><tr><th scope="col">Status</th><th scope="col">Code</th><th scope="col">Meaning</th></tr></thead><tbody><tr><td>400</td><td><code>invalid_request</code></td><td>The body or a parameter is invalid. <code>field</code> names it when known.</td></tr><tr><td>401</td><td><code>unauthorized</code></td><td>Missing, unknown, revoked or expired API key.</td></tr><tr><td>403</td><td><code>forbidden</code></td><td>The action is not allowed for this project.</td></tr><tr><td>403</td><td><code>insufficient_scope</code></td><td>The key lacks the scope. The body carries <code>scope</code>.</td></tr><tr><td>403</td><td><code>limit_exceeded</code></td><td>A usage limit was hit. The body carries <code>limit</code>, <code>current</code> and <code>max</code>.</td></tr><tr><td>404</td><td><code>not_found</code></td><td>No such object, or it belongs to another project.</td></tr><tr><td>409</td><td><code>conflict</code></td><td>The object is in the wrong state, or an idempotency key was reused with different parameters.</td></tr><tr><td>413</td><td><code>payload_too_large</code></td><td>The body is over 1 MiB.</td></tr><tr><td>429</td><td><code>rate_limited</code></td><td>Too many requests. Wait for the <code>Retry-After</code> header.</td></tr><tr><td>502</td><td><code>upstream_error</code></td><td>A provider failed. Retry later.</td></tr><tr><td>500</td><td><code>internal_error</code></td><td>Unexpected failure. Retry with the same idempotency key.</td></tr></tbody></table>
+<p>Retry 429, 502 and 5xx with backoff. Do not retry other 4xx without changing the request.</p>
+</article>
+</main>
+</div>
+</body>
+</html>

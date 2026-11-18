@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Going live checklist | Payment Gateway</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<a class="brand" href="/">Payment Gateway</a>
+<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/operator/">Operators</a> <a href="/docs">API reference</a> <a href="/legal/">Legal</a> <a class="button" href="/console">Sign in</a></nav>
+</header>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live" aria-current="page">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe and Revolut</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article>
+<h1 id="going-live-checklist">Going live checklist</h1>
+<ol><li><strong>Test mode first.</strong> Build against a <code>pgw_test_</code> key. Test projects have low limits and only send webhooks to public https hosts.</li><li><strong>Limits.</strong> Read your limits in the console: payments and volume per day, pending payments, amount per payment, providers, webhook endpoints, attempts per payment. A breach returns 403 <code>limit_exceeded</code> with the limit name, <code>current</code> and <code>max</code>. Ask the operator to lift them when you are ready.</li><li><strong>Providers.</strong> Add each provider with its production credentials and make a small real payment through every method you plan to offer. Credentials are write-only: the console shows <code>set</code> and never returns them.</li><li><strong>Webhooks.</strong> Add your https endpoint, store the signing secret, verify signatures and the timestamp, deduplicate on the event id and answer 2xx quickly. Send a test event from the console.</li><li><strong>Idempotency.</strong> Send an <code>Idempotency-Key</code> on every <code>POST /v1/payments</code> and every refund call you may retry.</li><li><strong>Confirm server side.</strong> Fulfil orders from the webhook or a <code>GET</code>, never from the browser redirect.</li><li><strong>Origins.</strong> Set <code>allowed_origins</code> and the return URLs to your production site only.</li><li><strong>Keys.</strong> Use scoped keys: a key that only creates payments does not need <code>refunds:write</code>. Rotate any key that was pasted anywhere it should not be.</li><li><strong>Rate limits.</strong> Handle 429 by waiting for <code>Retry-After</code>. Bodies over 1 MiB get 413.</li><li><strong>Reconcile.</strong> Poll <code>GET /v1/events</code> or list payments as a safety net for missed webhooks.</li></ol>
+</article>
+</main>
+</div>
+</body>
+</html>
