@@ -271,15 +271,18 @@ async fn slow_handlers_time_out_with_504() {
     let app = app_with(
         &h,
         Ops {
-            request_timeout: std::time::Duration::ZERO,
+            request_timeout: std::time::Duration::from_millis(200),
             ..Default::default()
         },
     )
     .await;
-    let t = tenant(&h).await;
-    let _ = t;
+    let mut held = Vec::new();
+    for _ in 0..10 {
+        held.push(h.pool.acquire().await.unwrap());
+    }
     let r = send(&app, "GET", "/status", Some(ADMIN), &[], Value::Null).await;
     assert_eq!(r.status, 504);
+    drop(held);
 }
 
 #[tokio::test]
