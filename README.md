@@ -110,8 +110,13 @@ GET    /v1/saved-methods?customer_ref=       DELETE /v1/saved-methods/{id}
 POST   /v1/saved-methods/{id}/charge         a payment body, charged off session
 GET    /v1/methods      GET /v1/rates
 GET    /admin/audit?action=&actor=&tenant_id=&before=&limit=   (audit log, newest first)
+GET    /admin/shared         POST /admin/shared   {"name","method","provider_type":"lnd","network":"mainnet|testnet|signet|regtest","config":{},"fee_bps":100,"fee_base_msat":0,"allow_untrusted":false}
+POST   /admin/shared/{id}    POST /admin/shared/{id}/tenants/{tenant}/fee   {"fee_bps":50,"fee_base_msat":null}
+POST   /admin/tenants/{id}/allow-negative    {"allow":true}
 GET    /admin/deliveries?undelivered=1       POST /admin/deliveries/{id}/replay
 ```
+
+Platform managed methods (shared Lightning and on-chain wallets, enabled per project in the console) show `platform_managed: true` on `/v1/methods` and on attempts. Paid attempts carry `platform_fee` and `net_credited` (msats), also in the `payment.paid` webhook `detail`. The net is held as the project balance. Refunds of these payments are debited from that balance and refused when it is too low. See DESIGN.md, "Shared platform providers".
 
 Lightning refunds need a bolt11 invoice with an amount, on-chain refunds an address. Card refunds go back to the card.
 

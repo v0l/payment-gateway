@@ -100,7 +100,7 @@ The payment id is 32 random bytes and acts as the capability for the public endp
 
 ## Custody ledger
 
-Double entry ledger for funds the platform holds on behalf of tenants (`src/ledger/`). No settlement code posts to it yet.
+Double entry ledger for funds the platform holds on behalf of tenants (`src/ledger/`). Settlement of shared provider payments and their refunds post to it (see Shared platform providers).
 
 Accounts (`ledger_account`, unique on tenant, kind, currency). Currency is `BTC` (msats) or a fiat code (minor units). All amounts are signed `i64`, never floats.
 
@@ -123,6 +123,26 @@ Invariants:
 
 Read APIs: `GET /admin/tenants/{id}/balance`, `/admin/tenants/{id}/ledger?before=&limit=`, `/admin/ledger/reconcile`, and for members (viewer) `GET /console/api/projects/{id}/balance` and `/ledger`. The console project page has a Balance tab.
 
+## Shared platform providers
+
+An operator can register Lightning and on-chain LND wallets that belong to the platform (`shared_provider`, config sealed, same `lightning/lnd` and `onchain/lnd` implementations). A project enables one with a click and it appears in its methods marked `platform_managed`. The invoice or address is created on the platform wallet, and the attempt records the shared provider and the fee terms in force when it was created.
+
+Custody model: the platform receives the money, so it holds the funds and owes them to the tenant. Settlement runs in the same DB transaction as the payment state change, with idempotency key `settle:{attempt_id}`:
+
+- `platform_wallet` debit of the received amount
+- `tenant_balance` credit of the net
+- `platform_fees` credit of the fee
+
+Fee rule: `fee = ceil(received * bps / 10000) + base`, capped at the received amount. The platform fee is rounded up and the tenant is never credited more than was received. Terms are the shared provider defaults, replaced per project by an override (`shared_provider_override`, either field may be left to inherit). Fee and net are on the attempt view (`platform_fee`, `net_credited`) and in the `payment.paid` and `payment.late_payment` webhook `detail`. Replayed or concurrent events credit once.
+
+Refunds: the BTC amount refunded is debited from the tenant balance (`refund:{id}`) and paid out from the platform wallet. The platform keeps its fee. A refund the balance cannot cover is refused with a conflict unless an operator set `allow_negative` on the tenant balance (`POST /admin/tenants/{id}/allow-negative`). If the payout fails the debit is reversed.
+
+Trust levels: each shared provider has a network (`mainnet`, `testnet`, `signet`, `regtest`) and two flags, `allow_untrusted` and `allow_trusted`. An untrusted (test mode) project can only use a shared provider on a test network that allows untrusted projects, never mainnet. The check runs when enabling and again when creating an attempt.
+
+What the platform is responsible for: holding the funds in its wallets, paying out refunds, keeping the wallet balance solvent against what it owes tenants (`ledger::reconcile`), and securing the sealed wallet credentials. Withdrawals of the held balance are not built yet.
+
+Admin API: `GET/POST /admin/shared`, `POST /admin/shared/{id}`, `POST /admin/shared/{id}/tenants/{tenant}/fee`. Console: operator page "Shared providers", and per project `GET /console/api/projects/{id}/shared` and `POST .../shared/{sid}/enabled`.
+
 ## Self-service console (SaaS)
 
 The gateway is a multi-tenant service. Operators sign in at `/console`, which is a dependency-free single page served from the binary.
@@ -131,8 +151,8 @@ The gateway is a multi-tenant service. Operators sign in at `/console`, which is
 - **Projects:** one account owns many projects, each a tenant with its own API key, providers, webhook and branding. Roles per project: viewer, admin, owner. Teammates join by invite link.
 - **Test mode:** customer projects start untrusted. An operator lifts the limits per project. Untrusted projects cannot use mock providers, local credential files, custom provider URLs, or non-public addresses, and their webhooks are only sent to public https hosts. Operators and trusted projects keep file paths and internal hosts.
 - **Secrets:** provider credentials are sealed at rest and never returned. The console shows `set` and keeps the stored value when a field is left alone.
-- **Audit log:** `audit_event` is append only (app code never updates or deletes rows). `audit::Event` records who (account, api key, admin token, system), what (dotted action from `audit::Action`), target, ip, user agent and details. Details hold field names only, never values. A failed write is logged and never fails the request. Readable per project in the console Activity tab (viewers included), platform wide on the operator Audit page and `GET /admin/audit`. Actions: login.ok, login.failed, logout, password.changed, invite.created, invite.used, member.added, member.removed, member.role_changed, project.created, key.rotated, webhook_secret.rotated, provider.created, updated, enabled, disabled, deleted, settings.changed, refund.requested, refund.result, payment.cancelled, project.trust_changed, project.enabled_changed, account.disabled, account.enabled, delivery.replayed.
-- **Not built yet:** shared Lightning and on-chain for tenants that have no node (custody: ledger, platform fee, withdrawals, payouts), TOTP, password reset by email, billing for platform fees.
+- **Audit log:** `audit_event` is append only (app code never updates or deletes rows). `audit::Event` records who (account, api key, admin token, system), what (dotted action from `audit::Action`), target, ip, user agent and details. Details hold field names only, never values. A failed write is logged and never fails the request. Readable per project in the console Activity tab (viewers included), platform wide on the operator Audit page and `GET /admin/audit`. Actions: login.ok, login.failed, logout, password.changed, invite.created, invite.used, member.added, member.removed, member.role_changed, project.created, key.rotated, webhook_secret.rotated, provider.created, updated, enabled, disabled, deleted, settings.changed, shared_provider.created, shared_provider.updated, shared_method.enabled, shared_method.disabled, shared_fee.overridden, balance.allow_negative_changed, refund.requested, refund.result, payment.cancelled, project.trust_changed, project.enabled_changed, account.disabled, account.enabled, delivery.replayed.
+- **Not built yet:** withdrawals and payouts of the held balance, TOTP, password reset by email, billing for platform fees.
 
 ## Milestones
 
