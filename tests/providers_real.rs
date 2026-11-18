@@ -1,3 +1,4 @@
+mod common;
 use async_trait::async_trait;
 use futures::Stream;
 use hmac::{Hmac, Mac};
@@ -820,5 +821,139 @@ async fn revolut_refund_posts_the_amount() {
             )
             .await
             .is_err()
+    );
+}
+
+struct FakeLndFactory(Arc<FakeNode>);
+
+#[async_trait]
+impl payment_gateway::providers::ProviderFactory for FakeLndFactory {
+    async fn build(
+        &self,
+        row: &payment_gateway::db::ProviderConfigRow,
+        _config: Value,
+    ) -> anyhow::Result<Arc<dyn Provider>> {
+        assert_eq!(
+            (row.method.as_str(), row.provider_type.as_str()),
+            ("lightning", "lnd")
+        );
+        Ok(Arc::new(LightningProvider::new(self.0.clone())))
+    }
+}
+
+#[tokio::test]
+async fn shared_lnd_lightning_flow_settles_through_the_fake_node_and_posts_the_ledger() {
+    use payment_gateway::crypto::Sealer;
+    use payment_gateway::db::{NewSharedProvider, insert_shared_provider};
+    use payment_gateway::providers::Registry;
+    use payment_gateway::service::{ProviderSink, Service};
+
+    let base = common::harness().await;
+    let node = Arc::new(FakeNode::default());
+    let sealer = Sealer::new(&[9u8; 32]);
+    let registry = Registry::new(
+        base.pool.clone(),
+        sealer.clone(),
+        Arc::new(FakeLndFactory(node.clone())),
+    );
+    let service = Service::with_mailer(
+        base.pool.clone(),
+        sealer.clone(),
+        registry,
+        Arc::new(payment_gateway::rates::StaticRates::new(&[(
+            "EUR", 50_000.0,
+        )])),
+        "https://pay.test".to_string(),
+        Arc::new(payment_gateway::mailer::DisabledMailer),
+    );
+    let sealed = sealer.seal(b"{}").unwrap();
+    let sid = insert_shared_provider(
+        &base.pool,
+        &NewSharedProvider {
+            name: "Platform LN",
+            method: "lightning",
+            provider_type: "lnd",
+            network: "regtest",
+            sealed_config: &sealed,
+            fee_bps: 100,
+            fee_base_msat: 0,
+            allow_untrusted: true,
+            allow_trusted: true,
+        },
+    )
+    .await
+    .unwrap();
+    let t = common::tenant(&base).await;
+    let tenant = payment_gateway::db::get_tenant(&base.pool, t.id)
+        .await
+        .unwrap()
+        .unwrap();
+    service.enable_shared(&tenant, sid).await.unwrap();
+
+    let app = payment_gateway::api::router(payment_gateway::api::AppState::new(
+        service.clone(),
+        common::ADMIN.into(),
+        true,
+        None,
+    ));
+    let (_, p) = common::call(
+        &app,
+        "POST",
+        "/v1/payments",
+        Some(&t.key),
+        common::eur("fl", 5000).into(),
+    )
+    .await;
+    let id = p["id"].as_str().unwrap();
+    let (s, r) = common::call(
+        &app,
+        "POST",
+        &format!("/v1/payments/{id}/attempts"),
+        Some(&t.key),
+        json!({"method": "lightning"}),
+    )
+    .await;
+    assert_eq!(s, axum::http::StatusCode::OK, "{r}");
+    assert_eq!(node.added.lock().unwrap()[0].amount, 100_000_000);
+    let hash = r["attempts"][0]["details"]["payment_hash"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    node.updates.lock().unwrap().push(InvoiceUpdate::Settled {
+        payment_hash: hash,
+        preimage: None,
+        external_id: None,
+    });
+    let key = payment_gateway::shared::shared_key(sid);
+    let provider = service.registry.get(key).await.unwrap();
+    let sink = Arc::new(ProviderSink {
+        service: service.clone(),
+        provider_id: key,
+    });
+    assert!(provider.watch(sink, None).await.is_err());
+
+    let (_, got) = common::call(
+        &app,
+        "GET",
+        &format!("/v1/payments/{id}"),
+        Some(&t.key),
+        serde_json::Value::Null,
+    )
+    .await;
+    assert_eq!(got["status"], "paid", "{got}");
+    assert_eq!(got["attempts"][0]["platform_fee"], 1_000_000);
+    assert_eq!(got["attempts"][0]["net_credited"], 99_000_000);
+    assert_eq!(
+        payment_gateway::ledger::tenant_balance(&base.pool, t.id, "BTC")
+            .await
+            .unwrap(),
+        99_000_000
+    );
+    assert!(
+        payment_gateway::ledger::reconcile(&base.pool)
+            .await
+            .unwrap()
+            .is_empty()
     );
 }
