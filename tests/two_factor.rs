@@ -484,3 +484,84 @@ async fn two_factor_state_is_per_account() {
     let r = password_login(&h.app, "b@example.com", PW).await;
     assert!(r.headers.get("set-cookie").is_some());
 }
+
+#[tokio::test]
+async fn two_factor_events_are_audited_without_secrets() {
+    use payment_gateway::audit::{self, Filter};
+    let h = harness().await;
+    let (c, id) = signed_in(&h, "a@example.com").await;
+    let (secret, codes) = enrol(&h, &c, id).await;
+    let (_, p) = c.req("POST", "/projects", json!({"name": "shop"})).await;
+    let pid = p["id"].as_u64().unwrap();
+    c.req(
+        "POST",
+        &format!("/projects/{pid}/require-2fa"),
+        json!({"required": true}),
+    )
+    .await;
+
+    let ch = password_login(&h.app, "a@example.com", PW).await.json["challenge"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    second_step(&h.app, &ch, json!({"code": "000000"})).await;
+    second_step(&h.app, &ch, json!({"recovery_code": codes[0]})).await;
+    c.req(
+        "POST",
+        "/2fa/recovery-codes",
+        json!({"password": PW, "code": code_at(&secret, 1)}),
+    )
+    .await;
+    let all = audit::list(
+        &h.pool,
+        &Filter {
+            limit: Some(200),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let names: Vec<&str> = all.iter().map(|e| e.action.as_str()).collect();
+    for want in [
+        "2fa.enabled",
+        "2fa.recovery_used",
+        "2fa.recovery_regenerated",
+        "login.2fa_failed",
+        "project.require_2fa_changed",
+    ] {
+        assert!(names.contains(&want), "{want} missing from {names:?}");
+    }
+    let dump = serde_json::to_string(&all).unwrap();
+    assert!(!dump.contains(&totp::base32(&secret)));
+    for code in &codes {
+        assert!(!dump.contains(code), "recovery code leaked");
+        assert!(!dump.contains(&totp::normalize_recovery_code(code)));
+    }
+    assert!(!dump.contains("000000"));
+}
+
+#[tokio::test]
+async fn disabling_is_audited() {
+    use payment_gateway::audit::{self, Filter};
+    let h = harness().await;
+    let (c, id) = signed_in(&h, "a@example.com").await;
+    let (secret, _) = enrol(&h, &c, id).await;
+    let (s, r) = c
+        .req(
+            "POST",
+            "/2fa/disable",
+            json!({"password": PW, "code": code_at(&secret, 1)}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let all = audit::list(
+        &h.pool,
+        &Filter {
+            limit: Some(50),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert!(all.iter().any(|e| e.action == "2fa.disabled"));
+}

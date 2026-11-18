@@ -17,7 +17,7 @@ pub(super) async fn admin_audit(
     State(s): State<AppState>,
     Query(q): Query<HashMap<String, String>>,
 ) -> ApiResult<Vec<audit::AuditEvent>> {
-    sess.operator()?;
+    sess.operator(&s)?;
     let tenant = q.get("tenant_id").and_then(|t| t.parse().ok());
     Ok(Json(
         audit::list(s.pool(), &audit::Filter::from_query(tenant, &q)).await?,

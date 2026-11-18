@@ -209,7 +209,7 @@ pub(super) async fn set_limits(
     Path(id): Path<u64>,
     Json(input): Json<crate::limits::LimitsInput>,
 ) -> ApiResult<LimitsView> {
-    sess.operator()?;
+    sess.operator(&s)?;
     let t = db::get_tenant(s.pool(), id)
         .await?
         .ok_or_else(ApiError::not_found)?;
