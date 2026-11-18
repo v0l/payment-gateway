@@ -1,0 +1,60 @@
+{
+  "id": "6afdd324-7681-a80b-ac16-8b0f41c045db",
+  "token": "772e3712-7653-4f6f-a91c-f895ed42a7cd",
+  "type": "payment",
+  "state": "pending",
+  "created_at": "2026-11-18T16:32:36.752907Z",
+  "updated_at": "2026-11-18T16:32:52.949274Z",
+  "amount": 1000,
+  "currency": "EUR",
+  "outstanding_amount": 1000,
+  "capture_mode": "automatic",
+  "checkout_url": "https://sandbox-checkout.revolut.com/payment-link/772e3712-7653-4f6f-a91c-f895ed42a7cd",
+  "payments": [
+    {
+      "id": "6afdd32d-9799-abb7-be92-fb23e4a8411f",
+      "state": "declined",
+      "decline_reason": "insufficient_funds",
+      "bank_message": "",
+      "created_at": "2026-11-18T16:32:45.275865Z",
+      "updated_at": "2026-11-18T16:32:53.012906Z",
+      "token": "e0e7f403-4c37-4b9d-aedb-73ed075be2f3",
+      "amount": 1000,
+      "currency": "EUR",
+      "settled_amount": 1000,
+      "settled_currency": "EUR",
+      "risk_level": "low",
+      "fees": [],
+      "payment_method": {
+        "type": "card",
+        "card_brand": "visa",
+        "funding": "debit",
+        "commercial": false,
+        "card_country_code": "GB",
+        "card_bin": "492957",
+        "card_last_four": "5985",
+        "card_expiry": "12/30",
+        "cardholder_name": "Test Person",
+        "checks": {
+          "three_ds": {
+            "eci": "05",
+            "state": "verified",
+            "version": 2
+          }
+        }
+      },
+      "payer": {
+        "email": "decline@example.com"
+      }
+    }
+  ],
+  "enforce_challenge": "automatic",
+  "authorisation_type": "final",
+  "customer": {
+    "id": "96974d49-85d2-493e-a10b-4b0b0ce1a83e",
+    "email": "decline@example.com"
+  },
+  "merchant_order_data": {
+    "reference": "decline-probe"
+  }
+}

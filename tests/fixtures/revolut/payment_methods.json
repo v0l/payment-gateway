@@ -1,0 +1,18 @@
+[
+    {
+        "id": "6afb12c3-a8ff-a95d-a485-3ea3b479bdd2",
+        "type": "CARD",
+        "saved_for": "MERCHANT",
+        "method_details": {
+            "bin": "492942",
+            "last4": "5709",
+            "expiry_month": 12,
+            "expiry_year": 2030,
+            "cardholder_name": "Test Person",
+            "brand": "VISA",
+            "funding": "DEBIT",
+            "issuer_country": "GB",
+            "created_at": "2026-10-16T13:31:21.163147Z"
+        }
+    }
+]

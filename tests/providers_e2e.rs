@@ -467,3 +467,97 @@ async fn revolut_sandbox_live_suite() {
     .await;
     assert_eq!(refunded["state"], "completed");
 }
+
+#[tokio::test]
+async fn revolut_recorded_decline_webhook_maps_to_a_failed_attempt() {
+    let server = MockServer::start().await;
+    let declined = fixture_json("revolut/order_payment_declined.json");
+    let order_id = declined["id"].as_str().unwrap().to_string();
+    assert_eq!(declined["payments"][0]["state"], "declined");
+    assert_eq!(
+        declined["payments"][0]["decline_reason"],
+        "insufficient_funds"
+    );
+    let p = revolut(&server.uri(), "tok_fixture");
+    let body = fixture("revolut/webhook_order_payment_declined.json");
+    let events = p
+        .handle_webhook(&revolut_sig("wsk_fixture", &body), body.as_bytes())
+        .await
+        .unwrap();
+    assert_eq!(
+        events,
+        vec![ProviderEvent::Failed {
+            lookup: order_id,
+            reason: "payment declined".into()
+        }]
+    );
+}
+
+#[tokio::test]
+async fn revolut_recorded_saved_methods_are_listed_with_card_details() {
+    let server = MockServer::start().await;
+    let list = fixture_json("revolut/payment_methods.json");
+    Mock::given(method("GET"))
+        .and(path("/api/1.0/customers/cus_fixture/payment-methods"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(list))
+        .mount(&server)
+        .await;
+    let methods = revolut(&server.uri(), "tok_fixture")
+        .list_saved("cus_fixture")
+        .await
+        .unwrap();
+    assert_eq!(methods.len(), 1);
+    assert_eq!(methods[0].last4.as_deref(), Some("5709"));
+    assert_eq!(methods[0].brand.as_deref(), Some("VISA"));
+    assert_eq!(methods[0].exp_year, Some(2030));
+}
+
+#[tokio::test]
+async fn revolut_sandbox_live_test_connection_saved_methods_and_removal() {
+    let Ok(token) = std::env::var("REVOLUT_SANDBOX_TOKEN") else {
+        eprintln!("skipped: REVOLUT_SANDBOX_TOKEN not set");
+        return;
+    };
+    let p = revolut("https://sandbox-merchant.revolut.com", &token);
+    let msg = p.test_connection().await.unwrap();
+    eprintln!("test connection: {msg}");
+    assert!(!msg.contains(&token));
+
+    let customers = revolut_call(&token, reqwest::Method::GET, "/api/1.0/customers", None).await;
+    let mut listed = false;
+    for c in customers.as_array().unwrap() {
+        let id = c["id"].as_str().unwrap();
+        let methods = p.list_saved(id).await.unwrap();
+        if let Some(m) = methods.first() {
+            eprintln!(
+                "saved list ok: {} method(s), last4 {:?}",
+                methods.len(),
+                m.last4
+            );
+            assert!(!m.method_id.is_empty());
+            listed = true;
+            break;
+        }
+    }
+    assert!(listed, "no sandbox customer holds a saved method");
+
+    let ghost = SavedMethodRow {
+        id: 1,
+        tenant_id: 1,
+        customer_ref: "c".into(),
+        provider_config_id: 1,
+        external_customer_id: "00000000-0000-0000-0000-000000000000".into(),
+        external_id: "00000000-0000-0000-0000-000000000000".into(),
+        brand: None,
+        last4: None,
+        exp_month: None,
+        exp_year: None,
+        enabled: true,
+        created: chrono::Utc::now(),
+    };
+    p.remove_saved(&ghost).await.unwrap();
+
+    let bad = revolut("https://sandbox-merchant.revolut.com", "not-a-token");
+    let err = format!("{:#}", bad.test_connection().await.unwrap_err());
+    assert!(!err.contains("not-a-token"), "{err}");
+}

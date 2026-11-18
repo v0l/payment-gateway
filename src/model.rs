@@ -167,6 +167,10 @@ pub struct PaymentView {
     pub discount: Option<DiscountView>,
     pub receipt_url: String,
     pub pay_url: String,
+    #[serde(default)]
+    pub disputed: bool,
+    #[serde(default)]
+    pub dispute_status: Option<String>,
     pub attempts: Vec<AttemptView>,
     pub refunds: Vec<RefundView>,
 }
@@ -214,6 +218,8 @@ impl PaymentView {
                 public_url.trim_end_matches('/'),
                 hex::encode(&p.id)
             ),
+            disputed: p.dispute_status.as_deref() == Some("open"),
+            dispute_status: p.dispute_status.clone(),
             attempts: attempts.iter().map(Into::into).collect(),
             refunds: refunds.iter().map(Into::into).collect(),
         }

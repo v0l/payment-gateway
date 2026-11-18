@@ -134,3 +134,11 @@ pub(super) async fn admin_trusted(
         .await;
     Ok(Json(json!({"trusted": t.trusted})))
 }
+
+pub(super) async fn admin_providers(
+    sess: Session,
+    State(s): State<AppState>,
+) -> ApiResult<Vec<db::ProviderOverviewRow>> {
+    sess.operator(&s)?;
+    Ok(Json(db::provider_overview(s.pool()).await?))
+}

@@ -28,6 +28,7 @@ pub fn router() -> Router<AppState> {
         .route("/pay/{id}", get(pay_page))
         .route("/embed/{id}", get(embed_page))
         .route("/pay/{id}/state", get(state))
+        .route("/pay/{id}/return", get(provider_return))
         .route("/pay/{id}/attempts", post(create_attempt))
         .route("/pay/{id}/events", get(events))
         .route("/pay/{id}/qr/{attempt}", get(qr))
@@ -201,6 +202,30 @@ async fn build_state(
     })
 }
 
+#[derive(Deserialize)]
+struct ReturnQuery {
+    token: Option<String>,
+}
+
+async fn provider_return(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<ReturnQuery>,
+) -> Result<Response, ApiError> {
+    let (p, tenant) = load(&s, &id).await?;
+    if let Some(token) = q.token.filter(|t| t.len() <= 64) {
+        s.service.capture_return(&p.pid(), &token).await?;
+    }
+    let p = db::get_payment(s.pool(), &p.pid())
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    let target = s
+        .service
+        .signed_return_url(&tenant, &p)
+        .unwrap_or_else(|| s.service.pay_url(&p.pid()));
+    Ok((StatusCode::SEE_OTHER, [(header::LOCATION, target)]).into_response())
+}
+
 async fn state(State(s): State<AppState>, Path(id): Path<String>) -> Result<Response, ApiError> {
     let (p, tenant) = load(&s, &id).await?;
     let body = build_state(&s, &p, &tenant).await?;
@@ -300,12 +325,20 @@ async fn qr(
         .into_response())
 }
 
+pub const PROVIDER_HOOK_MAX_BYTES: usize = 256 * 1024;
+
 async fn hook(
     State(s): State<AppState>,
     Path((tenant, provider)): Path<(u64, u64)>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
+    if body.len() > PROVIDER_HOOK_MAX_BYTES {
+        return Err(ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "webhook body too large".into(),
+        ));
+    }
     let cfg = db::get_provider_config(s.pool(), provider)
         .await?
         .filter(|c| c.tenant_id == tenant && c.enabled)
@@ -324,8 +357,19 @@ async fn hook(
         );
         ApiError::bad_request("invalid webhook")
     })?;
+    let event_id = handler.event_id(&body);
+    if let Some(id) = &event_id
+        && !db::claim_provider_event(s.pool(), cfg.id, id).await?
+    {
+        return Ok(Json(json!({ "ok": true, "duplicate": true })));
+    }
     for ev in events {
-        s.service.apply_event(cfg.id, ev).await?;
+        if let Err(e) = s.service.apply_event(cfg.id, ev).await {
+            if let Some(id) = &event_id {
+                let _ = db::release_provider_event(s.pool(), cfg.id, id).await;
+            }
+            return Err(e.into());
+        }
     }
     Ok(Json(json!({ "ok": true })))
 }

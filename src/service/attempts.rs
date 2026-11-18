@@ -89,7 +89,10 @@ impl Service {
             ),
             None => None,
         };
-        let (success_url, cancel_url) = self.return_urls(tenant, &p);
+        let (mut success_url, cancel_url) = self.return_urls(tenant, &p);
+        if cfg.method == "paypal" {
+            success_url = format!("{}/return", self.pay_url(payment_id));
+        }
         let req = AttemptRequest {
             payment_id: *payment_id,
             amount: charge,

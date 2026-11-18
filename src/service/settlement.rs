@@ -147,6 +147,30 @@ impl Service {
                 self.notify(&pid);
                 Ok(())
             }
+            ProviderEvent::Refunded {
+                lookup,
+                external_id,
+                amount,
+            } => {
+                self.apply_provider_refund(provider_id, &lookup, &external_id, amount)
+                    .await
+            }
+            ProviderEvent::RefundFailed {
+                lookup,
+                external_id,
+                reason,
+            } => {
+                self.apply_provider_refund_failure(provider_id, &lookup, &external_id, &reason)
+                    .await
+            }
+            ProviderEvent::Dispute {
+                lookup,
+                state,
+                reason,
+            } => {
+                self.apply_dispute(provider_id, &lookup, state, reason.as_deref())
+                    .await
+            }
         }
     }
 

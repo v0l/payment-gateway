@@ -603,7 +603,7 @@ async fn stripe_off_session_charge_requires_success() {
         .and(path("/v1/payment_intents"))
         .respond_with(
             ResponseTemplate::new(200)
-                .set_body_json(json!({"id": "pi_6", "status": "requires_action"})),
+                .set_body_json(json!({"id": "pi_6", "status": "requires_payment_method"})),
         )
         .mount(&server)
         .await;
