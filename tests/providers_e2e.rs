@@ -6,7 +6,7 @@ use payment_gateway::providers::{AttemptRequest, Provider, ProviderEvent, Refund
 use serde_json::{Value, json};
 use sha2::Sha256;
 use std::collections::HashMap;
-use wiremock::matchers::{body_string_contains, method, path};
+use wiremock::matchers::{body_partial_json, body_string_contains, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn fixture(name: &str) -> String {
@@ -229,7 +229,9 @@ async fn stripe_declined_off_session_charge_is_an_error() {
 async fn revolut_recorded_responses_drive_order_webhook_and_refund() {
     let server = MockServer::start().await;
     let created = fixture_json("revolut/order_created.json");
-    let order_id = created["id"].as_str().unwrap().to_string();
+    let created_id = created["id"].as_str().unwrap().to_string();
+    let completed = fixture_json("revolut/order_completed.json");
+    let order_id = completed["id"].as_str().unwrap().to_string();
     Mock::given(method("POST"))
         .and(path("/api/orders"))
         .respond_with(ResponseTemplate::new(200).set_body_json(created))
@@ -244,13 +246,16 @@ async fn revolut_recorded_responses_drive_order_webhook_and_refund() {
         .await;
     Mock::given(method("POST"))
         .and(path(format!("/api/orders/{order_id}/refund")))
+        .and(body_partial_json(
+            json!({"amount": 1000, "currency": "EUR"}),
+        ))
         .respond_with(ResponseTemplate::new(200).set_body_json(fixture_json("revolut/refund.json")))
         .mount(&server)
         .await;
     let p = revolut(&server.uri(), "tok_fixture");
 
     let attempt = p.create(request(2500)).await.unwrap();
-    assert_eq!(attempt.lookup, order_id);
+    assert_eq!(attempt.lookup, created_id);
     assert!(
         attempt.details["checkout_url"]
             .as_str()
@@ -285,7 +290,7 @@ async fn revolut_recorded_responses_drive_order_webhook_and_refund() {
         .unwrap();
     assert_eq!(
         refund.external_id.as_deref(),
-        Some("6516e7aa-0b21-a0c1-b7a2-0a1b2c3d4e5f")
+        Some("6afd9ba3-edb0-aa37-82b4-d1fe5f922128")
     );
 }
 
@@ -344,6 +349,67 @@ async fn stripe_test_mode_live_suite() {
     assert!(refund.external_id.unwrap().starts_with("re_"));
 }
 
+const SANDBOX_CARD_ENVIRONMENT: &str = r#"{"type":"browser","time_zone_utc_offset":0,"color_depth":24,"screen_width":1920,"screen_height":1080,"java_enabled":false,"challenge_window_width":400,"browser_url":"https://example.com"}"#;
+
+async fn revolut_call(
+    token: &str,
+    verb: reqwest::Method,
+    path: &str,
+    body: Option<Value>,
+) -> Value {
+    let mut req = reqwest::Client::builder()
+        .user_agent("payment-gateway-tests")
+        .build()
+        .unwrap()
+        .request(verb, format!("https://sandbox-merchant.revolut.com{path}"))
+        .bearer_auth(token)
+        .header("Revolut-Api-Version", "2024-09-01");
+    if let Some(body) = body {
+        req = req.json(&body);
+    }
+    let rsp = req.send().await.unwrap();
+    let status = rsp.status();
+    let text = rsp.text().await.unwrap();
+    assert!(
+        status.is_success() || status.as_u16() == 204,
+        "{path} {status}: {text}"
+    );
+    serde_json::from_str(&text).unwrap_or(Value::Null)
+}
+
+async fn revolut_pay_with_test_card(token: &str, order_id: &str, save: bool) -> bool {
+    let environment: Value = serde_json::from_str(SANDBOX_CARD_ENVIRONMENT).unwrap();
+    let mut body = json!({"payment_method": {
+        "type": "card", "number": "4929420573595709", "expiry_month": 12,
+        "expiry_year": 2030, "cvv": "123", "cardholder_name": "Test Person",
+        "environment": environment
+    }});
+    if save {
+        body["save_payment_method_for"] = json!("merchant");
+    }
+    revolut_call(
+        token,
+        reqwest::Method::POST,
+        &format!("/api/orders/{order_id}/payments"),
+        Some(body),
+    )
+    .await;
+    for _ in 0..12 {
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        let order = revolut_call(
+            token,
+            reqwest::Method::GET,
+            &format!("/api/orders/{order_id}"),
+            None,
+        )
+        .await;
+        if order["state"] == "completed" && order["payments"][0]["state"] == "captured" {
+            return true;
+        }
+    }
+    false
+}
+
 #[tokio::test]
 async fn revolut_sandbox_live_suite() {
     let Ok(token) = std::env::var("REVOLUT_SANDBOX_TOKEN") else {
@@ -358,5 +424,45 @@ async fn revolut_sandbox_live_suite() {
             .unwrap()
             .starts_with("https://")
     );
+    eprintln!("order created {}", attempt.lookup);
     p.cancel(&attempt_row(&attempt.lookup)).await.unwrap();
+
+    let mut paid_order = None;
+    for _ in 0..4 {
+        let order = p.create(request(2500)).await.unwrap();
+        if revolut_pay_with_test_card(&token, &order.lookup, false).await {
+            paid_order = Some(order.lookup);
+            break;
+        }
+    }
+    let paid_order = paid_order.expect("sandbox never completed a card payment");
+    eprintln!("order paid {paid_order}");
+
+    let mut refund = None;
+    for _ in 0..10 {
+        match p
+            .refund(&attempt_row(&paid_order), refund_request(400))
+            .await
+        {
+            Ok(r) => {
+                refund = Some(r);
+                break;
+            }
+            Err(e) => {
+                eprintln!("refund not yet possible: {e:#}");
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+        }
+    }
+    let refund = refund.expect("sandbox never accepted the refund");
+    eprintln!("refund {:?}", refund.external_id);
+    assert!(refund.external_id.is_some());
+    let refunded = revolut_call(
+        &token,
+        reqwest::Method::GET,
+        &format!("/api/orders/{paid_order}"),
+        None,
+    )
+    .await;
+    assert_eq!(refunded["state"], "completed");
 }

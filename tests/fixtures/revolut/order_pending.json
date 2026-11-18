@@ -1,0 +1,18 @@
+{
+  "id": "6afd996e-f23c-a1b3-bf91-40642cfd52e4",
+  "token": "eb78ecc2-d65f-4ace-acbd-e55253e7ea0f",
+  "type": "payment",
+  "state": "pending",
+  "created_at": "2026-11-18T12:26:22.868184Z",
+  "updated_at": "2026-11-18T12:26:22.868184Z",
+  "amount": 1000,
+  "currency": "EUR",
+  "outstanding_amount": 1000,
+  "capture_mode": "automatic",
+  "checkout_url": "https://sandbox-checkout.revolut.com/payment-link/eb78ecc2-d65f-4ace-acbd-e55253e7ea0f",
+  "enforce_challenge": "automatic",
+  "authorisation_type": "final",
+  "merchant_order_data": {
+    "reference": "fixture"
+  }
+}
