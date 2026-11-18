@@ -53,6 +53,33 @@ function msg(box, text, bad) { box.replaceChildren(el("div", { class: bad ? "err
 function secretBox(title, value) {
   return el("div", { class: "secret" }, [el("b", { text: title + " (shown once, copy it now)" }), el("span", { class: "mono", text: value })]);
 }
+function moneyEl(amount, currency, fee) {
+  var kids = [fmtAmount(amount, currency)];
+  if (fee) { kids.push(el("small", { text: "+" + fmtAmount(fee, currency) + " fee" })); }
+  return el("span", { class: "money", title: currency === "BTC" ? amount.toLocaleString() + " msats" : null }, kids);
+}
+function confirmDialog(o) {
+  return new Promise(function (resolve) {
+    var prev = document.activeElement;
+    var keep = el("button", { text: o.keep });
+    var go = el("button", { class: o.danger ? "danger" : "primary", text: o.confirm });
+    var extra = o.input ? el("textarea", { rows: "2", "aria-label": o.input, placeholder: o.input }) : null;
+    var scrim = el("div", { class: "dialog-scrim modal" }, [el("div", { class: "dialog", role: "alertdialog", "aria-modal": "true", "aria-label": o.title }, [
+      el("h4", { text: o.title }), el("p", { text: o.body }), extra, el("div", { class: "row" }, [keep, go])])]);
+    function close(v) { document.removeEventListener("keydown", onKey); scrim.remove(); if (prev && prev.focus) prev.focus(); resolve(v); }
+    function onKey(e) { if (e.key === "Escape") close(null); }
+    keep.addEventListener("click", function () { close(null); });
+    go.addEventListener("click", function () { close({ text: extra ? extra.value : "" }); });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(scrim);
+    keep.focus();
+  });
+}
+function toast(text) {
+  var t = el("div", { class: "toast", role: "status", text: text });
+  document.body.appendChild(t);
+  setTimeout(function () { t.remove(); }, 5000);
+}
 function field(label, input) { return el("div", { class: "field" }, [el("label", { text: label }), input]); }
 function go(hash) { location.hash = hash; }
 function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }

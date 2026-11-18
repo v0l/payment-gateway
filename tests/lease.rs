@@ -162,3 +162,186 @@ async fn only_the_leader_runs_the_workers() {
 }
 
 use serde_json::json;
+
+#[tokio::test]
+async fn only_the_leader_sends_payouts() {
+    use payment_gateway::db;
+    use payment_gateway::ledger::{AccountKind, AccountRef, Entry, Posting, TxKind, post};
+    use payment_gateway::service::WithdrawalRequest;
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let node = Arc::new(CountingNode::default());
+    h.service.payouts.set_node(Some(node.clone()));
+    h.service
+        .payouts
+        .set_policy(payment_gateway::payouts::PayoutPolicy {
+            network: bitcoin::Network::Regtest,
+            ..Default::default()
+        });
+    let mut tx = h.pool.begin().await.unwrap();
+    post(
+        &mut tx,
+        &Posting::new(
+            TxKind::Adjustment,
+            vec![
+                Entry::new(
+                    AccountRef::platform(AccountKind::PlatformWallet, "BTC"),
+                    -9_000_000,
+                ),
+                Entry::new(
+                    AccountRef::tenant(t.id, AccountKind::TenantBalance, "BTC"),
+                    9_000_000,
+                ),
+            ],
+        ),
+        "fund",
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    let tr = h.service.tenant(t.id).await.unwrap();
+    let w = h
+        .service
+        .request_withdrawal(
+            &tr,
+            WithdrawalRequest {
+                amount: 2_000_000,
+                invoice: Some(lease_invoice(2_000_000)),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    let clock = ManualClock::new();
+    let a = Arc::new(lease(&h, "a", &clock));
+    let b = Arc::new(lease(&h, "b", &clock));
+    assert!(a.acquire_or_renew().await.unwrap());
+    let (tx_stop, rx) = tokio::sync::watch::channel(false);
+    let lead_b = tokio::spawn(payment_gateway::worker::lead(
+        h.service.clone(),
+        std::time::Duration::from_millis(50),
+        b.clone(),
+        rx.clone(),
+    ));
+    tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+    assert!(!b.is_held());
+    assert_eq!(node.pays(), 0);
+    assert_eq!(
+        db::get_withdrawal(&h.pool, w.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "approved"
+    );
+    tx_stop.send(true).unwrap();
+    lead_b.await.unwrap();
+
+    let c = Arc::new(lease(&h, "c", &clock));
+    let (tx_stop, rx) = tokio::sync::watch::channel(false);
+    clock.advance(31);
+    let lead_c = tokio::spawn(payment_gateway::worker::lead(
+        h.service.clone(),
+        std::time::Duration::from_millis(50),
+        c.clone(),
+        rx,
+    ));
+    for _ in 0..60 {
+        if db::get_withdrawal(&h.pool, w.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .status
+            == "completed"
+        {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    assert_eq!(node.pays(), 1);
+    assert_eq!(
+        db::get_withdrawal(&h.pool, w.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "completed"
+    );
+    tx_stop.send(true).unwrap();
+    lead_c.await.unwrap();
+    assert!(
+        h.service
+            .metrics
+            .counter("gateway_payout_sends_total", &[("result", "completed")])
+            >= 1
+    );
+}
+
+#[derive(Default)]
+struct CountingNode {
+    pays: Mutex<Vec<String>>,
+    done: Mutex<std::collections::HashMap<String, payment_gateway::payouts::PaymentState>>,
+}
+
+impl CountingNode {
+    fn pays(&self) -> usize {
+        self.pays.lock().unwrap().len()
+    }
+}
+
+#[async_trait::async_trait]
+impl payment_gateway::payouts::PayoutNode for CountingNode {
+    async fn pay_invoice(&self, invoice: &str, _fee: u64) -> anyhow::Result<()> {
+        self.pays.lock().unwrap().push(invoice.into());
+        let hash = payment_gateway::providers::lightning::parse_invoice(invoice)
+            .unwrap()
+            .payment_hash();
+        self.done.lock().unwrap().insert(
+            hash,
+            payment_gateway::payouts::PaymentState::Succeeded {
+                fee_msat: 0,
+                reference: "p".into(),
+            },
+        );
+        Ok(())
+    }
+    async fn payment_state(
+        &self,
+        h: &str,
+    ) -> anyhow::Result<payment_gateway::payouts::PaymentState> {
+        Ok(self
+            .done
+            .lock()
+            .unwrap()
+            .get(h)
+            .cloned()
+            .unwrap_or(payment_gateway::payouts::PaymentState::NotFound))
+    }
+    async fn send_coins(&self, _: &str, _: u64, _: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+    async fn onchain_state(
+        &self,
+        _: &str,
+    ) -> anyhow::Result<payment_gateway::payouts::OnchainState> {
+        Ok(payment_gateway::payouts::OnchainState::NotFound)
+    }
+}
+
+fn lease_invoice(amount_msat: u64) -> String {
+    use bitcoin::hashes::{Hash, sha256};
+    use lightning_invoice::{Currency, InvoiceBuilder, PaymentSecret};
+    let secret: [u8; 32] = rand::random();
+    let key = bitcoin::secp256k1::SecretKey::from_slice(&[0xcd; 32]).unwrap();
+    InvoiceBuilder::new(Currency::Regtest)
+        .description("t".into())
+        .payment_hash(sha256::Hash::from_slice(&secret).unwrap())
+        .payment_secret(PaymentSecret(secret))
+        .current_timestamp()
+        .min_final_cltv_expiry_delta(144)
+        .amount_milli_satoshis(amount_msat)
+        .build_signed(|m| bitcoin::secp256k1::Secp256k1::new().sign_ecdsa_recoverable(m, &key))
+        .unwrap()
+        .to_string()
+}

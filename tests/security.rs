@@ -1427,3 +1427,224 @@ async fn docs_page_forbids_framing_and_scripts_from_elsewhere() {
         assert_eq!(r.headers.get("x-frame-options").unwrap(), "DENY", "{uri}");
     }
 }
+
+use payment_gateway::payouts::DestinationKind;
+use payment_gateway::service::WithdrawalRequest;
+
+async fn operator_console(h: &Harness) -> Console {
+    let email = unique("op@x.example");
+    let hash = accounts::hash_password("correct horse battery").unwrap();
+    accounts::insert_account(&h.pool, &email, &hash, true)
+        .await
+        .unwrap();
+    let (c, _) = login(h, &email, None).await;
+    c
+}
+
+#[tokio::test]
+async fn withdrawals_and_payout_destinations_are_private_and_approval_is_operator_only() {
+    let h = harness().await;
+    h.service
+        .payouts
+        .set_policy(payment_gateway::payouts::PayoutPolicy {
+            network: bitcoin::Network::Regtest,
+            ..Default::default()
+        });
+    let a = project(&h, &unique("a@x.example")).await;
+    let b = project(&h, &unique("b@x.example")).await;
+    fund_tenant(&h, a.id, 50_000_000).await;
+    let ta = h.service.tenant(a.id).await.unwrap();
+    let w = h
+        .service
+        .request_withdrawal(
+            &ta,
+            WithdrawalRequest {
+                amount: 2_000_000,
+                invoice: Some(security_invoice(2_000_000)),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let secret_addr = "bcrt1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080";
+    let d = h
+        .service
+        .add_destination(&ta, DestinationKind::Onchain, "cold", secret_addr, None)
+        .await
+        .unwrap();
+
+    let own = a
+        .owner
+        .req("GET", &format!("/projects/{}/payouts", a.id), Value::Null)
+        .await;
+    assert_eq!(own.status, StatusCode::OK, "{}", own.text);
+    assert!(!own.text.contains(secret_addr), "{}", own.text);
+
+    let attacks = [
+        ("GET", format!("/projects/{}/payouts", a.id), Value::Null),
+        (
+            "POST",
+            format!("/projects/{}/withdrawals", a.id),
+            json!({"amount": 1_000_000, "destination_id": d.id}),
+        ),
+        (
+            "POST",
+            format!("/projects/{}/withdrawals/{}/cancel", a.id, w.id),
+            json!({}),
+        ),
+        (
+            "POST",
+            format!("/projects/{}/withdrawals/{}/cancel", b.id, w.id),
+            json!({}),
+        ),
+        (
+            "POST",
+            format!("/projects/{}/payout-destinations", a.id),
+            json!({"kind": "onchain", "label": "x", "value": secret_addr}),
+        ),
+        (
+            "DELETE",
+            format!("/projects/{}/payout-destinations/{}", a.id, d.id),
+            Value::Null,
+        ),
+        (
+            "DELETE",
+            format!("/projects/{}/payout-destinations/{}", b.id, d.id),
+            Value::Null,
+        ),
+        (
+            "POST",
+            format!("/projects/{}/payout-destinations/{}/verify", a.id, d.id),
+            json!({}),
+        ),
+        (
+            "POST",
+            format!("/projects/{}/payout-destinations/{}/verify", b.id, d.id),
+            json!({}),
+        ),
+    ];
+    for (m, path, body) in &attacks {
+        let r = b.owner.req(m, path, body.clone()).await;
+        assert_eq!(r.status, StatusCode::NOT_FOUND, "{m} {path}: {}", r.text);
+        assert!(!r.text.contains(secret_addr));
+        let anon = Console {
+            app: h.app.clone(),
+            cookie: String::new(),
+            csrf: String::new(),
+        };
+        let r = anon.req(m, path, body.clone()).await;
+        assert_eq!(r.status, StatusCode::UNAUTHORIZED, "{m} {path}");
+    }
+    let mine = b
+        .owner
+        .req("GET", &format!("/projects/{}/payouts", b.id), Value::Null)
+        .await;
+    assert!(!mine.text.contains(secret_addr), "{}", mine.text);
+    assert_eq!(mine.json["withdrawals"], json!([]));
+
+    let operator_only = [
+        ("GET", "/admin/withdrawals".to_string(), Value::Null),
+        (
+            "POST",
+            format!("/admin/withdrawals/{}/approve", w.id),
+            json!({}),
+        ),
+        (
+            "POST",
+            format!("/admin/withdrawals/{}/reject", w.id),
+            json!({"reason": "no"}),
+        ),
+        (
+            "POST",
+            format!("/admin/projects/{}/payout-limits", a.id),
+            json!({"daily_max": 1}),
+        ),
+    ];
+    for (m, path, body) in &operator_only {
+        for who in [&a.owner, &b.owner] {
+            let r = who.req(m, path, body.clone()).await;
+            assert_eq!(r.status, StatusCode::FORBIDDEN, "{m} {path}: {}", r.text);
+        }
+        let r = send(
+            &h.app,
+            m,
+            &format!("/console/api{path}"),
+            Some(&a.key),
+            &[],
+            body.clone(),
+        )
+        .await;
+        assert_eq!(
+            r.status,
+            StatusCode::UNAUTHORIZED,
+            "{m} {path} with api key"
+        );
+        let r = send(&h.app, m, path, Some(&a.key), &[], body.clone()).await;
+        assert!(
+            r.status == StatusCode::UNAUTHORIZED || r.status == StatusCode::NOT_FOUND,
+            "{m} {path} {}",
+            r.status
+        );
+    }
+    let row = payment_gateway::db::get_withdrawal(&h.pool, w.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.status, "requested");
+
+    let op = operator_console(&h).await;
+    let r = op
+        .req(
+            "POST",
+            &format!("/admin/withdrawals/{}/approve", w.id),
+            json!({}),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.text);
+}
+
+fn security_invoice(amount_msat: u64) -> String {
+    use bitcoin::hashes::{Hash, sha256};
+    use lightning_invoice::{Currency, InvoiceBuilder, PaymentSecret};
+    let secret: [u8; 32] = rand::random();
+    let key = bitcoin::secp256k1::SecretKey::from_slice(&[0xcd; 32]).unwrap();
+    InvoiceBuilder::new(Currency::Regtest)
+        .description("t".into())
+        .payment_hash(sha256::Hash::from_slice(&secret).unwrap())
+        .payment_secret(PaymentSecret(secret))
+        .current_timestamp()
+        .min_final_cltv_expiry_delta(144)
+        .amount_milli_satoshis(amount_msat)
+        .build_signed(|m| bitcoin::secp256k1::Secp256k1::new().sign_ecdsa_recoverable(m, &key))
+        .unwrap()
+        .to_string()
+}
+
+#[tokio::test]
+async fn lightning_address_and_lnurl_resolution_refuse_internal_hosts() {
+    use payment_gateway::payouts::resolve_invoice;
+    for addr in [
+        "alice@127.0.0.1",
+        "alice@localhost",
+        "alice@10.0.0.5",
+        "alice@169.254.169.254",
+        "alice@[::1]",
+    ] {
+        let r = resolve_invoice(DestinationKind::LightningAddress, addr, 2_000_000, false).await;
+        assert!(r.is_err(), "{addr} must be refused");
+    }
+    let http_lnurl = bitcoin::bech32::encode::<bitcoin::bech32::Bech32>(
+        bitcoin::bech32::Hrp::parse("lnurl").unwrap(),
+        b"http://example.com/pay",
+    )
+    .unwrap();
+    let r = resolve_invoice(DestinationKind::Lnurl, &http_lnurl, 2_000_000, false).await;
+    assert!(r.is_err(), "plain http lnurl must be refused");
+    let internal_lnurl = bitcoin::bech32::encode::<bitcoin::bech32::Bech32>(
+        bitcoin::bech32::Hrp::parse("lnurl").unwrap(),
+        b"https://127.0.0.1/pay",
+    )
+    .unwrap();
+    let r = resolve_invoice(DestinationKind::Lnurl, &internal_lnurl, 2_000_000, false).await;
+    assert!(r.is_err(), "internal lnurl must be refused");
+}

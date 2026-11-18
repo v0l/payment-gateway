@@ -52,7 +52,9 @@ impl PayoutPolicy {
         if let Some(n) = env.optional("GATEWAY_PAYOUT_NETWORK") {
             match n.trim().parse() {
                 Ok(n) => p.network = n,
-                Err(_) => env.fail("GATEWAY_PAYOUT_NETWORK must be bitcoin, testnet, signet or regtest".into()),
+                Err(_) => env.fail(
+                    "GATEWAY_PAYOUT_NETWORK must be bitcoin, testnet, signet or regtest".into(),
+                ),
             }
         }
         let sats = |env: &mut crate::config::Env, name: &str, default: u64| {

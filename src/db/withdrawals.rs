@@ -296,8 +296,9 @@ pub async fn approve_withdrawal_row<'e, E: Executor<'e, Database = MySql>>(
 
 pub async fn claim_withdrawal(pool: &MySqlPool, id: u64, now: DateTime<Utc>) -> Result<bool> {
     let r = sqlx::query(
-        "update withdrawal set status = 'sending', claimed_at = ?, attempts = attempts + 1 where id = ? and status = 'approved'",
+        "update withdrawal set status = 'sending', claimed_at = ?, sending_since = coalesce(sending_since, ?), attempts = attempts + 1 where id = ? and status = 'approved'",
     )
+    .bind(now)
     .bind(now)
     .bind(id)
     .execute(pool)
@@ -444,7 +445,7 @@ pub async fn withdrawal_counts(pool: &MySqlPool, tenant_id: u64) -> Result<Vec<(
 
 pub async fn oldest_sending(pool: &MySqlPool) -> Result<Option<DateTime<Utc>>> {
     Ok(
-        sqlx::query_scalar("select min(claimed_at) from withdrawal where status = 'sending'")
+        sqlx::query_scalar("select min(sending_since) from withdrawal where status = 'sending'")
             .fetch_one(pool)
             .await?,
     )

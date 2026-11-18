@@ -247,6 +247,10 @@ async fn request_reserves_and_cancel_releases() {
     let again = h.service.cancel_withdrawal(&tr, w2.id).await;
     assert!(matches!(again, Err(Error::Conflict(_))));
     assert!(ledger::reconcile(&h.pool).await.unwrap().is_empty());
+    let findings = payment_gateway::ops::integrity::check(&h.pool)
+        .await
+        .unwrap();
+    assert!(findings.is_empty(), "integrity findings: {findings:?}");
 }
 
 #[tokio::test]
@@ -297,6 +301,10 @@ async fn twenty_parallel_requests_cannot_overdraw() {
         10_000_000
     );
     assert!(ledger::reconcile(&h.pool).await.unwrap().is_empty());
+    let findings = payment_gateway::ops::integrity::check(&h.pool)
+        .await
+        .unwrap();
+    assert!(findings.is_empty(), "integrity findings: {findings:?}");
 }
 
 #[tokio::test]
@@ -400,6 +408,10 @@ async fn worker_sends_approved_lightning_withdrawal_once_and_posts_to_wallet() {
     .unwrap();
     assert_eq!(wallet.0, -5_000_000 + 2_003_000);
     assert!(ledger::reconcile(&h.pool).await.unwrap().is_empty());
+    let findings = payment_gateway::ops::integrity::check(&h.pool)
+        .await
+        .unwrap();
+    assert!(findings.is_empty(), "integrity findings: {findings:?}");
     h.service.deliver_due().await.unwrap();
     assert_eq!(
         t.receiver.types(),
@@ -603,6 +615,10 @@ async fn onchain_withdrawal_sends_once_and_reconciles_by_label() {
     assert_eq!(status_of(&h, w2.id).await, "completed");
     assert_eq!(balance(&h, t.id, "pending_payout").await, 0);
     assert!(ledger::reconcile(&h.pool).await.unwrap().is_empty());
+    let findings = payment_gateway::ops::integrity::check(&h.pool)
+        .await
+        .unwrap();
+    assert!(findings.is_empty(), "integrity findings: {findings:?}");
 }
 
 #[tokio::test]
@@ -1115,4 +1131,57 @@ async fn destinations_over_the_console_mask_values_and_are_owner_only() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn payout_metrics_count_sends_failures_and_oldest_sending_age() {
+    let (h, node) = setup().await;
+    let t = tenant(&h).await;
+    fund(&h, t.id, 20_000_000, "f").await;
+    let tr = tenant_row(&h, t.id).await;
+    h.service
+        .request_withdrawal(&tr, invoice_req(2_000_000))
+        .await
+        .unwrap();
+    h.service.run_payouts().await.unwrap();
+    assert_eq!(
+        h.service
+            .metrics
+            .counter("gateway_payout_sends_total", &[("result", "completed")]),
+        1
+    );
+    node.reject_pay.store(true, Ordering::SeqCst);
+    let w = h
+        .service
+        .request_withdrawal(&tr, invoice_req(2_000_000))
+        .await
+        .unwrap();
+    h.service.run_payouts().await.unwrap();
+    assert_eq!(
+        h.service
+            .metrics
+            .counter("gateway_payout_failures_total", &[]),
+        1
+    );
+    assert_eq!(status_of(&h, w.id).await, "approved");
+    node.reject_pay.store(false, Ordering::SeqCst);
+    node.lookup_down.store(true, Ordering::SeqCst);
+    node.lose_pay_result.store(true, Ordering::SeqCst);
+    h.service.run_payouts().await.unwrap();
+    assert_eq!(status_of(&h, w.id).await, "sending");
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    node.lookup_down.store(true, Ordering::SeqCst);
+    h.service.run_payouts().await.unwrap();
+    let age = h
+        .service
+        .metrics
+        .gauges("gateway_payout_oldest_sending_age_seconds");
+    assert_eq!(age.len(), 1);
+    assert!(age[0].1 >= 1.0, "{age:?}");
+    assert!(
+        h.service
+            .metrics
+            .render()
+            .contains("gateway_payout_oldest_sending_age_seconds")
+    );
 }

@@ -46,6 +46,7 @@ CREATE TABLE withdrawal (
     auto_approved BOOLEAN NOT NULL DEFAULT FALSE,
     created TIMESTAMP(3) NOT NULL,
     approved_at TIMESTAMP(3) NULL DEFAULT NULL,
+    sending_since TIMESTAMP(3) NULL DEFAULT NULL,
     claimed_at TIMESTAMP(3) NULL DEFAULT NULL,
     finished_at TIMESTAMP(3) NULL DEFAULT NULL,
     CONSTRAINT fk_withdrawal_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
