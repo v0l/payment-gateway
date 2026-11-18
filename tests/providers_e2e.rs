@@ -232,6 +232,31 @@ async fn stripe_declined_off_session_charge_is_an_error() {
 }
 
 #[tokio::test]
+async fn revolut_save_method_attempt_exposes_widget_details_and_plain_attempt_does_not() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/orders"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture_json("revolut/order_created.json")),
+        )
+        .mount(&server)
+        .await;
+    let p = revolut(&server.uri(), "tok_fixture");
+
+    let plain = p.create(request(2500)).await.unwrap();
+    assert!(plain.details.get("widget").is_none());
+
+    let mut req = request(2500);
+    req.save_method = true;
+    let saved = p.create(req).await.unwrap();
+    let widget = &saved.details["widget"];
+    assert_eq!(widget["provider"], "revolut");
+    assert_eq!(widget["token"], "eb78ecc2-d65f-4ace-acbd-e55253e7ea0f");
+    assert_eq!(widget["email"], "a@b.c");
+    assert!(saved.details["checkout_url"].as_str().is_some());
+}
+
+#[tokio::test]
 async fn revolut_recorded_responses_drive_order_webhook_and_refund() {
     let server = MockServer::start().await;
     let created = fixture_json("revolut/order_created.json");
@@ -565,4 +590,82 @@ async fn revolut_sandbox_live_test_connection_saved_methods_and_removal() {
     let bad = revolut("https://sandbox-merchant.revolut.com", "not-a-token");
     let err = format!("{:#}", bad.test_connection().await.unwrap_err());
     assert!(!err.contains("not-a-token"), "{err}");
+}
+
+#[tokio::test]
+async fn revolut_recorded_widget_order_settles_with_the_saved_card() {
+    let server = MockServer::start().await;
+    let order = fixture_json("revolut/order_completed_saved_card.json");
+    let order_id = order["id"].as_str().unwrap().to_string();
+    let customer_id = order["customer"]["id"].as_str().unwrap().to_string();
+    assert!(order["customer"]["email"].as_str().is_some());
+    Mock::given(method("GET"))
+        .and(path(format!("/api/orders/{order_id}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(order))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/api/1.0/customers/{customer_id}/payment-methods"
+        )))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture_json("revolut/payment_methods.json")),
+        )
+        .mount(&server)
+        .await;
+    let body = format!(r#"{{"event":"ORDER_COMPLETED","order_id":"{order_id}"}}"#);
+    let events = revolut(&server.uri(), "tok_fixture")
+        .handle_webhook(&revolut_sig("wsk_fixture", &body), body.as_bytes())
+        .await
+        .unwrap();
+    let ProviderEvent::Paid { saved, .. } = &events[0] else {
+        panic!("{events:?}");
+    };
+    let saved = saved.as_ref().expect("saved card");
+    assert_eq!(saved.customer_id, customer_id);
+    assert_eq!(saved.last4.as_deref(), Some("5709"));
+}
+
+#[test]
+fn revolut_recorded_customer_methods_list_the_card_saved_for_merchant() {
+    let list = fixture_json("revolut/customer_payment_methods_saved_for_merchant.json");
+    let card = &list["payment_methods"][0];
+    assert_eq!(card["saved_for"], "merchant");
+    assert_eq!(card["last_four"], "5709");
+}
+
+#[tokio::test]
+async fn revolut_off_session_charge_waits_for_a_processing_order_to_complete() {
+    let server = MockServer::start().await;
+    let completed = fixture_json("revolut/order_off_session_completed.json");
+    let order_id = completed["id"].as_str().unwrap().to_string();
+    let mut processing = completed.clone();
+    processing["state"] = json!("processing");
+    Mock::given(method("POST"))
+        .and(path("/api/orders"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(processing.clone()))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("/api/orders/{order_id}/payments")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(completed["payments"][0].clone()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("/api/orders/{order_id}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(processing))
+        .up_to_n_times(2)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("/api/orders/{order_id}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(completed))
+        .mount(&server)
+        .await;
+    let charge = revolut(&server.uri(), "tok_fixture")
+        .charge_saved(&saved("cus_live", "pm_live"), request(700))
+        .await
+        .unwrap();
+    assert!(charge.completed);
+    assert_eq!(charge.lookup, order_id);
 }

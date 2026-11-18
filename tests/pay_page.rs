@@ -33,6 +33,16 @@ async fn pay_page_is_served_with_a_locked_down_csp_and_no_framing() {
         "{csp}"
     );
     assert_eq!(r.headers["referrer-policy"], "no-referrer");
+    assert!(
+        csp.contains(
+            "script-src 'self' https://merchant.revolut.com https://sandbox-merchant.revolut.com"
+        ),
+        "{csp}"
+    );
+    assert!(
+        csp.contains("frame-src https://merchant.revolut.com"),
+        "{csp}"
+    );
     assert!(r.text.contains("/assets/pay.js"));
 }
 
