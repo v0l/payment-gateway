@@ -6,6 +6,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 pub const SECRET_KEYS: &[&str] = &[
+    "secret",
     "secret_key",
     "webhook_secret",
     "token",
