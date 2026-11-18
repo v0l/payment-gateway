@@ -52,7 +52,10 @@ impl Service {
                 let Some(attempt) =
                     db::find_attempt_by_lookup(&self.pool, provider_id, &lookup).await?
                 else {
-                    log::debug!("provider {provider_id}: payment for unknown lookup {lookup}");
+                    log::debug!(
+                        "provider {provider_id}: payment for unknown lookup {}",
+                        crate::logsafe::clean(&lookup)
+                    );
                     return Ok(());
                 };
                 if let Some(s) = saved {
@@ -111,6 +114,17 @@ impl Service {
     }
 
     pub async fn settle_attempt(
+        &self,
+        attempt_id: u64,
+        reference: &str,
+        amount: Option<u64>,
+        confirmed: bool,
+    ) -> Result<()> {
+        super::retry_deadlock(|| self.settle_attempt_once(attempt_id, reference, amount, confirmed))
+            .await
+    }
+
+    async fn settle_attempt_once(
         &self,
         attempt_id: u64,
         reference: &str,

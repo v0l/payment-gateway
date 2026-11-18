@@ -1,26 +1,7 @@
-:root {
-  --accent: #2563eb;
-  --bg: #f6f7f9;
-  --card: #fff;
-  --text: #14171f;
-  --muted: #6b7280;
-  --line: #e3e6eb;
-  --ok: #15803d;
-  --bad: #b91c1c;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1115;
-    --card: #181b21;
-    --text: #eceff4;
-    --muted: #9aa3b2;
-    --line: #2a2f38;
-  }
-}
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
-  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: var(--fs-md)/1.45 var(--font-sans);
   background: var(--bg);
   color: var(--text);
 }
@@ -28,14 +9,15 @@ body.embed { background: transparent; }
 main {
   max-width: 460px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: var(--space-5) var(--space-4);
 }
-body.embed main { padding: 8px; }
+body.embed main { padding: var(--space-2); }
 .card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-xl);
   padding: 20px;
+  box-shadow: var(--shadow-1);
 }
 header.brand {
   display: flex;
@@ -45,30 +27,31 @@ header.brand {
 }
 header.brand img { height: 28px; max-width: 120px; object-fit: contain; }
 header.brand .name { font-weight: 600; }
-.amount { font-size: 2rem; font-weight: 700; margin: 4px 0; }
+.amount { font-size: 2rem; font-weight: 700; margin: 4px 0; font-variant-numeric: tabular-nums; }
 .desc { color: var(--muted); margin: 0 0 16px; overflow-wrap: anywhere; }
 .muted { color: var(--muted); font-size: 0.9rem; }
-.methods { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
-button.method, button.primary {
+.methods { display: grid; gap: var(--space-2); margin: 12px 0 0; padding: 0; list-style: none; }
+button.method, button.primary, a.primary {
   font: inherit;
   width: 100%;
   text-align: left;
   padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-strong);
   background: var(--card);
   color: var(--text);
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
+  transition: border-color var(--dur-fast) var(--ease);
 }
-button.method:hover, button.method:focus-visible { border-color: var(--accent); outline: none; }
-button.primary {
+button.method:hover, button.method:focus-visible { border-color: var(--accent); }
+button.primary, a.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-text);
   justify-content: center;
   text-align: center;
   font-weight: 600;
@@ -76,7 +59,7 @@ button.primary {
 }
 button:disabled { opacity: 0.55; cursor: progress; }
 .fee { color: var(--muted); font-size: 0.85rem; }
-.qr { display: block; margin: 12px auto; width: 240px; max-width: 100%; background: #fff; border-radius: 8px; padding: 6px; }
+.qr { display: block; margin: 12px auto; width: 240px; max-width: 100%; background: #fff; border-radius: var(--radius); padding: 6px; }
 .field { margin: 10px 0; }
 .field label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 3px; }
 .copy {
@@ -88,8 +71,10 @@ button:disabled { opacity: 0.55; cursor: progress; }
   flex: 1;
   min-width: 0;
   padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--code);
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -98,10 +83,10 @@ button:disabled { opacity: 0.55; cursor: progress; }
 }
 .copy button {
   font: inherit;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   background: var(--card);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 0 12px;
   cursor: pointer;
 }
@@ -109,7 +94,7 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .status .icon { font-size: 2.4rem; }
 .status.ok .icon { color: var(--ok); }
 .status.bad .icon { color: var(--bad); }
-.row { display: flex; gap: 8px; margin-top: 14px; }
+.row { display: flex; gap: var(--space-2); margin-top: 14px; }
 .row > * { flex: 1; }
 a.link, button.link {
   background: none;

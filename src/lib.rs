@@ -10,6 +10,7 @@ pub mod ledger;
 pub mod limiter;
 pub mod limits;
 pub mod logging;
+pub mod logsafe;
 pub mod mailer;
 pub mod metrics;
 pub mod model;

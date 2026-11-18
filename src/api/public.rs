@@ -20,6 +20,7 @@ use tokio_stream::wrappers::BroadcastStream;
 const PAY_HTML: &str = include_str!("../../web/pay.html");
 const PAY_JS: &str = include_str!("../../web/pay.js");
 const PAY_CSS: &str = include_str!("../../web/pay.css");
+const TOKENS_CSS: &str = include_str!("../../web/tokens.css");
 const GATEWAY_JS: &str = include_str!("../../web/gateway.js");
 
 pub fn router() -> Router<AppState> {
@@ -37,6 +38,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/assets/pay.css",
             get(|| async { asset(PAY_CSS, "text/css") }),
+        )
+        .route(
+            "/assets/tokens.css",
+            get(|| async { asset(TOKENS_CSS, "text/css") }),
         )
         .route("/gateway.js", get(|| async { gateway_js() }))
         .route("/hook/{tenant}/{provider}", post(hook))
@@ -82,6 +87,9 @@ fn page_headers(frame_ancestors: &str) -> HeaderMap {
         HeaderValue::from_static("nosniff"),
     );
     h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    if frame_ancestors == "'none'" {
+        h.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    }
     h
 }
 
@@ -295,7 +303,11 @@ async fn hook(
         .filter_map(|(k, v)| Some((k.as_str().to_lowercase(), v.to_str().ok()?.to_string())))
         .collect();
     let events = handler.handle_webhook(&map, &body).await.map_err(|e| {
-        log::warn!("webhook for provider {} rejected: {e:#}", cfg.id);
+        log::warn!(
+            "webhook for provider {} rejected: {}",
+            cfg.id,
+            crate::logsafe::clean(&format!("{e:#}"))
+        );
         ApiError::bad_request("invalid webhook")
     })?;
     for ev in events {

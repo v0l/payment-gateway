@@ -1,0 +1,3 @@
+Your account email was changed
+
+The email address for your account was changed to new@example.com. If this was not you, contact the operator.

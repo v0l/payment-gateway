@@ -1116,3 +1116,31 @@ async fn retention_purges_expired_login_challenges_but_keeps_live_ones() {
             .unwrap();
     assert_eq!(left, vec!["live", "recent"]);
 }
+
+#[tokio::test]
+async fn shared_provider_configs_are_rotated_with_the_other_sealed_columns() {
+    let h = harness().await;
+    assert!(
+        SEALED_COLUMNS
+            .iter()
+            .any(|c| c.table == "shared_provider" && c.column == "config")
+    );
+    let k1 = sealer(&[("k1", 1)]);
+    sqlx::query(
+        "insert into shared_provider (name, method, provider_type, network, config) values ('s', 'lightning', 'mock', 'regtest', ?)",
+    )
+    .bind(k1.seal(b"{\"macaroon\":\"m\"}").unwrap())
+    .execute(&h.pool)
+    .await
+    .unwrap();
+    let k2 = sealer(&[("k2", 2), ("k1", 1)]);
+    let report = rotate_keys(&h.pool, &k2, &RotateOptions::default(), Actor::System)
+        .await
+        .unwrap();
+    assert_eq!(report.rotated(), 1);
+    let (v,): (Vec<u8>,) = sqlx::query_as("select config from shared_provider")
+        .fetch_one(&h.pool)
+        .await
+        .unwrap();
+    assert_eq!(Sealer::kid_of(&v), Some("k2"));
+}

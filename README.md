@@ -123,7 +123,7 @@ The attempt response carries `details`: `bolt11`, an on-chain `address` and `uri
 
 Limits: each project has usage limits (payments and volume per 24 hours, live pending payments, amount per payment, providers, webhook endpoints, attempts per payment), low in test mode and high once trusted. Breaching one returns 403 with `code: "limit_exceeded"`, the `limit` name, `current` and `max`. Request rate is limited per API key and per IP: a 429 carries `Retry-After`. Bodies over 1 MiB get 413. Operators edit limits per project in the console.
 
-Hosted page: send the customer to the `pay_url` in the create response. It lets them pick a method, shows the QR or hands off to the card form, updates live, then redirects to `success_url` with `payment_id`, `reference`, `status` and `sig`. `sig` is `HMAC-SHA256(webhook_secret, "{payment_id}.{reference}.{status}")`. Still confirm with the webhook or `GET /v1/payments/{id}`.
+Hosted page: send the customer to the `pay_url` in the create response. It lets them pick a method, shows the QR or hands off to the card form, updates live, then redirects to `success_url` with `payment_id`, `reference`, `status` and `sig`. `sig` is `HMAC-SHA256(webhook_secret, "{payment_id}.{reference}.{status}")`. `success_url` and `cancel_url` (and the project defaults) must be on one of the project's `allowed_origins`, otherwise create is rejected. Still confirm with the webhook or `GET /v1/payments/{id}`.
 
 Iframe:
 
@@ -188,3 +188,10 @@ TEST_DATABASE_URL=mysql://root:test@127.0.0.1:33907/ cargo test
 ```
 
 Each test creates its own database. The build needs `protoc`.
+
+### Extra suites
+
+- `tests/chaos.rs`: mock provider fault injection with invariants (one `payment.paid` per settled payment, no over refund, receipts cover the amount).
+- `tests/providers_e2e.rs`: Stripe and Revolut flows replayed from `tests/fixtures/` (built from the documented response shapes, not yet recorded from a live account). With `STRIPE_TEST_KEY` (an `sk_test_` key) or `REVOLUT_SANDBOX_TOKEN` set, the live tests also run against the real test mode APIs.
+- `tests/regtest_e2e.rs` and `tests/regtest_long.rs`: real bitcoind and LND. `regtest/scripts/up.sh`, then `REGTEST=1 cargo test --test regtest_e2e --test regtest_long -- --test-threads=1`, then `regtest/scripts/reset.sh`. The long test covers parallel lightning payments, underpayment plus top up, overpayment, an RBF replacement, a gateway kill mid payment and an LND restart. `mine.sh`, `fund.sh` and `rebalance.sh` are helpers. The `regtest` workflow runs this on a schedule.
+- `scripts/load.sh`: load test, see `docs/performance.md`.

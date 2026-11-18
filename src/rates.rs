@@ -150,19 +150,39 @@ pub fn is_card_currency(code: &str) -> bool {
     )
 }
 
+pub const MAX_AMOUNT: u64 = 1_000_000_000_000_000;
+
+async fn checked_price(rates: &dyn RateService, base: &str) -> Result<f64> {
+    let price = rates.btc_price(base).await?;
+    if !price.is_finite() || price <= 0.0 {
+        bail!("no usable rate for {base}");
+    }
+    Ok(price)
+}
+
+fn to_minor(value: f64) -> Result<u64> {
+    if !value.is_finite() || value < 0.0 || value > MAX_AMOUNT as f64 {
+        bail!("converted amount out of range");
+    }
+    Ok(value.ceil() as u64)
+}
+
 pub async fn convert(rates: &dyn RateService, amount: u64, from: &str, to: &str) -> Result<u64> {
     let (from, to) = (from.to_uppercase(), to.to_uppercase());
     if from == to {
         return Ok(amount);
     }
+    if amount > MAX_AMOUNT {
+        bail!("amount out of range");
+    }
     let btc = match unit(&from)? {
         Unit::Btc => amount as f64 / MSATS_PER_BTC,
-        Unit::Fiat { base, scale } => amount as f64 / scale / rates.btc_price(&base).await?,
+        Unit::Fiat { base, scale } => amount as f64 / scale / checked_price(rates, &base).await?,
     };
-    Ok(match unit(&to)? {
-        Unit::Btc => (btc * MSATS_PER_BTC).ceil() as u64,
-        Unit::Fiat { base, scale } => (btc * rates.btc_price(&base).await? * scale).ceil() as u64,
-    })
+    match unit(&to)? {
+        Unit::Btc => to_minor(btc * MSATS_PER_BTC),
+        Unit::Fiat { base, scale } => to_minor(btc * checked_price(rates, &base).await? * scale),
+    }
 }
 
 pub async fn processing_fee(
@@ -173,9 +193,13 @@ pub async fn processing_fee(
     amount: u64,
     currency: &str,
 ) -> Result<u64> {
-    let percent = fee_rate
-        .map(|r| (amount as f64 * r / 100.0).ceil() as u64)
-        .unwrap_or(0);
+    let percent = match fee_rate {
+        Some(r) if r.is_finite() && (0.0..=100.0).contains(&r) => {
+            ((amount as u128 * (r * 1_000_000.0).round() as u128).div_ceil(100_000_000)) as u64
+        }
+        Some(_) => bail!("fee_rate must be 0-100"),
+        None => 0,
+    };
     let base = match (fee_base, fee_currency) {
         (Some(b), Some(c)) if !c.eq_ignore_ascii_case(currency) => {
             convert(rates, b, c, currency).await?

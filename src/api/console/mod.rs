@@ -58,6 +58,10 @@ const JS_BALANCE: &str = include_str!("../../../web/console/balance.js");
 const JS_SHARED: &str = include_str!("../../../web/console/shared.js");
 const JS_APP: &str = include_str!("../../../web/console/app.js");
 const CSS: &str = include_str!("../../../web/console.css");
+const TOKENS_CSS: &str = include_str!("../../../web/tokens.css");
+const COMPONENTS_CSS: &str = include_str!("../../../web/components.css");
+const STYLEGUIDE_HTML: &str = include_str!("../../../web/styleguide.html");
+const STYLEGUIDE_JS: &str = include_str!("../../../web/styleguide.js");
 
 pub fn router() -> Router<AppState> {
     let api = Router::new()
@@ -172,6 +176,7 @@ fn security_headers(h: &mut HeaderMap) {
         HeaderValue::from_static("no-referrer"),
     );
     h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    h.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
 }
 
 async fn page() -> Response {
@@ -201,8 +206,22 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "activity.js" => asset(JS_ACTIVITY, "text/javascript"),
         "app.js" => asset(JS_APP, "text/javascript"),
         "app.css" => asset(CSS, "text/css"),
+        "tokens.css" => asset(TOKENS_CSS, "text/css"),
+        "components.css" => asset(COMPONENTS_CSS, "text/css"),
+        "styleguide.js" => asset(STYLEGUIDE_JS, "text/javascript"),
+        "styleguide" => styleguide(),
         _ => page().await,
     }
+}
+
+fn styleguide() -> Response {
+    let mut r = (StatusCode::OK, STYLEGUIDE_HTML).into_response();
+    r.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    );
+    security_headers(r.headers_mut());
+    r
 }
 
 fn asset(body: &'static str, content_type: &'static str) -> Response {
@@ -247,7 +266,10 @@ impl FromRequestParts<AppState> for Session {
                 .headers
                 .get("x-csrf-token")
                 .and_then(|v| v.to_str().ok());
-            if sent != Some(session.csrf.as_str()) {
+            let matches = sent.is_some_and(|s| {
+                subtle::ConstantTimeEq::ct_eq(s.as_bytes(), session.csrf.as_bytes()).into()
+            });
+            if !matches {
                 return Err(ApiError::new(
                     StatusCode::FORBIDDEN,
                     "bad csrf token".into(),

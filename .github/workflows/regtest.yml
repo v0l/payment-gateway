@@ -1,0 +1,35 @@
+name: regtest
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+jobs:
+  regtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      db:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: test
+          MARIADB_DATABASE: gateway
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      TEST_DATABASE_URL: mysql://root:test@127.0.0.1:3306/
+      REGTEST: "1"
+      STRIPE_TEST_KEY: ${{ secrets.STRIPE_TEST_KEY }}
+      REVOLUT_SANDBOX_TOKEN: ${{ secrets.REVOLUT_SANDBOX_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: regtest/scripts/up.sh
+      - run: cargo test --locked --test regtest_e2e --test regtest_long --test providers_e2e -- --nocapture --test-threads=1
+      - run: cargo test --locked --test chaos
+      - if: always()
+        run: regtest/scripts/reset.sh

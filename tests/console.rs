@@ -115,6 +115,66 @@ async fn console_shell_is_served_without_a_session_and_with_a_strict_csp() {
 }
 
 #[tokio::test]
+async fn styleguide_and_design_tokens_are_served_and_csp_safe() {
+    let h = harness().await;
+    let page = send(&h.app, "GET", "/console/styleguide", None, &[], Value::Null).await;
+    assert_eq!(page.status, StatusCode::OK);
+    assert!(page.text.contains("/console/styleguide.js"));
+    assert!(!page.text.contains("style=") && !page.text.contains("<style"));
+    for (path, ct) in [
+        ("/console/tokens.css", "text/css"),
+        ("/console/components.css", "text/css"),
+        ("/console/styleguide.js", "text/javascript"),
+    ] {
+        let r = send(&h.app, "GET", path, None, &[], Value::Null).await;
+        assert_eq!(r.status, StatusCode::OK, "{path}");
+        assert_eq!(r.headers["content-type"], ct);
+    }
+    let tokens = send(&h.app, "GET", "/console/tokens.css", None, &[], Value::Null).await;
+    assert!(tokens.text.contains("--accent") && tokens.text.contains("prefers-reduced-motion"));
+    let js = include_str!("../web/styleguide.js");
+    assert!(!js.contains("style:") && !js.contains("cssText"));
+}
+
+#[test]
+fn console_and_pay_css_take_colours_from_tokens() {
+    for css in [
+        include_str!("../web/console.css"),
+        include_str!("../web/pay.css"),
+        include_str!("../web/components.css"),
+    ] {
+        let loose = css.lines().filter(|l| {
+            let l = l.trim_start();
+            !l.starts_with("--") && l.contains('#') && !l.contains("#fff")
+        });
+        assert_eq!(loose.count(), 0, "colour literals belong in tokens.css");
+    }
+}
+
+#[test]
+fn console_never_hands_null_to_replace_children_which_renders_the_text_null() {
+    for (name, js) in [
+        ("payments", include_str!("../web/console/payments.js")),
+        ("providers", include_str!("../web/console/providers.js")),
+    ] {
+        for line in js.lines().filter(|l| l.contains("replaceChildren(")) {
+            assert!(!line.contains(": null)"), "{name}: {line}");
+        }
+    }
+}
+
+#[test]
+fn expired_and_cancelled_pills_are_neutral_and_failures_stay_red() {
+    let css = include_str!("../web/console.css");
+    let red = css
+        .lines()
+        .find(|l| l.contains("var(--bad)") && l.starts_with(".pill"))
+        .unwrap();
+    assert!(red.contains(".pill.failed") && red.contains(".pill.disputed"));
+    assert!(!red.contains("expired") && !red.contains("cancelled"));
+}
+
+#[tokio::test]
 async fn api_needs_a_session() {
     let h = harness().await;
     let c = Client::anon(&h.app);

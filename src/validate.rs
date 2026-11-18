@@ -6,6 +6,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 pub const SECRET_KEYS: &[&str] = &[
+    "secret",
     "secret_key",
     "webhook_secret",
     "token",
@@ -226,6 +227,14 @@ pub async fn settings(trusted: bool, input: SettingsInput) -> Result<TenantSetti
         bail!("display_name too long");
     }
     let origins = normalize_origins(&input.allowed_origins.join(" "))?;
+    for u in [&input.default_success_url, &input.default_cancel_url]
+        .into_iter()
+        .flatten()
+    {
+        if !crate::model::url_in_origins(u, &origins) {
+            bail!("{u} is not on one of the allowed_origins");
+        }
+    }
     Ok(TenantSettings {
         webhook_url: input.webhook_url,
         display_name: input.display_name,

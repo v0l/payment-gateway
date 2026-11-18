@@ -213,6 +213,10 @@ pub fn origin_of(url: &str) -> Option<String> {
     origin.is_tuple().then(|| origin.ascii_serialization())
 }
 
+pub fn url_in_origins(url: &str, origins: &[String]) -> bool {
+    origin_of(url).is_some_and(|o| origins.contains(&o))
+}
+
 pub fn normalize_origins(raw: &str) -> Result<Vec<String>> {
     raw.split_whitespace()
         .map(|o| match origin_of(o) {

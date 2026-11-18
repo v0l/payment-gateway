@@ -1,8 +1,8 @@
 use crate::crypto::hash_api_key;
 use anyhow::{Result, anyhow, bail};
-use argon2::Argon2;
 use argon2::password_hash::rand_core::OsRng;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use argon2::{Algorithm, Argon2, Params, Version};
 use chrono::{DateTime, Duration, Utc};
 use rand::RngCore;
 use serde::Serialize;
@@ -39,9 +39,24 @@ impl Role {
     }
 }
 
+pub const ARGON2_MEMORY_KIB: u32 = 19 * 1024;
+pub const ARGON2_ITERATIONS: u32 = 2;
+pub const ARGON2_PARALLELISM: u32 = 1;
+
+fn argon2() -> Argon2<'static> {
+    let params = Params::new(
+        ARGON2_MEMORY_KIB,
+        ARGON2_ITERATIONS,
+        ARGON2_PARALLELISM,
+        None,
+    )
+    .expect("argon2 params");
+    Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
+}
+
 pub fn hash_password(password: &str) -> Result<String> {
     let salt = SaltString::generate(&mut OsRng);
-    Ok(Argon2::default()
+    Ok(argon2()
         .hash_password(password.as_bytes(), &salt)
         .map_err(|e| anyhow!("hashing failed: {e}"))?
         .to_string())
@@ -49,11 +64,7 @@ pub fn hash_password(password: &str) -> Result<String> {
 
 pub fn verify_password(hash: &str, password: &str) -> bool {
     PasswordHash::new(hash)
-        .map(|h| {
-            Argon2::default()
-                .verify_password(password.as_bytes(), &h)
-                .is_ok()
-        })
+        .map(|h| argon2().verify_password(password.as_bytes(), &h).is_ok())
         .unwrap_or(false)
 }
 
@@ -63,7 +74,29 @@ pub fn burn_password_check(password: &str) {
     let _ = verify_password(hash, password);
 }
 
+const COMMON_PASSWORDS: &[&str] = &[
+    "password",
+    "password1",
+    "passw0rd",
+    "1234567890",
+    "123456789012",
+    "qwertyuiop",
+    "qwerty12345",
+    "iloveyou12",
+    "letmein123",
+    "administrator",
+    "changeme123",
+];
+
 pub fn check_password(password: &str) -> Result<()> {
+    let lowered = password.to_lowercase();
+    if COMMON_PASSWORDS.iter().any(|c| lowered == *c)
+        || password
+            .chars()
+            .all(|c| c == password.chars().next().unwrap_or(' '))
+    {
+        bail!("password is too easy to guess");
+    }
     if password.chars().count() < MIN_PASSWORD {
         bail!("password must be at least {MIN_PASSWORD} characters");
     }
@@ -475,6 +508,21 @@ mod tests {
         assert!(check_password("short").is_err());
         assert!(check_password("long enough pw").is_ok());
         assert!(check_password(&"x".repeat(300)).is_err());
+        assert!(check_password("aaaaaaaaaaaa").is_err());
+        assert!(check_password("Password").is_err());
+        assert!(check_password("passw0rd").is_err());
+    }
+
+    #[test]
+    fn argon2_parameters_are_explicit_and_not_below_owasp_minimum() {
+        let h = hash_password("correct horse battery").unwrap();
+        let parsed = PasswordHash::new(&h).unwrap();
+        assert_eq!(parsed.algorithm.as_str(), "argon2id");
+        let p = Params::try_from(&parsed).unwrap();
+        assert_eq!(p.m_cost(), ARGON2_MEMORY_KIB);
+        assert_eq!(p.t_cost(), ARGON2_ITERATIONS);
+        assert_eq!(p.p_cost(), ARGON2_PARALLELISM);
+        assert!(p.m_cost() >= 19 * 1024 && p.t_cost() >= 2);
     }
 
     #[test]

@@ -183,7 +183,11 @@ impl Provider for MockProvider {
         headers: &HashMap<String, String>,
         body: &[u8],
     ) -> Result<Vec<ProviderEvent>> {
-        if headers.get("x-mock-secret").map(String::as_str) != Some(self.secret().as_str()) {
+        let sent = headers.get("x-mock-secret").map(String::as_bytes);
+        let expected = self.secret();
+        let ok =
+            sent.is_some_and(|s| bool::from(subtle::ConstantTimeEq::ct_eq(s, expected.as_bytes())));
+        if !ok {
             bail!("bad mock signature");
         }
         let v: Value = serde_json::from_slice(body)?;
