@@ -264,6 +264,14 @@ pub fn map_lookup(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
     move |k| map.get(k).cloned()
 }
 
+pub fn encryption_keys_from_env() -> Result<Vec<(String, [u8; 32])>> {
+    let get = |k: &str| std::env::var(k).ok();
+    let mut env = Env::new(&get);
+    let keys = Config::keys(&mut env);
+    env.finish().context("encryption key configuration")?;
+    Ok(keys)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -348,12 +356,4 @@ mod tests {
             .to_string();
         assert!(err.contains("GATEWAY_ADMIN_TOKEN_FILE: cannot read"));
     }
-}
-
-pub fn encryption_keys_from_env() -> Result<Vec<(String, [u8; 32])>> {
-    let get = |k: &str| std::env::var(k).ok();
-    let mut env = Env::new(&get);
-    let keys = Config::keys(&mut env);
-    env.finish().context("encryption key configuration")?;
-    Ok(keys)
 }
