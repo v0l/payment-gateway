@@ -56,6 +56,11 @@ fn attempt_row(lookup: &str) -> AttemptRow {
         expires: chrono::Utc::now(),
         paid_at: None,
         save_method: false,
+        shared_provider_id: None,
+        platform_fee_bps: None,
+        platform_fee_base: None,
+        platform_fee: None,
+        platform_net: None,
     }
 }
 
