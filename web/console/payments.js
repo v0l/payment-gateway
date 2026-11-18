@@ -75,7 +75,7 @@ function paymentDetail(pid, id) {
             el("dt", { text: "Id" }), el("dd", { class: "mono", text: pay.id }),
             el("dt", { text: "Reference" }), el("dd", { text: pay.reference }),
             el("dt", { text: "Amount" }), el("dd", { text: fmtAmount(pay.amount, pay.currency) }),
-            el("dt", { text: "Status" }), el("dd", {}, [pill(pay.status)]),
+            el("dt", { text: "Status" }), el("dd", {}, [pill(pay.status), pay.dispute_status ? " " : "", pay.dispute_status ? pill(pay.dispute_status === "open" ? "disputed" : "dispute " + pay.dispute_status, pay.dispute_status === "won" ? "ok" : "bad") : ""]),
             el("dt", { text: "Created" }), el("dd", { text: new Date(pay.created).toLocaleString() }),
             el("dt", { text: "Expires" }), el("dd", { text: new Date(pay.expires).toLocaleString() }),
             el("dt", { text: "Paid" }), el("dd", { text: pay.paid_at ? new Date(pay.paid_at).toLocaleString() : "" }),
