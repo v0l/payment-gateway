@@ -22,6 +22,7 @@ function route() {
     if (tab === "payments") { if (parts[3] === "new") return newPayment(pid); if (parts[3]) return paymentDetail(pid, parts[3]); return payments(pid); }
     if (tab === "providers") { if (parts[3]) return providerForm(pid, parts[3]); return providers(pid); }
     if (tab === "webhooks") return webhooks(pid);
+    if (tab === "balance") return balance(pid);
     if (tab === "team") return team(pid);
     if (tab === "activity") return activity(pid);
     if (tab === "settings") return settings(pid);

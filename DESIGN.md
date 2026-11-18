@@ -98,6 +98,31 @@ The payment id is 32 random bytes and acts as the capability for the public endp
 - Settlement is a single DB transaction: attempt paid, payment paid, webhook row inserted. Delivery happens after commit from the webhook table.
 - Altcoins go through FixedFloat into the tenant's on-chain wallet. The payment is paid when the swap lands, not when the customer sends.
 
+## Custody ledger
+
+Double entry ledger for funds the platform holds on behalf of tenants (`src/ledger/`). No settlement code posts to it yet.
+
+Accounts (`ledger_account`, unique on tenant, kind, currency). Currency is `BTC` (msats) or a fiat code (minor units). All amounts are signed `i64`, never floats.
+
+- `tenant_balance`: what the platform owes the tenant. Credit positive.
+- `platform_fees`: fees earned by the platform. No tenant.
+- `platform_wallet`: funds in the platform's own Lightning and on-chain wallets. No tenant, may go negative by default.
+- `pending_payout`: funds reserved for a payout in flight.
+- `refund_reserve`: funds set aside for refunds.
+
+Transactions (`ledger_transaction`) carry a kind (`payment_received`, `fee`, `payout_requested`, `payout_completed`, `payout_cancelled`, `refund`, `adjustment`), an optional reference (`reference_kind`, `reference_id`, for example `payment` and the payment id) and a unique `idempotency_key`. Entries (`ledger_entry`) are append only.
+
+Invariants:
+
+- Entries of a transaction sum to zero per currency. `ledger::post` refuses anything else before touching the database.
+- `post` runs inside the caller's DB transaction. On any error the caller must roll back, which also removes the transaction row.
+- Replaying an idempotency key returns the original transaction id and changes nothing.
+- Non-overdraft accounts cannot go below zero (`allow_negative` per account). A debit that would do so fails with `Overdraw`.
+- `ledger_account.balance` is a cache updated in the same transaction under a row lock, with accounts locked in a fixed order to avoid deadlocks. `ledger::reconcile` recomputes from entries and reports cached/computed mismatches and any unbalanced transaction.
+- The sum of all balances is always zero, so value is never created or destroyed.
+
+Read APIs: `GET /admin/tenants/{id}/balance`, `/admin/tenants/{id}/ledger?before=&limit=`, `/admin/ledger/reconcile`, and for members (viewer) `GET /console/api/projects/{id}/balance` and `/ledger`. The console project page has a Balance tab.
+
 ## Self-service console (SaaS)
 
 The gateway is a multi-tenant service. Operators sign in at `/console`, which is a dependency-free single page served from the binary.

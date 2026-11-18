@@ -5,6 +5,7 @@ pub mod audit;
 pub mod config;
 pub mod crypto;
 pub mod db;
+pub mod ledger;
 pub mod limiter;
 pub mod limits;
 pub mod mailer;

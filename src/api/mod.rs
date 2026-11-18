@@ -1,5 +1,6 @@
 mod admin;
 mod console;
+pub mod ledger;
 mod public;
 mod sandbox;
 mod tenant;

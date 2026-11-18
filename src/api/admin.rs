@@ -46,6 +46,9 @@ pub fn router() -> Router<AppState> {
         )
         .route("/invites", post(create_invite))
         .route("/audit", get(list_audit))
+        .route("/tenants/{id}/balance", get(tenant_balance))
+        .route("/tenants/{id}/ledger", get(tenant_ledger))
+        .route("/ledger/reconcile", get(ledger_reconcile))
         .route("/deliveries", get(list_deliveries))
         .route("/deliveries/{id}/replay", post(replay_delivery))
 }
@@ -429,4 +432,34 @@ async fn list_audit(
     Ok(Json(
         audit::list(s.pool(), &audit::Filter::from_query(tenant, &q)).await?,
     ))
+}
+
+async fn tenant_balance(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> ApiResult<super::ledger::BalanceView> {
+    db::get_tenant(s.pool(), id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    super::ledger::balance_view(&s, id).await
+}
+
+async fn tenant_ledger(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+    Query(q): Query<HashMap<String, String>>,
+) -> ApiResult<Vec<crate::ledger::EntryView>> {
+    db::get_tenant(s.pool(), id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    super::ledger::entries_view(&s, id, &q).await
+}
+
+async fn ledger_reconcile(
+    _: AdminAuth,
+    State(s): State<AppState>,
+) -> ApiResult<Vec<crate::ledger::Mismatch>> {
+    super::ledger::reconcile_view(&s).await
 }

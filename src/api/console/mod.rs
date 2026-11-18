@@ -17,6 +17,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 mod activity;
+mod balance;
 mod operator;
 mod payments;
 mod projects;
@@ -26,6 +27,7 @@ mod session;
 mod team;
 
 use activity::*;
+use balance::*;
 use operator::*;
 use payments::*;
 pub(crate) use projects::settings_diff;
@@ -48,6 +50,7 @@ const JS_SETTINGS: &str = include_str!("../../../web/console/settings.js");
 const JS_ACCOUNT: &str = include_str!("../../../web/console/account.js");
 const JS_ADMIN: &str = include_str!("../../../web/console/admin.js");
 const JS_ACTIVITY: &str = include_str!("../../../web/console/activity.js");
+const JS_BALANCE: &str = include_str!("../../../web/console/balance.js");
 const JS_APP: &str = include_str!("../../../web/console/app.js");
 const CSS: &str = include_str!("../../../web/console.css");
 
@@ -110,6 +113,8 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{id}/invites", post(invite_member))
         .route("/projects/{id}/members/{account}", delete(remove_member))
         .route("/projects/{id}/activity", get(project_activity))
+        .route("/projects/{id}/balance", get(project_balance))
+        .route("/projects/{id}/ledger", get(project_ledger))
         .route("/admin/audit", get(admin_audit))
         .route("/admin/accounts", get(admin_accounts))
         .route("/admin/accounts/{id}/disabled", post(admin_disable))
@@ -161,6 +166,7 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "settings.js" => asset(JS_SETTINGS, "text/javascript"),
         "account.js" => asset(JS_ACCOUNT, "text/javascript"),
         "admin.js" => asset(JS_ADMIN, "text/javascript"),
+        "balance.js" => asset(JS_BALANCE, "text/javascript"),
         "activity.js" => asset(JS_ACTIVITY, "text/javascript"),
         "app.js" => asset(JS_APP, "text/javascript"),
         "app.css" => asset(CSS, "text/css"),
