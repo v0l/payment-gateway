@@ -1,0 +1,1 @@
+{"name":"pay-e2e","private":true,"type":"module","devDependencies":{"axe-core":"^4.10.0","playwright-core":"^1.49.0"}}

@@ -158,6 +158,24 @@ Iframe:
 
 The tenant's `allowed_origins` must include the embedding site. Card checkouts cannot be framed, so the embed sends the top window to them.
 
+Options: `mode: "modal"` (overlay with a close button, Escape closes, focus returns to the opener; no `container` needed), `onReady`, `onPaid`, `onExpired`, `onCancelled`, `onError({code, message})`, `onClosed()`, `title`, `closeLabel`. `open` returns `{frame, close()}`. The script only accepts `postMessage` events whose origin is the gateway, whose source is its own frame and whose `payment_id` matches. The pay page only posts to the tenant's `allowed_origins`, and the embed can only be framed by them.
+
+The host page CSP needs the gateway as a frame source, and the modal and frame sizing are applied from script, so no `style-src` relaxation is needed for the page itself:
+
+```
+Content-Security-Policy: script-src 'self' https://pay.example.com; frame-src https://pay.example.com
+```
+
+## Pay page
+
+Languages: en, es, fr, de, pt, it, ga (strings in `web/i18n/*.json`, loaded from `/assets/i18n/{lang}.json`). The language is chosen in this order: `?lang=`, the browser language list, the project default (`default_lang`), then English. The page switches language live from a selector at the bottom. Amounts use `Intl.NumberFormat` for the chosen locale. Layout uses logical CSS properties so a right to left language only needs a dictionary and an entry in `RTL` in `web/pay-i18n.js`.
+
+Branding is set per project with `GET/POST /console/api/projects/{id}/branding` (Admin role to change) or `GET/POST /admin/tenants/{id}/branding`. Only safe tokens are accepted: `default_lang`, `theme` (auto, light, dark), `accent_dark`, `logo_dark_url` (https), `radius` (none, sm, md, lg), `font` (system, serif, mono, rounded), `thanks_text` (500 chars) and up to 3 https `footer_links`. The existing `accent_color` and `logo_url` project settings are the light variant. `show_powered_by` is on by default and only an operator can turn it off. The public state returns it all under `branding`, plus `server_time` for the countdown, `receipt_url` (set once paid; the success screen links it) and per attempt `progress {required, received, confirmed, min_confirmations}` which drives the on-chain "0 of N confirmations" and underpayment display (received and remaining, same address kept). An expired attempt on a still pending payment offers a fresh attempt from the method list; a payment that itself expired is final.
+
+The gateway serves a token coloured SVG mark at `/favicon.ico` and `/favicon.svg`, linked from the pay page and the console.
+
+Accessibility checks: `scripts/e2e/` holds a Playwright and axe-core run (`npm ci`, build the binary, then `TEST_DATABASE_URL=mysql://root:test@127.0.0.1:33907/ CHROME=/usr/bin/google-chrome node run.mjs`). It starts the gateway on a fresh database with the mock provider, scans the pay page in light, dark and 360px for serious axe violations, checks horizontal scroll, tap targets, language selection, embed message passing, origin enforcement and the modal, and writes screenshots to `docs/design/screenshots/`. `node --test format.test.mjs` covers language choice and number formatting. The translation key parity test is `tests/pay_branding.rs`.
+
 ## Client libraries
 
 `clients/js` (TypeScript), `clients/rust` and `clients/python` wrap `/v1` with idempotency keys, retries on 429 and 5xx, pagination iterators and `verifyWebhook`. Each has its own README and tests, and `clients/README.md` describes the shared conformance scenario. `scripts/start-test-gateway.sh` boots a gateway on a throwaway database and prints the admin token and a tenant key. Runnable integrations are in `examples/` (Express, Next.js, axum, Flask). Nothing is published from this repo yet.

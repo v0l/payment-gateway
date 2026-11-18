@@ -18,6 +18,7 @@ use std::collections::HashMap;
 
 mod activity;
 mod balance;
+mod branding;
 mod endpoints;
 mod keys;
 mod operator;
@@ -32,6 +33,7 @@ mod twofactor;
 
 use activity::*;
 use balance::*;
+use branding::*;
 use endpoints::*;
 use keys::*;
 use operator::*;
@@ -55,6 +57,7 @@ const JS_PROVIDERS: &str = include_str!("../../../web/console/providers.js");
 const JS_WEBHOOKS: &str = include_str!("../../../web/console/webhooks.js");
 const JS_KEYS: &str = include_str!("../../../web/console/keys.js");
 const JS_TEAM: &str = include_str!("../../../web/console/team.js");
+const JS_BRANDING: &str = include_str!("../../../web/console/branding.js");
 const JS_SETTINGS: &str = include_str!("../../../web/console/settings.js");
 const JS_ACCOUNT: &str = include_str!("../../../web/console/account.js");
 const JS_ADMIN: &str = include_str!("../../../web/console/admin.js");
@@ -91,6 +94,10 @@ pub fn router() -> Router<AppState> {
         .route("/projects", get(list_projects).post(create_project))
         .route("/projects/{id}", get(get_project))
         .route("/projects/{id}/settings", post(update_settings))
+        .route(
+            "/projects/{id}/branding",
+            get(get_branding).post(set_branding),
+        )
         .route("/projects/{id}/limits", get(get_limits))
         .route("/admin/projects/{id}/limits", post(set_limits))
         .route("/projects/{id}/rotate-key", post(rotate_key))
@@ -237,6 +244,7 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "webhooks.js" => asset(JS_WEBHOOKS, "text/javascript"),
         "keys.js" => asset(JS_KEYS, "text/javascript"),
         "team.js" => asset(JS_TEAM, "text/javascript"),
+        "branding.js" => asset(JS_BRANDING, "text/javascript"),
         "settings.js" => asset(JS_SETTINGS, "text/javascript"),
         "account.js" => asset(JS_ACCOUNT, "text/javascript"),
         "admin.js" => asset(JS_ADMIN, "text/javascript"),
