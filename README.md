@@ -149,6 +149,10 @@ Iframe:
 
 The tenant's `allowed_origins` must include the embedding site. Card checkouts cannot be framed, so the embed sends the top window to them.
 
+## Client libraries
+
+`clients/js` (TypeScript), `clients/rust` and `clients/python` wrap `/v1` with idempotency keys, retries on 429 and 5xx, pagination iterators and `verifyWebhook`. Each has its own README and tests, and `clients/README.md` describes the shared conformance scenario. `scripts/start-test-gateway.sh` boots a gateway on a throwaway database and prints the admin token and a tenant key. Runnable integrations are in `examples/` (Express, Next.js, axum, Flask). Nothing is published from this repo yet.
+
 ## Webhooks
 
 `POST` to the tenant `webhook_url`, JSON `{id, type, created, data:{payment, detail}}`, with headers `X-Gateway-Event-Id` and `X-Gateway-Signature: t=<unix>,v1=<hex>` where `v1 = HMAC-SHA256(webhook_secret, "{t}.{body}")`. Reject old timestamps and dedupe on the event id. Failed deliveries retry with backoff for 3 days. Events: `payment.paid`, `payment.expired`, `payment.cancelled`, `payment.late_payment`, `attempt.failed`, `refund.completed`, `refund.failed`, `withdrawal.requested`, `withdrawal.completed`, `withdrawal.failed` (the withdrawal events carry `data.withdrawal` and follow endpoint filters such as `withdrawal.*`).

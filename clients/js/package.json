@@ -1,0 +1,30 @@
+{
+  "name": "@payment-gateway/client",
+  "version": "0.1.0",
+  "description": "Client for the payment gateway API with webhook verification",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": { "node": ">=18" },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": { "types": "./dist/esm/index.d.ts", "default": "./dist/esm/index.js" },
+      "require": { "types": "./dist/cjs/index.d.ts", "default": "./dist/cjs/index.js" }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md"],
+  "keywords": ["payments", "lightning", "bitcoin", "webhooks"],
+  "scripts": {
+    "build": "tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
+    "test:unit": "node --test \"test/webhook.test.mjs\" \"test/client.test.mjs\"",
+    "test": "npm run build && node --test \"test/*.test.mjs\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

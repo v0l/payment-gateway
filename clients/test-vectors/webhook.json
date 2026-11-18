@@ -1,0 +1,33 @@
+{
+  "header": "x-gateway-signature",
+  "vectors": [
+    {
+      "body": "{\"id\":\"evt_1\",\"type\":\"payment.paid\",\"created\":1700000000,\"data\":{\"payment\":{\"id\":\"abc\",\"amount\":1000,\"currency\":\"EUR\"}}}",
+      "header": "t=1700000000,v1=504c3593b07aa09500c8aa11174ad9c55d124aa978d132c0b3d23f54aa210b8f",
+      "secret": "whsec_test_secret",
+      "signature": "504c3593b07aa09500c8aa11174ad9c55d124aa978d132c0b3d23f54aa210b8f",
+      "timestamp": 1700000000
+    },
+    {
+      "body": "{\"id\":\"evt_2\",\"type\":\"refund.completed\",\"data\":{}}",
+      "header": "t=1700000500,v1=2f75d48940d9eaa908753591089581d7934fc5491fc8fa34d735fa54bc87eb96",
+      "secret": "another-secret-value",
+      "signature": "2f75d48940d9eaa908753591089581d7934fc5491fc8fa34d735fa54bc87eb96",
+      "timestamp": 1700000500
+    },
+    {
+      "body": "{\"description\":\"café ⚡ \\\"quoted\\\"\",\"line\":\"a\\nb\"}",
+      "header": "t=1800000000,v1=9ae193d80d99c65163d189c8899e53bdfab07f94b9a68ad26dad67ae22965c1d",
+      "secret": "whsec_test_secret",
+      "signature": "9ae193d80d99c65163d189c8899e53bdfab07f94b9a68ad26dad67ae22965c1d",
+      "timestamp": 1800000000
+    },
+    {
+      "body": "",
+      "header": "t=1700000000,v1=316b9ab98c15bfa039d243f3196acee619cf29749a91a634e6a8154e2f7b6727",
+      "secret": "whsec_test_secret",
+      "signature": "316b9ab98c15bfa039d243f3196acee619cf29749a91a634e6a8154e2f7b6727",
+      "timestamp": 1700000000
+    }
+  ]
+}
