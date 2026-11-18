@@ -712,3 +712,272 @@ async fn audit_origin_strips_control_characters() {
     assert_eq!(ip.as_deref(), Some("1.2.3.4"));
     assert!(!ua.unwrap().chars().any(char::is_control));
 }
+
+use payment_gateway::ledger::{self, AccountKind, AccountRef, Entry, Posting, TxKind};
+use payment_gateway::{totp, twofactor};
+
+async fn fund_tenant(h: &Harness, tenant: u64, amount: i64) {
+    let wallet = AccountRef::platform(AccountKind::PlatformWallet, "BTC");
+    let owed = AccountRef::tenant(tenant, AccountKind::TenantBalance, "BTC");
+    let posting = Posting::new(
+        TxKind::Adjustment,
+        vec![Entry::new(wallet, -amount), Entry::new(owed, amount)],
+    );
+    let mut tx = h.pool.begin().await.unwrap();
+    ledger::post(&mut tx, &posting, &unique("fund"))
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+}
+
+#[tokio::test]
+async fn ledger_balance_and_entries_are_private_to_the_project() {
+    let h = harness().await;
+    let a = project(&h, &unique("a@x.example")).await;
+    let b = project(&h, &unique("b@x.example")).await;
+    fund_tenant(&h, a.id, 123_456_000).await;
+
+    let own = a
+        .owner
+        .req("GET", &format!("/projects/{}/balance", a.id), Value::Null)
+        .await;
+    assert_eq!(own.status, StatusCode::OK, "{}", own.text);
+    assert!(own.text.contains("123456000"), "{}", own.text);
+    let entries = a
+        .owner
+        .req("GET", &format!("/projects/{}/ledger", a.id), Value::Null)
+        .await;
+    assert!(entries.text.contains("123456000"), "{}", entries.text);
+
+    for path in ["balance", "ledger", "ledger?limit=500"] {
+        let r = b
+            .owner
+            .req("GET", &format!("/projects/{}/{path}", a.id), Value::Null)
+            .await;
+        assert_eq!(r.status, StatusCode::NOT_FOUND, "{path}: {}", r.text);
+        assert!(!r.text.contains("123456000"));
+        let anon = Console {
+            app: h.app.clone(),
+            cookie: String::new(),
+            csrf: String::new(),
+        };
+        let r = anon
+            .req("GET", &format!("/projects/{}/{path}", a.id), Value::Null)
+            .await;
+        assert_eq!(r.status, StatusCode::UNAUTHORIZED, "{path}");
+    }
+    let mine = b
+        .owner
+        .req("GET", &format!("/projects/{}/balance", b.id), Value::Null)
+        .await;
+    assert!(!mine.text.contains("123456000"), "{}", mine.text);
+    let mine = b
+        .owner
+        .req("GET", &format!("/projects/{}/ledger", b.id), Value::Null)
+        .await;
+    assert!(!mine.text.contains("123456000"), "{}", mine.text);
+
+    for path in [
+        "/admin/tenants/1/balance",
+        "/admin/tenants/1/ledger",
+        "/admin/ledger/reconcile",
+    ] {
+        let r = send(&h.app, "GET", path, Some(&b.key), &[], Value::Null).await;
+        assert!(
+            r.status == StatusCode::UNAUTHORIZED || r.status == StatusCode::FORBIDDEN,
+            "{path} {}",
+            r.status
+        );
+        let r = send(&h.app, "GET", path, None, &[], Value::Null).await;
+        assert_eq!(r.status, StatusCode::UNAUTHORIZED, "{path}");
+    }
+}
+
+async fn enrol_two_factor(h: &Harness, c: &Console, email: &str) -> Vec<u8> {
+    let setup = c.req("POST", "/2fa/setup", json!({})).await;
+    assert_eq!(setup.status, StatusCode::OK, "{}", setup.text);
+    let account = accounts::account_by_email(&h.pool, email)
+        .await
+        .unwrap()
+        .unwrap();
+    let secret = twofactor::pending_secret(&h.pool, &h.service.sealer, account.id)
+        .await
+        .unwrap()
+        .unwrap();
+    let step = totp::step_at(chrono::Utc::now().timestamp() as u64);
+    let act = c
+        .req(
+            "POST",
+            "/2fa/activate",
+            json!({"code": totp::code_for_step(&secret, step - 1)}),
+        )
+        .await;
+    assert_eq!(act.status, StatusCode::OK, "{}", act.text);
+    secret
+}
+
+async fn challenge_for(h: &Harness, email: &str) -> String {
+    let r = send(
+        &h.app,
+        "POST",
+        "/console/api/login",
+        None,
+        &[],
+        json!({"email": email, "password": "correct horse battery"}),
+    )
+    .await;
+    assert_eq!(r.json["two_factor"], true, "{}", r.text);
+    assert!(r.headers.get("set-cookie").is_none());
+    r.json["challenge"].as_str().unwrap().to_string()
+}
+
+#[tokio::test]
+async fn two_factor_challenges_and_codes_cannot_cross_accounts() {
+    let h = harness().await;
+    let ea = unique("a@x.example");
+    let eb = unique("b@x.example");
+    let (a, _) = login(&h, &ea, None).await;
+    let (b, _) = login(&h, &eb, None).await;
+    let secret_a = enrol_two_factor(&h, &a, &ea).await;
+    let secret_b = enrol_two_factor(&h, &b, &eb).await;
+    let step = totp::step_at(chrono::Utc::now().timestamp() as u64);
+    let code_a = totp::code_for_step(&secret_a, step);
+    let code_b = totp::code_for_step(&secret_b, step + 1);
+
+    let challenge_a = challenge_for(&h, &ea).await;
+    let second = |challenge: &str, body: Value| {
+        let mut b = body;
+        b["challenge"] = json!(challenge);
+        send(&h.app, "POST", "/console/api/login/2fa", None, &[], b)
+    };
+    let r = second(&challenge_a, json!({"code": code_b})).await;
+    assert_eq!(
+        r.status,
+        StatusCode::UNAUTHORIZED,
+        "B's code on A's challenge: {}",
+        r.text
+    );
+    assert!(r.headers.get("set-cookie").is_none());
+
+    let (recovery_b, _) = (
+        twofactor::replace_recovery_codes(
+            &h.pool,
+            accounts::account_by_email(&h.pool, &eb)
+                .await
+                .unwrap()
+                .unwrap()
+                .id,
+        )
+        .await
+        .unwrap(),
+        (),
+    );
+    let r = second(&challenge_a, json!({"recovery_code": recovery_b[0]})).await;
+    assert_eq!(
+        r.status,
+        StatusCode::UNAUTHORIZED,
+        "B's recovery code on A's challenge"
+    );
+
+    for bogus in ["", "x", &challenge_a[..challenge_a.len() - 1], &eb] {
+        let r = second(bogus, json!({"code": code_a})).await;
+        assert_eq!(r.status, StatusCode::UNAUTHORIZED, "{bogus:?}");
+    }
+
+    let r = second(&challenge_a, json!({"code": code_a})).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.text);
+    let me = r.json["email"].as_str().map(str::to_string);
+    assert!(me.is_none() || me.as_deref() == Some(ea.as_str()));
+    let set = r.headers.get("set-cookie").unwrap().to_str().unwrap();
+    let session_cookie = set
+        .split(';')
+        .next()
+        .unwrap()
+        .trim_start_matches("pgw_session=")
+        .to_string();
+    let signed = Console {
+        app: h.app.clone(),
+        cookie: session_cookie,
+        csrf: r.json["csrf"].as_str().unwrap().to_string(),
+    };
+    let who = signed.req("GET", "/me", Value::Null).await;
+    assert!(
+        who.text.contains(&ea) && !who.text.contains(&eb),
+        "{}",
+        who.text
+    );
+
+    let r = second(&challenge_a, json!({"code": code_a})).await;
+    assert_eq!(
+        r.status,
+        StatusCode::UNAUTHORIZED,
+        "challenge is single use"
+    );
+}
+
+#[tokio::test]
+async fn two_factor_routes_need_a_session_and_csrf_and_only_touch_own_account() {
+    let h = harness().await;
+    let ea = unique("a@x.example");
+    let eb = unique("b@x.example");
+    let (a, _) = login(&h, &ea, None).await;
+    let (b, _) = login(&h, &eb, None).await;
+    let secret_a = enrol_two_factor(&h, &a, &ea).await;
+    let anon = Console {
+        app: h.app.clone(),
+        cookie: String::new(),
+        csrf: String::new(),
+    };
+    let step = totp::step_at(chrono::Utc::now().timestamp() as u64);
+    let code = totp::code_for_step(&secret_a, step);
+    let routes = [
+        ("GET", "/2fa"),
+        ("POST", "/2fa/setup"),
+        ("POST", "/2fa/activate"),
+        ("POST", "/2fa/disable"),
+        ("POST", "/2fa/recovery-codes"),
+    ];
+    for (method, path) in routes {
+        let body = json!({"code": code, "password": "correct horse battery"});
+        let r = anon.req(method, path, body.clone()).await;
+        assert_eq!(r.status, StatusCode::UNAUTHORIZED, "{method} {path}");
+        if method != "GET" {
+            let r = a.raw(method, path, body, false).await;
+            assert_eq!(
+                r.status,
+                StatusCode::FORBIDDEN,
+                "{method} {path} without csrf"
+            );
+        }
+    }
+    let r = b
+        .req(
+            "POST",
+            "/2fa/disable",
+            json!({"code": code, "password": "correct horse battery"}),
+        )
+        .await;
+    assert_ne!(
+        r.status,
+        StatusCode::OK,
+        "B disabled with A's code: {}",
+        r.text
+    );
+    let r = b
+        .req("POST", "/2fa/recovery-codes", json!({"code": code}))
+        .await;
+    assert_ne!(r.status, StatusCode::OK, "{}", r.text);
+    let st = a.req("GET", "/2fa", Value::Null).await;
+    assert_eq!(st.json["enabled"], true);
+    assert_eq!(st.json["recovery_codes_remaining"], 10);
+
+    let p = project(&h, &unique("c@x.example")).await;
+    let r = b
+        .req(
+            "POST",
+            &format!("/projects/{}/require-2fa", p.id),
+            json!({"required": true}),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::NOT_FOUND, "{}", r.text);
+}

@@ -47,6 +47,10 @@ There is no password reset flow. Accounts are created from operator invites and 
 | 8 | CSRF token and mock provider secret compared in variable time | `subtle::ConstantTimeEq` | `csrf_token_must_match_exactly` |
 | 9 | Provider config key `secret` was not redacted in views | Added to `SECRET_KEYS` | `secrets_are_never_echoed_by_tenant_or_console_endpoints` |
 | 10 | Untrusted LND URLs are checked at configuration time but the connection is not pinned to the checked address (DNS rebinding gap) | Follow-up issue | none yet |
+| 11 | Ledger balance and entries (console and admin) | Reviewed: project routes check membership, admin routes need the admin token, no change needed | `ledger_balance_and_entries_are_private_to_the_project` |
+| 12 | 2FA login challenge and codes across accounts | Reviewed: a challenge only completes with a factor of the account it was issued for, and is single use. 2FA routes need a session and CSRF | `two_factor_challenges_and_codes_cannot_cross_accounts`, `two_factor_routes_need_a_session_and_csrf_and_only_touch_own_account` |
+
+The console HTML shell, which now includes the 2FA screens, is served by the same handler and covered by the CSP and frame checks. The sandbox and regtest tooling create payments without return URLs, so the allow-list does not affect them.
 
 Checked and found sound: tenant scoping of every query reached by the isolation sweep, session fixation (login always issues a new token), cookie flags, absence of CORS headers outside `/gateway.js`, webhook routing by tenant and provider, `allowed_origins` header injection.
 
