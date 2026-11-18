@@ -143,6 +143,84 @@ async fn real_lnd_lightning_and_onchain_payments_settle_through_the_gateway() {
         .expect("customer sends on-chain");
     assert!(message.contains(&sats.to_string()), "{message}");
     assert_eq!(wait_status(&h, &t, oc_id, "paid").await, "paid");
+
+    shared_lightning_settles_with_fee(&h, &sb).await;
+}
+
+async fn shared_lightning_settles_with_fee(h: &Harness, sb: &Arc<Sandbox>) {
+    let access = config().gateway;
+    let cfg = json!({
+        "url": access.url, "cert_path": access.cert_path, "macaroon_path": access.macaroon_path,
+    });
+    let (s, shared) = call(
+        &h.app,
+        "POST",
+        "/admin/shared",
+        Some(ADMIN),
+        json!({"name": "Platform LN", "method": "lightning", "provider_type": "lnd",
+               "network": "regtest", "config": cfg, "fee_bps": 100, "allow_untrusted": true}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{shared}");
+    let sid = shared["id"].as_u64().unwrap();
+    let (s, tenant) = call(
+        &h.app,
+        "POST",
+        "/admin/tenants",
+        Some(ADMIN),
+        json!({"name": unique("shared-e2e")}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{tenant}");
+    let tid = tenant["id"].as_u64().unwrap();
+    let key = tenant["api_key"].as_str().unwrap().to_string();
+    let t = TenantKey(key);
+    let row = payment_gateway::db::get_tenant(&h.pool, tid)
+        .await
+        .unwrap()
+        .unwrap();
+    h.service.enable_shared(&row, sid).await.unwrap();
+
+    let (_, p) = call(
+        &h.app,
+        "POST",
+        "/v1/payments",
+        Some(&t.0),
+        json!({"reference": "e2e-shared", "amount": 1000, "currency": "EUR"}),
+    )
+    .await;
+    let id = p["id"].as_str().unwrap();
+    let (s, r) = call(
+        &h.app,
+        "POST",
+        &format!("/v1/payments/{id}/attempts"),
+        Some(&t.0),
+        json!({"method": "lightning"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["attempts"][0]["platform_managed"], true);
+    let bolt11 = r["attempts"][0]["details"]["bolt11"].as_str().unwrap();
+    sb.customer_pay_invoice(bolt11)
+        .await
+        .expect("customer pays the shared wallet");
+    assert_eq!(wait_status(h, &t, id, "paid").await, "paid");
+    let (_, got) = call(
+        &h.app,
+        "GET",
+        &format!("/v1/payments/{id}"),
+        Some(&t.0),
+        Value::Null,
+    )
+    .await;
+    let attempt = &got["attempts"][0];
+    let amount = attempt["amount"].as_i64().unwrap();
+    let fee = attempt["platform_fee"].as_i64().unwrap();
+    assert_eq!(fee, (amount * 100 + 9_999) / 10_000);
+    let balance = payment_gateway::ledger::tenant_balance(&h.pool, tid, "BTC")
+        .await
+        .unwrap();
+    assert_eq!(balance, amount - fee);
 }
 
 fn futures_key(sb: &Arc<Sandbox>) -> String {
