@@ -729,3 +729,107 @@ async fn failing_providers_notify_after_repeated_failures() {
     assert!(sent[0].subject.contains("Provider failing"));
     h.service.provider_recovered(ln);
 }
+
+async fn audit_actions(h: &Harness) -> Vec<String> {
+    let mut found: Vec<String> = payment_gateway::audit::list(
+        &h.pool,
+        &payment_gateway::audit::Filter {
+            limit: Some(200),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap()
+    .into_iter()
+    .map(|e| e.action)
+    .collect();
+    found.sort();
+    found
+}
+
+#[tokio::test]
+async fn account_mail_actions_are_audited_without_tokens() {
+    let h = harness_with_mail().await;
+    account(&h, "a@example.com", false).await;
+    let ghost = post(&h.app, "/reset", json!({"email": "ghost@example.com"})).await;
+    assert_eq!(ghost.status, StatusCode::OK);
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert!(
+        audit_actions(&h).await.is_empty(),
+        "unknown emails leave no trace"
+    );
+
+    let reset = reset_token(&h, "a@example.com").await;
+    let r = post(
+        &h.app,
+        "/reset/confirm",
+        json!({"token": reset, "password": "a brand new password"}),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK);
+
+    let r = login(&h.app, "a@example.com", "a brand new password").await;
+    let cookie = r.headers["set-cookie"]
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+    let csrf = r.json["csrf"].as_str().unwrap().to_string();
+    let hdrs = [("cookie", cookie.as_str()), ("x-csrf-token", csrf.as_str())];
+    h.mailer.clear();
+    let r = send(
+        &h.app,
+        "POST",
+        "/console/api/email",
+        None,
+        &hdrs,
+        json!({"password": "a brand new password", "new_email": "b@example.com"}),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK);
+    let change = token_in(&h.mailer.wait_for(1).await[0].text);
+    let r = post(&h.app, "/email/confirm", json!({"token": change})).await;
+    assert_eq!(r.status, StatusCode::OK);
+    let r = send(
+        &h.app,
+        "POST",
+        "/console/api/notifications",
+        None,
+        &hdrs,
+        json!({"enabled": false}),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK);
+
+    let actions = audit_actions(&h).await;
+    for expected in [
+        "password.reset_requested",
+        "password.reset",
+        "email.change_requested",
+        "email.changed",
+        "notifications.changed",
+    ] {
+        assert_eq!(
+            actions.iter().filter(|a| *a == expected).count(),
+            1,
+            "{expected} in {actions:?}"
+        );
+    }
+    let events = payment_gateway::audit::list(&h.pool, &Default::default())
+        .await
+        .unwrap();
+    let details =
+        serde_json::to_string(&events.iter().map(|e| &e.details).collect::<Vec<_>>()).unwrap();
+    assert!(!details.contains("b@example.com"), "{details}");
+    let dump = serde_json::to_string(&events).unwrap();
+    for secret in [
+        reset.as_str(),
+        change.as_str(),
+        payment_gateway::crypto::hash_api_key(&reset).as_str(),
+        "a brand new password",
+    ] {
+        assert!(!dump.contains(secret), "{secret} leaked into audit");
+    }
+}

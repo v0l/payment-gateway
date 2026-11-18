@@ -1,5 +1,6 @@
 use super::*;
 use crate::account_tokens::{self, EMAIL_CHANGE, RESET};
+use crate::audit::{Action, Actor, Event, Origin};
 use crate::mailer::templates;
 
 #[derive(Deserialize)]
@@ -14,7 +15,7 @@ fn too_many() -> ApiError {
     )
 }
 
-async fn send_reset(s: AppState, email: String) {
+async fn send_reset(s: AppState, email: String, origin: Origin) {
     let result: anyhow::Result<()> = async {
         let Some(account) = accounts::account_by_email(s.pool(), &email).await? else {
             return Ok(());
@@ -26,6 +27,10 @@ async fn send_reset(s: AppState, email: String) {
         let link = format!("{}/console/reset/{token}", s.service.public_url);
         s.service
             .send_mail(templates::password_reset(&account.email, &link));
+        Event::new(Action::PasswordResetRequested, Actor::System)
+            .target("account", account.id)
+            .record(s.pool(), &origin)
+            .await;
         Ok(())
     }
     .await;
@@ -48,7 +53,7 @@ pub(super) async fn request_reset(
     s.reset_limiter.failure(&ip);
     s.reset_limiter.failure(&ek);
     if s.service.mailer.enabled() && !email.is_empty() {
-        tokio::spawn(send_reset(s.clone(), email));
+        tokio::spawn(send_reset(s.clone(), email, Origin::from_headers(&headers)));
     }
     Ok(Json(json!({"ok": true})))
 }
@@ -82,6 +87,10 @@ pub(super) async fn confirm_reset(
     accounts::set_password(s.pool(), token.account_id, &hash).await?;
     accounts::delete_all_sessions(s.pool(), token.account_id).await?;
     account_tokens::revoke_all(s.pool(), token.account_id, RESET).await?;
+    Event::new(Action::PasswordReset, Actor::Account(token.account_id))
+        .target("account", token.account_id)
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(json!({"ok": true})))
 }
 
@@ -94,6 +103,7 @@ pub(super) struct EmailChange {
 pub(super) async fn request_email_change(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Json(c): Json<EmailChange>,
 ) -> ApiResult<Value> {
     if !s.service.mailer.enabled() {
@@ -130,6 +140,10 @@ pub(super) async fn request_email_change(
     let link = format!("{}/console/confirm-email/{token}", s.service.public_url);
     s.service
         .send_mail(templates::email_change(&new_email, &link));
+    sess.event(Action::EmailChangeRequested)
+        .target("account", sess.account.id)
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(json!({"ok": true, "email": new_email})))
 }
 
@@ -164,6 +178,10 @@ pub(super) async fn confirm_email_change(
     account_tokens::revoke_all(s.pool(), account.id, EMAIL_CHANGE).await?;
     s.service
         .send_mail(templates::email_changed(&account.email, &new_email));
+    Event::new(Action::EmailChanged, Actor::Account(account.id))
+        .target("account", account.id)
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(json!({"ok": true, "email": new_email})))
 }
 
@@ -175,8 +193,14 @@ pub(super) struct NotifySetting {
 pub(super) async fn set_notifications(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Json(n): Json<NotifySetting>,
 ) -> ApiResult<Value> {
     accounts::set_notify(s.pool(), sess.account.id, n.enabled).await?;
+    sess.event(Action::NotificationsChanged)
+        .target("account", sess.account.id)
+        .details(json!({"enabled": n.enabled}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(json!({"notify": n.enabled})))
 }
