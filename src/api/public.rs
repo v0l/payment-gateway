@@ -20,6 +20,7 @@ use tokio_stream::wrappers::BroadcastStream;
 const PAY_HTML: &str = include_str!("../../web/pay.html");
 const PAY_JS: &str = include_str!("../../web/pay.js");
 const PAY_CSS: &str = include_str!("../../web/pay.css");
+const TOKENS_CSS: &str = include_str!("../../web/tokens.css");
 const GATEWAY_JS: &str = include_str!("../../web/gateway.js");
 
 pub fn router() -> Router<AppState> {
@@ -37,6 +38,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/assets/pay.css",
             get(|| async { asset(PAY_CSS, "text/css") }),
+        )
+        .route(
+            "/assets/tokens.css",
+            get(|| async { asset(TOKENS_CSS, "text/css") }),
         )
         .route("/gateway.js", get(|| async { gateway_js() }))
         .route("/hook/{tenant}/{provider}", post(hook))

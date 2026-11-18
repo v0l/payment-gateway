@@ -1,3 +1,4 @@
+mod layout;
 mod smtp;
 pub mod templates;
 

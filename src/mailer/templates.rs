@@ -1,43 +1,19 @@
 use super::Message;
-
-fn escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
-}
-
-fn build(to: &str, subject: &str, lines: &[String], link: Option<&str>) -> Message {
-    let mut text = lines.join("\n\n");
-    let mut html =
-        String::from("<!doctype html><html><body><div style=\"font-family:sans-serif\">");
-    for l in lines {
-        html.push_str(&format!("<p>{}</p>", escape(l)));
-    }
-    if let Some(link) = link {
-        text.push_str(&format!("\n\n{link}"));
-        html.push_str(&format!("<p><a href=\"{0}\">{0}</a></p>", escape(link)));
-    }
-    html.push_str("</div></body></html>");
-    Message {
-        to: to.to_string(),
-        subject: subject.to_string(),
-        text,
-        html,
-    }
-}
+use super::layout::Mail;
 
 pub fn password_reset(to: &str, link: &str) -> Message {
-    build(
+    Mail {
         to,
-        "Reset your password",
-        &[
+        subject: "Reset your password".into(),
+        preheader: "Choose a new password. The link works once and expires in 1 hour.",
+        heading: "Reset your password",
+        paragraphs: vec![
             "Someone asked to reset the password for this account. Open the link below to choose a new one. It works once and expires in 1 hour.".into(),
-            "If this was not you, ignore this email. Your password stays as it is.".into(),
         ],
-        Some(link),
-    )
+        action: Some(("Choose a new password", link)),
+        footnote: Some("If this was not you, ignore this email. Your password stays as it is."),
+    }
+    .render()
 }
 
 pub fn invite(to: &str, link: &str, project: Option<&str>, days: i64) -> Message {
@@ -45,49 +21,62 @@ pub fn invite(to: &str, link: &str, project: Option<&str>, days: i64) -> Message
         Some(p) => format!("You have been invited to join the project {p}."),
         None => "You have been invited to create an account.".to_string(),
     };
-    build(
+    Mail {
         to,
-        "You have been invited",
-        &[
+        subject: "You have been invited".into(),
+        preheader: "Open the link to set a password and join.",
+        heading: "You have been invited",
+        paragraphs: vec![
             what,
             format!("Open the link below to set a password. It is valid for {days} days."),
         ],
-        Some(link),
-    )
+        action: Some(("Accept the invite", link)),
+        footnote: None,
+    }
+    .render()
 }
 
 pub fn email_change(to: &str, link: &str) -> Message {
-    build(
+    Mail {
         to,
-        "Confirm your new email address",
-        &[
+        subject: "Confirm your new email address".into(),
+        preheader: "Confirm this address for your account.",
+        heading: "Confirm your new email address",
+        paragraphs: vec![
             "Open the link below to confirm this address for your account. It works once and expires in 1 hour.".into(),
-            "If this was not you, ignore this email and nothing changes.".into(),
         ],
-        Some(link),
-    )
+        action: Some(("Confirm email address", link)),
+        footnote: Some("If this was not you, ignore this email and nothing changes."),
+    }
+    .render()
 }
 
 pub fn email_changed(to: &str, new_email: &str) -> Message {
-    build(
+    Mail {
         to,
-        "Your account email was changed",
-        &[format!(
+        subject: "Your account email was changed".into(),
+        preheader: "The email address for your account changed.",
+        heading: "Your account email was changed",
+        paragraphs: vec![format!(
             "The email address for your account was changed to {new_email}. If this was not you, contact the operator."
         )],
-        None,
-    )
+        action: None,
+        footnote: None,
+    }
+    .render()
 }
 
 pub fn event(to: &str, project: &str, subject: &str, detail: &str) -> Message {
-    build(
+    Mail {
         to,
-        &format!("[{project}] {subject}"),
-        &[
-            format!("Project {project}: {subject}."),
-            detail.to_string(),
-            "You get at most one email per event type per project per hour. You can turn these off on your account page.".into(),
-        ],
-        None,
-    )
+        subject: format!("[{project}] {subject}"),
+        preheader: detail,
+        heading: subject,
+        paragraphs: vec![format!("Project {project}: {subject}."), detail.to_string()],
+        action: None,
+        footnote: Some(
+            "You get at most one email per event type per project per hour. You can turn these off on your account page.",
+        ),
+    }
+    .render()
 }

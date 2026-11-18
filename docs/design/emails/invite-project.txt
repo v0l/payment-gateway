@@ -1,0 +1,7 @@
+You have been invited
+
+You have been invited to join the project Coffee shop.
+
+Open the link below to set a password. It is valid for 7 days.
+
+https://pay.example.com/console/invite/9f2c1d

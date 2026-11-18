@@ -418,6 +418,7 @@ async fn static_assets_and_gateway_script_are_served() {
     for (uri, ct) in [
         ("/assets/pay.js", "text/javascript"),
         ("/assets/pay.css", "text/css"),
+        ("/assets/tokens.css", "text/css"),
         ("/gateway.js", "text/javascript"),
     ] {
         let r = send(&h.app, "GET", uri, None, &[], Value::Null).await;
@@ -432,7 +433,12 @@ async fn static_assets_and_gateway_script_are_served() {
 #[tokio::test]
 async fn assets_are_revalidated_so_a_deploy_never_serves_stale_scripts() {
     let h = harness().await;
-    for uri in ["/assets/pay.js", "/assets/pay.css", "/gateway.js"] {
+    for uri in [
+        "/assets/pay.js",
+        "/assets/pay.css",
+        "/assets/tokens.css",
+        "/gateway.js",
+    ] {
         let r = send(&h.app, "GET", uri, None, &[], Value::Null).await;
         assert_eq!(r.headers["cache-control"], "no-cache", "{uri}");
     }

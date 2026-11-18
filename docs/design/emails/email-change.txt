@@ -1,0 +1,7 @@
+Confirm your new email address
+
+Open the link below to confirm this address for your account. It works once and expires in 1 hour.
+
+https://pay.example.com/console/email/9f2c1d
+
+If this was not you, ignore this email and nothing changes.
