@@ -16,9 +16,10 @@
         "type": "object"
       },
       "CreatePayment": {
+        "description": "Send amount, or line_items to have the server compute it. With line_items, amount and tax are optional and must equal the computed values when sent.",
         "properties": {
           "amount": {
-            "description": "Minor units",
+            "description": "Minor units. Optional with line_items.",
             "type": "integer"
           },
           "cancel_url": {
@@ -35,6 +36,16 @@
           },
           "description": {
             "type": "string"
+          },
+          "discount": {
+            "$ref": "#/components/schemas/DiscountInput"
+          },
+          "line_items": {
+            "items": {
+              "$ref": "#/components/schemas/LineItemInput"
+            },
+            "maxItems": 100,
+            "type": "array"
           },
           "metadata": {
             "type": "object"
@@ -57,9 +68,26 @@
           }
         },
         "required": [
-          "amount",
           "currency"
         ],
+        "type": "object"
+      },
+      "DiscountInput": {
+        "description": "Exactly one of amount or percent.",
+        "properties": {
+          "amount": {
+            "description": "Minor units",
+            "type": "integer"
+          },
+          "code": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "percent": {
+            "description": "0 to 100, at most 2 decimals. Rounded half up on the subtotal.",
+            "type": "number"
+          }
+        },
         "type": "object"
       },
       "Error": {
@@ -107,6 +135,160 @@
           "withdrawal.failed"
         ],
         "type": "string"
+      },
+      "LineItem": {
+        "properties": {
+          "amount": {
+            "description": "quantity times unit_amount",
+            "type": "integer"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discount": {
+            "description": "This line's share of the discount",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "sku": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax": {
+            "type": "integer"
+          },
+          "tax_rate": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "total": {
+            "description": "amount minus discount plus tax",
+            "type": "integer"
+          },
+          "unit_amount": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "LineItemInput": {
+        "properties": {
+          "description": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 127,
+            "type": "string"
+          },
+          "quantity": {
+            "default": 1,
+            "maximum": 1000000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sku": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "tax_amount": {
+            "description": "Minor units. Exclusive with tax_rate.",
+            "type": "integer"
+          },
+          "tax_rate": {
+            "description": "Percent, 0 to 100, at most 2 decimals. Exclusive with tax_amount.",
+            "type": "number"
+          },
+          "unit_amount": {
+            "description": "Minor units",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "unit_amount"
+        ],
+        "type": "object"
+      },
+      "Payment": {
+        "description": "Payment view, also the webhook data.payment object.",
+        "properties": {
+          "amount": {
+            "description": "Total in minor units: subtotal minus discount plus tax",
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "discount": {
+            "properties": {
+              "amount": {
+                "type": "integer"
+              },
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "percent": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "line_items": {
+            "items": {
+              "$ref": "#/components/schemas/LineItem"
+            },
+            "type": "array"
+          },
+          "pay_url": {
+            "type": "string"
+          },
+          "receipt_url": {
+            "description": "Public HTML receipt, available once paid",
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "subtotal": {
+            "description": "Sum of line amounts, null without line items",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "tax": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
       },
       "RefundInput": {
         "properties": {
@@ -173,6 +355,9 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "items": {
+                    "type": "object"
+                  },
                   "type": "array"
                 }
               }
@@ -276,6 +461,9 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "items": {
+                    "type": "object"
+                  },
                   "type": "array"
                 }
               }
@@ -430,6 +618,9 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Payment"
+                  },
                   "type": "array"
                 }
               }
@@ -521,7 +712,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/Payment"
                 }
               }
             },
@@ -605,7 +796,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/Payment"
                 }
               }
             },
@@ -699,7 +890,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/Payment"
                 }
               }
             },
@@ -783,7 +974,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/Payment"
                 }
               }
             },
@@ -1063,6 +1254,9 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "items": {
+                    "type": "object"
+                  },
                   "type": "array"
                 }
               }
@@ -1174,6 +1368,9 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "items": {
+                    "type": "object"
+                  },
                   "type": "array"
                 }
               }
