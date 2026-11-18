@@ -202,7 +202,10 @@ pub async fn pending_attempts_of_provider(
     .await?)
 }
 
-pub async fn has_unconfirmed_receipts(pool: &MySqlPool, id: &PaymentId) -> Result<bool> {
+pub async fn has_unconfirmed_receipts<'e, E: Executor<'e, Database = MySql>>(
+    pool: E,
+    id: &PaymentId,
+) -> Result<bool> {
     let n: i64 = sqlx::query_scalar(
         "select count(*) from attempt_receipt r join payment_attempt a on a.id = r.attempt_id where a.payment_id = ? and r.confirmed = 0 and a.status = 'pending'",
     )

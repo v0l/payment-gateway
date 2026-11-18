@@ -10,7 +10,7 @@ impl Service {
         if p.status != "pending" {
             return Err(Error::Conflict(format!("payment is {}", p.status)));
         }
-        if db::has_unconfirmed_receipts(&self.pool, id).await? {
+        if db::has_unconfirmed_receipts(&mut *tx, id).await? {
             return Err(Error::Conflict("funds are already on their way".into()));
         }
         db::set_payment_status(&mut *tx, id, &["pending"], "cancelled").await?;

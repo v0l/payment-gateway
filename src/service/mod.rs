@@ -253,6 +253,8 @@ mod limits;
 mod notify;
 mod payments;
 mod refunds;
+mod retry;
 mod saved;
 mod settlement;
+pub use retry::{is_deadlock, retry_deadlock};
 pub use deliveries::{backoff_secs, webhook_signature};

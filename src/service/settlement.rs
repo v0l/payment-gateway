@@ -117,6 +117,17 @@ impl Service {
         amount: Option<u64>,
         confirmed: bool,
     ) -> Result<()> {
+        super::retry_deadlock(|| self.settle_attempt_once(attempt_id, reference, amount, confirmed))
+            .await
+    }
+
+    async fn settle_attempt_once(
+        &self,
+        attempt_id: u64,
+        reference: &str,
+        amount: Option<u64>,
+        confirmed: bool,
+    ) -> Result<()> {
         let settle_started = std::time::Instant::now();
         let probe = db::get_attempt(&self.pool, attempt_id)
             .await?
