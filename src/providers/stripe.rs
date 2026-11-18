@@ -1,5 +1,5 @@
 use super::{
-    AttemptRequest, CreatedAttempt, Provider, ProviderEvent, RefundOutcome, RefundRequest,
+    AttemptRequest, CreatedAttempt, DisputeState, Provider, ProviderEvent, RefundOutcome, RefundRequest,
     SavedMethodInfo,
 };
 use crate::db::{AttemptRow, SavedMethodRow};
@@ -64,6 +64,53 @@ impl StripeProvider {
             bail!("stripe {status}: {msg}");
         }
         Ok(body)
+    }
+
+    async fn lookup_for_intent(&self, intent: &str) -> String {
+        let found = self
+            .call(
+                reqwest::Method::GET,
+                "/v1/checkout/sessions",
+                &[kv("payment_intent", intent), kv("limit", 1)],
+            )
+            .await
+            .ok()
+            .and_then(|v| v["data"][0]["id"].as_str().map(str::to_string));
+        found.unwrap_or_else(|| intent.to_string())
+    }
+
+    async fn charge_events(&self, charge: &Value) -> Result<Vec<ProviderEvent>> {
+        let (Some(charge_id), Some(intent)) =
+            (charge["id"].as_str(), charge["payment_intent"].as_str())
+        else {
+            return Ok(vec![]);
+        };
+        let lookup = self.lookup_for_intent(intent).await;
+        let refunds = self
+            .call(
+                reqwest::Method::GET,
+                "/v1/refunds",
+                &[kv("charge", charge_id), kv("limit", 100)],
+            )
+            .await?;
+        let mut out = vec![];
+        for r in refunds["data"].as_array().into_iter().flatten() {
+            let Some(id) = r["id"].as_str() else { continue };
+            match r["status"].as_str() {
+                Some("succeeded") => out.push(ProviderEvent::Refunded {
+                    lookup: lookup.clone(),
+                    external_id: id.to_string(),
+                    amount: r["amount"].as_u64(),
+                }),
+                Some("failed") | Some("canceled") => out.push(ProviderEvent::RefundFailed {
+                    lookup: lookup.clone(),
+                    external_id: id.to_string(),
+                    reason: r["failure_reason"].as_str().unwrap_or("failed").to_string(),
+                }),
+                _ => {}
+            }
+        }
+        Ok(out)
     }
 
     async fn saved_from_session(&self, session: &Value) -> Result<Option<SavedMethodInfo>> {
@@ -248,8 +295,62 @@ impl Provider for StripeProvider {
                 lookup,
                 reason: "payment failed".into(),
             }]),
+            "payment_intent.succeeded" => Ok(vec![ProviderEvent::Paid {
+                reference: lookup.clone(),
+                lookup,
+                amount: session["amount_received"].as_u64(),
+                confirmed: true,
+                saved: None,
+            }]),
+            "payment_intent.payment_failed" => Ok(vec![ProviderEvent::Failed {
+                lookup,
+                reason: session["last_payment_error"]["message"]
+                    .as_str()
+                    .unwrap_or("payment failed")
+                    .to_string(),
+            }]),
+            "charge.refunded" | "charge.refund.updated" => self.charge_events(session).await,
+            "charge.dispute.created" | "charge.dispute.closed" => {
+                let Some(intent) = session["payment_intent"].as_str() else {
+                    return Ok(vec![]);
+                };
+                let state = match (event.event_type.as_str(), session["status"].as_str()) {
+                    ("charge.dispute.created", _) => DisputeState::Open,
+                    (_, Some("won")) | (_, Some("warning_closed")) => DisputeState::Won,
+                    _ => DisputeState::Lost,
+                };
+                Ok(vec![ProviderEvent::Dispute {
+                    lookup: self.lookup_for_intent(intent).await,
+                    state,
+                    reason: session["reason"].as_str().map(str::to_string),
+                }])
+            }
             _ => Ok(vec![]),
         }
+    }
+
+    fn event_id(&self, body: &[u8]) -> Option<String> {
+        serde_json::from_slice::<Value>(body)
+            .ok()?
+            .get("id")?
+            .as_str()
+            .map(str::to_string)
+    }
+
+    async fn test_connection(&self) -> Result<String> {
+        let account = self.call(reqwest::Method::GET, "/v1/account", &[]).await?;
+        let id = account["id"].as_str().unwrap_or("unknown");
+        Ok(format!("Connected to Stripe account {id}"))
+    }
+
+    async fn remove_saved(&self, saved: &SavedMethodRow) -> Result<()> {
+        self.call(
+            reqwest::Method::POST,
+            &format!("/v1/payment_methods/{}/detach", saved.external_id),
+            &[],
+        )
+        .await?;
+        Ok(())
     }
 
     async fn refund(&self, attempt: &AttemptRow, req: RefundRequest) -> Result<RefundOutcome> {
@@ -292,6 +393,10 @@ impl Provider for StripeProvider {
             kv("payment_method", &saved.external_id),
             kv("off_session", "true"),
             kv("confirm", "true"),
+            kv(
+                "return_url",
+                req.success_url.clone().unwrap_or_else(|| self.base.clone()),
+            ),
             kv("description", &req.description),
             kv("metadata[payment_id]", hex::encode(req.payment_id)),
         ];
@@ -299,6 +404,19 @@ impl Provider for StripeProvider {
             .call(reqwest::Method::POST, "/v1/payment_intents", &form)
             .await?;
         let id = pi["id"].as_str().context("intent id")?.to_string();
+        if pi["status"].as_str() == Some("requires_action") {
+            let link = pi["next_action"]["redirect_to_url"]["url"]
+                .as_str()
+                .or_else(|| pi["next_action"]["use_stripe_sdk"]["stripe_js"].as_str())
+                .context("charge needs customer authentication but no link was provided")?;
+            return Ok(CreatedAttempt {
+                lookup: id.clone(),
+                external_id: Some(id),
+                details: json!({"checkout_url": link, "requires_action": true}),
+                expires: None,
+                completed: false,
+            });
+        }
         if pi["status"].as_str() != Some("succeeded") {
             bail!("charge not completed: {}", pi["status"]);
         }

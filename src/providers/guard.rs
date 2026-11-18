@@ -1,6 +1,6 @@
 use super::{
-    AttemptRequest, CreatedAttempt, EventSink, Provider, ProviderEvent, RefundOutcome,
-    RefundRequest,
+    AttemptRequest, CreatedAttempt, EventSink, HealthRecorder, Provider, ProviderEvent,
+    RefundOutcome, RefundRequest, SavedMethodInfo,
 };
 use crate::db::{AttemptRow, SavedMethodRow};
 use crate::metrics::Metrics;
@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::future::Future;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, Weak};
 use std::time::{Duration, Instant};
 
 pub const DEFAULT_CALL_TIMEOUT: Duration = Duration::from_secs(45);
@@ -18,7 +18,16 @@ pub struct Guarded {
     inner: Arc<dyn Provider>,
     metrics: Arc<Metrics>,
     timeout: Duration,
+    health: Option<(u64, Arc<OnceLock<Weak<dyn HealthRecorder>>>)>,
 }
+
+const HEALTH_OPS: &[&str] = &[
+    "create",
+    "setup",
+    "reconcile",
+    "receive_address",
+    "test_connection",
+];
 
 impl Guarded {
     pub fn new(inner: Arc<dyn Provider>, metrics: Arc<Metrics>, timeout: Duration) -> Self {
@@ -26,6 +35,28 @@ impl Guarded {
             inner,
             metrics,
             timeout,
+            health: None,
+        }
+    }
+
+    pub fn with_health(
+        mut self,
+        provider_id: u64,
+        recorder: Arc<OnceLock<Weak<dyn HealthRecorder>>>,
+    ) -> Self {
+        self.health = Some((provider_id, recorder));
+        self
+    }
+
+    async fn record_health(&self, op: &str, outcome: Result<(), String>) {
+        let Some((id, cell)) = &self.health else {
+            return;
+        };
+        if !HEALTH_OPS.contains(&op) {
+            return;
+        }
+        if let Some(recorder) = cell.get().and_then(Weak::upgrade) {
+            recorder.provider_call(*id, outcome).await;
         }
     }
 
@@ -57,6 +88,11 @@ impl Guarded {
             &[("method", self.inner.method()), ("op", op)],
             started.elapsed().as_secs_f64(),
         );
+        let health = match &result {
+            Ok(_) => Ok(()),
+            Err((e, _)) => Err(format!("{e:#}")),
+        };
+        self.record_health(op, health).await;
         result.map(|(v, _)| v).map_err(|(e, _)| e)
     }
 }
@@ -119,6 +155,30 @@ impl Provider for Guarded {
         req: AttemptRequest,
     ) -> Result<CreatedAttempt> {
         self.run("charge_saved", self.inner.charge_saved(saved, req))
+            .await
+    }
+
+    fn event_id(&self, body: &[u8]) -> Option<String> {
+        self.inner.event_id(body)
+    }
+
+    async fn test_connection(&self) -> Result<String> {
+        self.run("test_connection", self.inner.test_connection())
+            .await
+    }
+
+    async fn remove_saved(&self, saved: &SavedMethodRow) -> Result<()> {
+        self.run("remove_saved", self.inner.remove_saved(saved))
+            .await
+    }
+
+    async fn list_saved(&self, customer_id: &str) -> Result<Vec<SavedMethodInfo>> {
+        self.run("list_saved", self.inner.list_saved(customer_id))
+            .await
+    }
+
+    async fn capture_return(&self, attempt: &AttemptRow) -> Result<Option<ProviderEvent>> {
+        self.run("capture_return", self.inner.capture_return(attempt))
             .await
     }
 }

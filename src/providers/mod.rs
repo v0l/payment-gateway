@@ -4,8 +4,10 @@ pub mod guard;
 pub mod lightning;
 pub mod mock;
 pub mod onchain;
+pub mod paypal;
 pub mod revolut;
 pub mod stripe;
+pub mod webhook_check;
 
 use crate::crypto::Sealer;
 use crate::db::{self, AttemptRow, PaymentId, ProviderConfigRow, SavedMethodRow};
@@ -66,6 +68,43 @@ pub enum ProviderEvent {
         lookup: String,
         reason: String,
     },
+    Refunded {
+        lookup: String,
+        external_id: String,
+        amount: Option<u64>,
+    },
+    RefundFailed {
+        lookup: String,
+        external_id: String,
+        reason: String,
+    },
+    Dispute {
+        lookup: String,
+        state: DisputeState,
+        reason: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DisputeState {
+    Open,
+    Won,
+    Lost,
+}
+
+impl DisputeState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            DisputeState::Open => "open",
+            DisputeState::Won => "won",
+            DisputeState::Lost => "lost",
+        }
+    }
+}
+
+#[async_trait]
+pub trait HealthRecorder: Send + Sync {
+    async fn provider_call(&self, provider_id: u64, outcome: Result<(), String>);
 }
 
 #[derive(Debug, Clone)]
@@ -138,6 +177,26 @@ pub trait Provider: Send + Sync {
     ) -> Result<CreatedAttempt> {
         bail!("{} does not support saved payment methods", self.method())
     }
+
+    fn event_id(&self, _body: &[u8]) -> Option<String> {
+        None
+    }
+
+    async fn test_connection(&self) -> Result<String> {
+        bail!("{} does not support connection tests", self.method())
+    }
+
+    async fn remove_saved(&self, _saved: &SavedMethodRow) -> Result<()> {
+        Ok(())
+    }
+
+    async fn list_saved(&self, _customer_id: &str) -> Result<Vec<SavedMethodInfo>> {
+        bail!("{} does not list saved payment methods", self.method())
+    }
+
+    async fn capture_return(&self, _attempt: &AttemptRow) -> Result<Option<ProviderEvent>> {
+        Ok(None)
+    }
 }
 
 #[async_trait]
@@ -168,6 +227,7 @@ impl ProviderFactory for DefaultFactory {
             ("onchain", "lnd") => Ok(Arc::new(onchain::OnChainProviderImpl::lnd(&config).await?)),
             ("stripe", "stripe") => Ok(Arc::new(stripe::StripeProvider::new(&config)?)),
             ("revolut", "revolut") => Ok(Arc::new(revolut::RevolutProvider::new(&config)?)),
+            ("paypal", "paypal") => Ok(Arc::new(paypal::PayPalProvider::new(&config)?)),
             ("fixedfloat", "fixedfloat") => {
                 Ok(Arc::new(fixedfloat::FixedFloatProvider::new(&config)?))
             }
@@ -185,6 +245,7 @@ pub struct Registry {
     build_lock: Arc<tokio::sync::Mutex<()>>,
     pub metrics: Arc<crate::metrics::Metrics>,
     pub call_timeout: std::time::Duration,
+    pub health: Arc<std::sync::OnceLock<std::sync::Weak<dyn HealthRecorder>>>,
 }
 
 impl Registry {
@@ -197,6 +258,7 @@ impl Registry {
             build_lock: Default::default(),
             metrics: Default::default(),
             call_timeout: guard::DEFAULT_CALL_TIMEOUT,
+            health: Default::default(),
         }
     }
 
@@ -231,11 +293,10 @@ impl Registry {
         let built = tokio::time::timeout(self.call_timeout, self.factory.build(&row, config))
             .await
             .map_err(|_| anyhow::anyhow!("building provider {id} timed out"))??;
-        let provider: Arc<dyn Provider> = Arc::new(guard::Guarded::new(
-            built,
-            self.metrics.clone(),
-            self.call_timeout,
-        ));
+        let provider: Arc<dyn Provider> = Arc::new(
+            guard::Guarded::new(built, self.metrics.clone(), self.call_timeout)
+                .with_health(id, self.health.clone()),
+        );
         self.cache.lock().unwrap().insert(id, provider.clone());
         Ok(provider)
     }

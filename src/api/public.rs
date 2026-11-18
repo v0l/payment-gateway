@@ -300,12 +300,17 @@ async fn qr(
         .into_response())
 }
 
+pub const PROVIDER_HOOK_MAX_BYTES: usize = 256 * 1024;
+
 async fn hook(
     State(s): State<AppState>,
     Path((tenant, provider)): Path<(u64, u64)>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
+    if body.len() > PROVIDER_HOOK_MAX_BYTES {
+        return Err(ApiError::new(StatusCode::PAYLOAD_TOO_LARGE, "webhook body too large".into()));
+    }
     let cfg = db::get_provider_config(s.pool(), provider)
         .await?
         .filter(|c| c.tenant_id == tenant && c.enabled)
@@ -324,8 +329,19 @@ async fn hook(
         );
         ApiError::bad_request("invalid webhook")
     })?;
+    let event_id = handler.event_id(&body);
+    if let Some(id) = &event_id
+        && !db::claim_provider_event(s.pool(), cfg.id, id).await?
+    {
+        return Ok(Json(json!({ "ok": true, "duplicate": true })));
+    }
     for ev in events {
-        s.service.apply_event(cfg.id, ev).await?;
+        if let Err(e) = s.service.apply_event(cfg.id, ev).await {
+            if let Some(id) = &event_id {
+                let _ = db::release_provider_event(s.pool(), cfg.id, id).await;
+            }
+            return Err(e.into());
+        }
     }
     Ok(Json(json!({ "ok": true })))
 }
