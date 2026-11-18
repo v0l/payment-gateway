@@ -132,11 +132,11 @@ impl Origin {
             .get("x-forwarded-for")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.split(',').next_back())
-            .map(|s| s.trim().to_string());
+            .map(|s| strip_controls(s.trim()));
         let user_agent = headers
             .get(axum::http::header::USER_AGENT)
             .and_then(|v| v.to_str().ok())
-            .map(str::to_string);
+            .map(strip_controls);
         Self { ip, user_agent }
     }
 }
@@ -206,6 +206,10 @@ impl Event {
         .await?;
         Ok(())
     }
+}
+
+fn strip_controls(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
 }
 
 fn clip(s: &str, max: usize) -> String {

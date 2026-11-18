@@ -50,11 +50,10 @@ async fn conversion_never_panics_and_round_trips_within_one_unit_of_rounding() {
             ("JPY", "BTC"),
             ("BTC", "BTC"),
         ] {
-            if let Ok(v) = convert(&r, amount, from, to).await {
-                assert!(v <= u64::MAX);
-                if from == to {
-                    assert_eq!(v, amount);
-                }
+            if let Ok(v) = convert(&r, amount, from, to).await
+                && from == to
+            {
+                assert_eq!(v, amount);
             }
         }
         if amount <= 100_000_000_000 {
@@ -80,9 +79,8 @@ async fn conversion_is_monotonic_and_rejects_hostile_rates() {
     assert!(convert(&r, MAX_AMOUNT + 1, "EUR", "BTC").await.is_err());
     for bad in [f64::NAN, f64::INFINITY, 0.0, -1.0, f64::MIN_POSITIVE] {
         let hostile = StaticRates::new(&[("EUR", bad)]);
-        match convert(&hostile, 1_000_000, "EUR", "BTC").await {
-            Ok(v) => assert!(v <= MAX_AMOUNT, "{bad}: {v}"),
-            Err(_) => {}
+        if let Ok(v) = convert(&hostile, 1_000_000, "EUR", "BTC").await {
+            assert!(v <= MAX_AMOUNT, "{bad}: {v}");
         }
     }
 }
@@ -146,7 +144,7 @@ async fn stripe_webhook_parser_rejects_garbage_and_accepts_only_a_valid_signatur
     for _ in 0..500 {
         let body = rng.bytes(300);
         let mut headers = HashMap::new();
-        if rng.next() % 2 == 0 {
+        if rng.next().is_multiple_of(2) {
             headers.insert("stripe-signature".to_string(), rng.text(120));
         }
         assert!(p.handle_webhook(&headers, &body).await.is_err());
@@ -188,7 +186,7 @@ async fn revolut_webhook_parser_rejects_garbage() {
         let body = rng.bytes(300);
         let mut headers = HashMap::new();
         for name in ["revolut-signature", "revolut-request-timestamp"] {
-            if rng.next() % 2 == 0 {
+            if rng.next().is_multiple_of(2) {
                 headers.insert(name.to_string(), rng.text(100));
             }
         }

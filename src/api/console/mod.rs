@@ -226,7 +226,10 @@ impl FromRequestParts<AppState> for Session {
                 .headers
                 .get("x-csrf-token")
                 .and_then(|v| v.to_str().ok());
-            if sent != Some(session.csrf.as_str()) {
+            let matches = sent.is_some_and(|s| {
+                subtle::ConstantTimeEq::ct_eq(s.as_bytes(), session.csrf.as_bytes()).into()
+            });
+            if !matches {
                 return Err(ApiError::new(
                     StatusCode::FORBIDDEN,
                     "bad csrf token".into(),

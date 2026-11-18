@@ -634,3 +634,81 @@ async fn secrets_are_never_echoed_by_tenant_or_console_endpoints() {
     let (_, methods) = call(&h.app, "GET", "/v1/methods", Some(&a.key), Value::Null).await;
     assert!(!methods.to_string().contains("sk_live_topsecret"));
 }
+
+#[tokio::test]
+async fn untrusted_projects_cannot_point_webhooks_or_providers_at_internal_hosts() {
+    let h = harness().await;
+    let a = project(&h, &unique("ssrf@x.example")).await;
+    for url in [
+        "https://127.0.0.1/hook",
+        "https://localhost/hook",
+        "https://[::1]/hook",
+        "https://[::ffff:10.0.0.1]/hook",
+        "https://[fec0::1]/hook",
+        "https://169.254.169.254/latest/meta-data",
+        "https://2130706433/hook",
+        "https://0x7f.1/hook",
+        "https://user:pw@example.com/hook",
+        "file:///etc/passwd",
+    ] {
+        let r = a
+            .owner
+            .req(
+                "POST",
+                &format!("/projects/{}/settings", a.id),
+                json!({"webhook_url": url}),
+            )
+            .await;
+        assert_eq!(r.status, StatusCode::BAD_REQUEST, "{url}: {}", r.text);
+    }
+    for (kind, config) in [
+        (
+            "lightning",
+            json!({"url": "https://127.0.0.1:10009", "macaroon": "aa", "cert": "bb"}),
+        ),
+        (
+            "stripe",
+            json!({"secret_key": "sk", "url": "https://169.254.169.254"}),
+        ),
+    ] {
+        let r = a
+            .owner
+            .req(
+                "POST",
+                &format!("/projects/{}/providers", a.id),
+                json!({"method": kind, "provider_type": kind, "name": "x", "config": config}),
+            )
+            .await;
+        assert_eq!(r.status, StatusCode::BAD_REQUEST, "{kind}: {}", r.text);
+    }
+}
+
+#[tokio::test]
+async fn audit_origin_strips_control_characters() {
+    let h = harness().await;
+    let a = project(&h, &unique("log@x.example")).await;
+    let r = send(
+        &h.app,
+        "POST",
+        &format!("/console/api/projects/{}/rotate-key", a.id),
+        None,
+        &[
+            ("cookie", &format!("pgw_session={}", a.owner.cookie)),
+            ("x-csrf-token", &a.owner.csrf),
+            ("user-agent", "agent\twith tab"),
+            ("x-forwarded-for", "1.2.3.4"),
+        ],
+        json!({}),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.text);
+    let (ip, ua): (Option<String>, Option<String>) = sqlx::query_as(
+        "select ip, user_agent from audit_event where tenant_id = ? order by id desc limit 1",
+    )
+    .bind(a.id)
+    .fetch_one(&h.pool)
+    .await
+    .unwrap();
+    assert_eq!(ip.as_deref(), Some("1.2.3.4"));
+    assert!(!ua.unwrap().chars().any(char::is_control));
+}
