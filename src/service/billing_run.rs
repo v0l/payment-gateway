@@ -48,8 +48,14 @@ impl Service {
         })
         .to_string();
         let pid = payment.map(|p| p.pid());
-        self.fan_out(tx, tenant, pid.as_ref(), &event_id, event_type, &body, now)
-            .await
+        let event = super::settlement::OutgoingEvent {
+            payment_id: pid.as_ref(),
+            event_id: &event_id,
+            event_type,
+            body: &body,
+            now,
+        };
+        self.fan_out(tx, tenant, &event).await
     }
 
     pub async fn bill_due(&self) -> Result<usize> {
