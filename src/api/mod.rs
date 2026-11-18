@@ -1,7 +1,9 @@
 mod admin;
 mod console;
+mod docs;
 pub mod ledger;
 pub mod ops;
+mod page;
 mod public;
 mod sandbox;
 mod shared;
@@ -67,15 +69,46 @@ pub struct ApiError {
     pub message: String,
     pub extra: Option<serde_json::Map<String, serde_json::Value>>,
     pub retry_after: Option<u64>,
+    pub field: Option<String>,
+}
+
+fn default_code(status: StatusCode) -> &'static str {
+    match status {
+        StatusCode::BAD_REQUEST => "invalid_request",
+        StatusCode::UNAUTHORIZED => "unauthorized",
+        StatusCode::FORBIDDEN => "forbidden",
+        StatusCode::NOT_FOUND => "not_found",
+        StatusCode::CONFLICT => "conflict",
+        StatusCode::PAYLOAD_TOO_LARGE => "payload_too_large",
+        StatusCode::TOO_MANY_REQUESTS => "rate_limited",
+        StatusCode::BAD_GATEWAY => "upstream_error",
+        s if s.is_server_error() => "internal_error",
+        _ => "error",
+    }
 }
 
 impl ApiError {
+    pub fn with_field(mut self, field: &str) -> Self {
+        self.field = Some(field.to_string());
+        self
+    }
+    pub fn insufficient_scope(needed: &str) -> Self {
+        let mut e = Self::new(
+            StatusCode::FORBIDDEN,
+            format!("api key lacks the {needed} scope"),
+        );
+        e.extra = json!({"code": "insufficient_scope", "scope": needed})
+            .as_object()
+            .cloned();
+        e
+    }
     pub fn new(status: StatusCode, message: String) -> Self {
         Self {
             status,
             message,
             extra: None,
             retry_after: None,
+            field: None,
         }
     }
     pub fn rate_limited(retry_after: u64) -> Self {
@@ -146,6 +179,16 @@ impl From<sqlx::Error> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let mut body = self.extra.unwrap_or_default();
+        let code = body
+            .get("code")
+            .and_then(|c| c.as_str())
+            .unwrap_or_else(|| default_code(self.status))
+            .to_string();
+        let mut detail = json!({"code": code, "message": self.message});
+        if let Some(field) = &self.field {
+            detail["field"] = json!(field);
+        }
+        body.insert("error_detail".into(), detail);
         body.insert("error".into(), json!(self.message));
         let mut res = (self.status, axum::Json(body)).into_response();
         if let Some(secs) = self.retry_after {
@@ -168,6 +211,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/admin", admin::router())
         .nest("/v1", tenant::router())
         .merge(public::router())
+        .merge(docs::router())
         .merge(sandbox::router())
         .merge(console::router())
         .layer(axum::middleware::from_fn_with_state(

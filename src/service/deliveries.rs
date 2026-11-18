@@ -10,7 +10,7 @@ impl Service {
                 continue;
             }
             let tenant = self.tenant(d.tenant_id).await?;
-            let outcome = self.post_webhook(&tenant, &d.event_id, &d.body).await;
+            let outcome = self.post_to_target(&tenant, &d).await;
             let now = Utc::now();
             self.metrics.inc(
                 "gateway_webhook_deliveries_total",
@@ -55,16 +55,49 @@ impl Service {
         Ok(sent)
     }
 
-    async fn post_webhook(
+    async fn post_to_target(&self, tenant: &Tenant, d: &DueDelivery) -> anyhow::Result<()> {
+        let id = d
+            .endpoint_id
+            .ok_or_else(|| anyhow!("delivery has no webhook endpoint"))?;
+        let endpoint = db::get_endpoint(&self.pool, tenant.id, id)
+            .await?
+            .ok_or_else(|| anyhow!("webhook endpoint was deleted"))?;
+        self.post_webhook(
+            tenant,
+            &endpoint.url,
+            &endpoint.secret,
+            &d.event_id,
+            &d.body,
+        )
+        .await
+    }
+
+    pub async fn send_test_event(
         &self,
         tenant: &Tenant,
+        endpoint: &EndpointRow,
+    ) -> anyhow::Result<String> {
+        let event_id = random_hex(16);
+        let body = serde_json::json!({
+            "id": event_id,
+            "type": "webhook.test",
+            "created": Utc::now().timestamp(),
+            "data": {"message": "test event from the payment gateway"},
+        })
+        .to_string();
+        self.post_webhook(tenant, &endpoint.url, &endpoint.secret, &event_id, &body)
+            .await?;
+        Ok(event_id)
+    }
+
+    pub(super) async fn post_webhook(
+        &self,
+        tenant: &Tenant,
+        url: &str,
+        sealed_secret: &[u8],
         event_id: &str,
         body: &str,
     ) -> anyhow::Result<()> {
-        let url = tenant
-            .webhook_url
-            .as_deref()
-            .ok_or_else(|| anyhow!("tenant has no webhook_url"))?;
         let client = if tenant.trusted {
             self.http.clone()
         } else {
@@ -75,7 +108,7 @@ impl Service {
                 .resolve(&target.host, target.addr)
                 .build()?
         };
-        let secret = String::from_utf8(self.sealer.open(&tenant.webhook_secret)?)?;
+        let secret = String::from_utf8(self.sealer.open(sealed_secret)?)?;
         let ts = Utc::now().timestamp();
         let sig = webhook_signature(&secret, ts, body);
         let rsp = client
@@ -101,4 +134,16 @@ pub fn webhook_signature(secret: &str, ts: i64, body: &str) -> String {
     let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("hmac key");
     mac.update(format!("{ts}.{body}").as_bytes());
     hex::encode(mac.finalize().into_bytes())
+}
+
+pub fn endpoint_wants(endpoint: &EndpointRow, event_type: &str) -> bool {
+    match endpoint.events.as_deref() {
+        None | Some("") => true,
+        Some(filter) => filter.split(',').map(str::trim).any(|f| {
+            f == "*"
+                || f == event_type
+                || f.strip_suffix(".*")
+                    .is_some_and(|p| event_type.starts_with(&format!("{p}.")))
+        }),
+    }
 }

@@ -37,15 +37,24 @@ pub async fn upsert_saved_method<'e, E: Executor<'e, Database = MySql>>(
 pub async fn list_saved_methods(
     pool: &MySqlPool,
     tenant_id: u64,
-    customer_ref: &str,
+    customer_ref: Option<&str>,
+    after: Option<u64>,
+    limit: u32,
 ) -> Result<Vec<SavedMethodRow>> {
-    Ok(sqlx::query_as(&format!(
-        "select {SAVED_COLS} from saved_method where tenant_id = ? and customer_ref = ? and enabled = 1 order by id"
-    ))
-    .bind(tenant_id)
-    .bind(customer_ref)
-    .fetch_all(pool)
-    .await?)
+    let mut sql = format!(
+        "select {SAVED_COLS} from saved_method where tenant_id = ? and enabled = 1 and id > ?"
+    );
+    if customer_ref.is_some() {
+        sql.push_str(" and customer_ref = ?");
+    }
+    sql.push_str(" order by id limit ?");
+    let mut q = sqlx::query_as(&sql)
+        .bind(tenant_id)
+        .bind(after.unwrap_or(0));
+    if let Some(c) = customer_ref {
+        q = q.bind(c);
+    }
+    Ok(q.bind(limit + 1).fetch_all(pool).await?)
 }
 
 pub async fn get_saved_method(

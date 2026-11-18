@@ -7,7 +7,10 @@ impl Service {
         input: CreatePayment,
         idempotency_key: Option<&str>,
     ) -> Result<(PaymentRow, bool)> {
-        let reference = input.reference.trim().to_string();
+        let supplied = input.reference.as_ref().map(|r| r.trim().to_string());
+        let reference = supplied
+            .clone()
+            .unwrap_or_else(|| format!("pay_{}", random_hex(12)));
         if reference.is_empty() || reference.len() > 255 {
             return invalid("reference must be 1-255 characters");
         }
@@ -83,7 +86,7 @@ impl Service {
                 return invalid("Idempotency-Key must be 1-128 characters");
             }
             if let Some(existing) = db::payment_by_idempotency(&self.pool, tenant.id, key).await? {
-                return self.same_request(existing, &reference, input.amount, &currency);
+                return self.same_request(existing, supplied.as_deref(), input.amount, &currency);
             }
         }
 
@@ -124,7 +127,12 @@ impl Service {
                     && let Some(existing) =
                         db::payment_by_idempotency(&self.pool, tenant.id, key).await?
                 {
-                    return self.same_request(existing, &reference, input.amount, &currency);
+                    return self.same_request(
+                        existing,
+                        supplied.as_deref(),
+                        input.amount,
+                        &currency,
+                    );
                 }
                 return Err(e);
             }
@@ -138,11 +146,11 @@ impl Service {
     fn same_request(
         &self,
         existing: PaymentRow,
-        reference: &str,
+        reference: Option<&str>,
         amount: u64,
         currency: &str,
     ) -> Result<(PaymentRow, bool)> {
-        if existing.reference != reference
+        if reference.is_some_and(|r| existing.reference != r)
             || existing.amount != amount
             || existing.currency != currency
         {

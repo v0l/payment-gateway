@@ -34,6 +34,11 @@ async fn seed_secrets(h: &Harness, sealer: &Sealer, tenants: usize) {
         .execute(&h.pool)
         .await
         .unwrap();
+    sqlx::query("update webhook_endpoint set secret = ?")
+        .bind(sealer.seal(b"whsec").unwrap())
+        .execute(&h.pool)
+        .await
+        .unwrap();
     sqlx::query("update provider_config set config = ?")
         .bind(sealer.seal(b"{\"macaroon\":\"m\"}").unwrap())
         .execute(&h.pool)
@@ -76,7 +81,7 @@ async fn rotation_moves_every_sealed_value_to_the_newest_key() {
     )
     .await
     .unwrap();
-    assert_eq!(report.rotated(), 11);
+    assert_eq!(report.rotated(), 16);
     assert!(
         kid_counts(&h.pool)
             .await
@@ -88,7 +93,7 @@ async fn rotation_moves_every_sealed_value_to_the_newest_key() {
     let report = rotate_keys(&h.pool, &k3, &RotateOptions::default(), Actor::System)
         .await
         .unwrap();
-    assert_eq!(report.rotated(), 11);
+    assert_eq!(report.rotated(), 16);
     assert!(
         kid_counts(&h.pool)
             .await
@@ -168,7 +173,7 @@ async fn rotation_resumes_after_a_crash_halfway() {
         .await
         .unwrap();
     assert!(!second.stopped_early);
-    assert_eq!(second.rotated(), 12 - 4);
+    assert_eq!(second.rotated(), 18 - 4);
     assert!(
         kid_counts(&h.pool)
             .await
@@ -213,11 +218,16 @@ async fn legacy_unprefixed_values_are_rotated() {
         .execute(&h.pool)
         .await
         .unwrap();
+    sqlx::query("update webhook_endpoint set secret = ?")
+        .bind(&legacy)
+        .execute(&h.pool)
+        .await
+        .unwrap();
     let k2 = sealer(&[("k2", 2), ("default", 1)]);
     let r = rotate_keys(&h.pool, &k2, &RotateOptions::default(), Actor::System)
         .await
         .unwrap();
-    assert_eq!(r.rotated(), 1);
+    assert_eq!(r.rotated(), 2);
     let (v,): (Vec<u8>,) = sqlx::query_as("select webhook_secret from tenant")
         .fetch_one(&h.pool)
         .await

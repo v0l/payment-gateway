@@ -179,6 +179,7 @@ pub struct DueDelivery {
     pub body: String,
     pub attempts: u32,
     pub created: DateTime<Utc>,
+    pub endpoint_id: Option<u64>,
 }
 
 pub async fn migrate(pool: &MySqlPool) -> Result<()> {
@@ -208,7 +209,7 @@ pub async fn connect_with(
     Ok(pool)
 }
 
-const TENANT_COLS: &str = "id, name, api_key_hash, webhook_url, webhook_secret, enabled, display_name, logo_url, accent_color, allowed_origins, default_success_url, default_cancel_url, trusted, limit_payments_per_day, limit_pending_payments, limit_amount_per_payment, limit_volume_per_day, limit_providers, limit_webhook_endpoints, limit_attempts_per_payment, require_2fa";
+const TENANT_COLS: &str = "id, name, api_key_hash, (select e.url from webhook_endpoint e where e.tenant_id = tenant.id and e.is_default = 1 limit 1) as webhook_url, webhook_secret, enabled, display_name, logo_url, accent_color, allowed_origins, default_success_url, default_cancel_url, trusted, limit_payments_per_day, limit_pending_payments, limit_amount_per_payment, limit_volume_per_day, limit_providers, limit_webhook_endpoints, limit_attempts_per_payment, require_2fa";
 const PROVIDER_COLS: &str = "id, tenant_id, method, provider_type, name, enabled, config, fee_rate, fee_base, fee_currency, shared_provider_id";
 const PAYMENT_COLS: &str = "id, tenant_id, reference, currency, amount, tax, status, created, expires, paid_at, description, customer_ref, customer_email, metadata, methods, idempotency_key, success_url, cancel_url";
 const ATTEMPT_COLS: &str = "id, payment_id, provider_config_id, watch_provider_id, method, option_key, base_amount, processing_fee, currency, charge_amount, charge_currency, rate, lookup, external_id, details, status, created, expires, paid_at, save_method, shared_provider_id, platform_fee_bps, platform_fee_base, platform_fee, platform_net";
@@ -217,6 +218,8 @@ const REFUND_COLS: &str = "id, payment_id, attempt_id, amount, charge_amount, cu
 
 mod attempts;
 mod deliveries;
+mod endpoints;
+mod keys;
 mod notify;
 mod payments;
 mod providers;
@@ -228,6 +231,8 @@ mod tenants;
 
 pub use attempts::*;
 pub use deliveries::*;
+pub use endpoints::*;
+pub use keys::*;
 pub use notify::*;
 pub use payments::*;
 pub use providers::*;

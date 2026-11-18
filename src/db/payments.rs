@@ -193,3 +193,61 @@ pub async fn volume_since_by_currency<'e, E: Executor<'e, Database = MySql>>(
     .await?;
     Ok(rows.into_iter().map(|(c, n)| (c, n as u64)).collect())
 }
+
+#[derive(Default)]
+pub struct PaymentFilter<'a> {
+    pub status: Option<&'a str>,
+    pub reference: Option<&'a str>,
+    pub customer_ref: Option<&'a str>,
+    pub created_from: Option<DateTime<Utc>>,
+    pub created_to: Option<DateTime<Utc>>,
+    pub after: Option<(DateTime<Utc>, Vec<u8>)>,
+}
+
+pub async fn list_payments_page(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    f: &PaymentFilter<'_>,
+    limit: u32,
+) -> Result<Vec<PaymentRow>> {
+    let mut sql = format!("select {PAYMENT_COLS} from payment where tenant_id = ?");
+    if f.status.is_some() {
+        sql.push_str(" and status = ?");
+    }
+    if f.reference.is_some() {
+        sql.push_str(" and reference = ?");
+    }
+    if f.customer_ref.is_some() {
+        sql.push_str(" and customer_ref = ?");
+    }
+    if f.created_from.is_some() {
+        sql.push_str(" and created >= ?");
+    }
+    if f.created_to.is_some() {
+        sql.push_str(" and created < ?");
+    }
+    if f.after.is_some() {
+        sql.push_str(" and (created < ? or (created = ? and id < ?))");
+    }
+    sql.push_str(" order by created desc, id desc limit ?");
+    let mut q = sqlx::query_as(&sql).bind(tenant_id);
+    if let Some(v) = f.status {
+        q = q.bind(v);
+    }
+    if let Some(v) = f.reference {
+        q = q.bind(v);
+    }
+    if let Some(v) = f.customer_ref {
+        q = q.bind(v);
+    }
+    if let Some(v) = f.created_from {
+        q = q.bind(v);
+    }
+    if let Some(v) = f.created_to {
+        q = q.bind(v);
+    }
+    if let Some((at, id)) = &f.after {
+        q = q.bind(*at).bind(*at).bind(id.clone());
+    }
+    Ok(q.bind(limit + 1).fetch_all(pool).await?)
+}

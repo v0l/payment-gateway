@@ -1166,6 +1166,267 @@ async fn json_logs_never_carry_authorization_or_cookie_values() {
     }
 }
 
+#[tokio::test]
+async fn tenant_b_cannot_touch_tenant_a_keys_endpoints_events_or_refunds() {
+    use payment_gateway::api_keys::{key_prefix, new_scoped_key};
+    use payment_gateway::crypto::hash_api_key;
+    use payment_gateway::db;
+    let h = harness().await;
+    let a = project(&h, &unique("a@x.example")).await;
+    let b = project(&h, &unique("b@x.example")).await;
+    let (_, pay) = call(&h.app, "POST", "/v1/payments", Some(&a.key), eur("o", 500)).await;
+    let id = pay["id"].as_str().unwrap().to_string();
+    let scoped = new_scoped_key("test");
+    let key_id = db::insert_api_key(
+        &h.pool,
+        &db::NewApiKey {
+            tenant_id: a.id,
+            name: "reader",
+            key_hash: &hash_api_key(&scoped),
+            key_prefix: &key_prefix(&scoped),
+            scopes: "payments:read,payments:write,refunds:write",
+            mode: "test",
+            expires: None,
+        },
+    )
+    .await
+    .unwrap();
+    let sealed = h.service.sealer.seal(b"whsec_a").unwrap();
+    let endpoint_id =
+        db::insert_endpoint(&h.pool, a.id, "https://example.com/h", &sealed, None, None)
+            .await
+            .unwrap();
+
+    let base = format!("/projects/{}", a.id);
+    let probes: Vec<(&str, String, Value)> = vec![
+        ("GET", format!("{base}/keys"), Value::Null),
+        (
+            "POST",
+            format!("{base}/keys"),
+            json!({"name": "x", "scopes": ["admin"]}),
+        ),
+        ("POST", format!("{base}/keys/{key_id}/revoke"), json!({})),
+        ("GET", format!("{base}/webhook-endpoints"), Value::Null),
+        (
+            "POST",
+            format!("{base}/webhook-endpoints"),
+            json!({"url": "https://example.com/x"}),
+        ),
+        (
+            "POST",
+            format!("{base}/webhook-endpoints/{endpoint_id}"),
+            json!({"enabled": false}),
+        ),
+        (
+            "DELETE",
+            format!("{base}/webhook-endpoints/{endpoint_id}"),
+            Value::Null,
+        ),
+        (
+            "POST",
+            format!("{base}/webhook-endpoints/{endpoint_id}/rotate-secret"),
+            json!({}),
+        ),
+        (
+            "POST",
+            format!("{base}/webhook-endpoints/{endpoint_id}/test"),
+            json!({}),
+        ),
+    ];
+    let anon = Console {
+        app: h.app.clone(),
+        cookie: String::new(),
+        csrf: String::new(),
+    };
+    for (method, uri, body) in &probes {
+        let r = b.owner.req(method, uri, body.clone()).await;
+        assert_eq!(
+            r.status,
+            StatusCode::NOT_FOUND,
+            "{method} {uri} as B: {}",
+            r.text
+        );
+        let r = anon.req(method, uri, body.clone()).await;
+        assert_eq!(r.status, StatusCode::UNAUTHORIZED, "{method} {uri} anon");
+    }
+    let own = b
+        .owner
+        .req(
+            "POST",
+            &format!("/projects/{}/webhook-endpoints/{endpoint_id}", b.id),
+            json!({"enabled": false}),
+        )
+        .await;
+    assert_eq!(own.status, StatusCode::NOT_FOUND);
+    let still = db::get_endpoint(&h.pool, a.id, endpoint_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(still.enabled);
+    assert_eq!(
+        db::list_api_keys(&h.pool, a.id)
+            .await
+            .unwrap()
+            .iter()
+            .filter(|k| k.revoked_at.is_some())
+            .count(),
+        0
+    );
+
+    for uri in [
+        "/v1/events",
+        "/v1/refunds",
+        "/v1/payments",
+        "/v1/saved-methods",
+    ] {
+        let r = call(&h.app, "GET", uri, Some(&b.key), Value::Null).await;
+        assert_eq!(r.0, StatusCode::OK, "{uri}");
+        assert_eq!(r.1.as_array().unwrap().len(), 0, "{uri}");
+    }
+    let (s, _) = call(
+        &h.app,
+        "GET",
+        &format!("/v1/payments/{id}"),
+        Some(&scoped),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, bpay) = call(&h.app, "POST", "/v1/payments", Some(&b.key), eur("b", 500)).await;
+    let bid = bpay["id"].as_str().unwrap();
+    for (method, uri, body) in [
+        ("GET", format!("/v1/payments/{bid}"), Value::Null),
+        ("POST", format!("/v1/payments/{bid}/cancel"), json!({})),
+        (
+            "POST",
+            format!("/v1/payments/{bid}/refund"),
+            json!({"amount": 1}),
+        ),
+        (
+            "POST",
+            format!("/v1/payments/{bid}/attempts"),
+            json!({"method": "lightning"}),
+        ),
+    ] {
+        let (s, _) = call(&h.app, method, &uri, Some(&scoped), body).await;
+        assert_eq!(s, StatusCode::NOT_FOUND, "{method} {uri}");
+    }
+    let listed = call(&h.app, "GET", "/v1/payments", Some(&scoped), Value::Null)
+        .await
+        .1;
+    assert_eq!(listed.as_array().unwrap().len(), 1);
+    assert_eq!(listed[0]["id"], id);
+}
+
+#[tokio::test]
+async fn untrusted_projects_cannot_add_endpoints_at_internal_hosts() {
+    let h = harness().await;
+    let a = project(&h, &unique("ssrf@x.example")).await;
+    for url in [
+        "https://127.0.0.1/hook",
+        "https://localhost/hook",
+        "https://[::1]/hook",
+        "https://[::ffff:10.0.0.1]/hook",
+        "https://[fec0::1]/hook",
+        "https://169.254.169.254/latest/meta-data",
+        "https://2130706433/hook",
+        "https://0x7f.1/hook",
+        "https://user:pw@example.com/hook",
+        "http://example.com/hook",
+        "file:///etc/passwd",
+    ] {
+        let r = a
+            .owner
+            .req(
+                "POST",
+                &format!("/projects/{}/webhook-endpoints", a.id),
+                json!({"url": url}),
+            )
+            .await;
+        assert_eq!(
+            r.status,
+            StatusCode::BAD_REQUEST,
+            "create {url}: {}",
+            r.text
+        );
+    }
+    let sealed = h.service.sealer.seal(b"whsec").unwrap();
+    let id = payment_gateway::db::insert_endpoint(
+        &h.pool,
+        a.id,
+        "https://example.com/h",
+        &sealed,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+    let r = a
+        .owner
+        .req(
+            "POST",
+            &format!("/projects/{}/webhook-endpoints/{id}", a.id),
+            json!({"url": "https://169.254.169.254/x"}),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::BAD_REQUEST, "{}", r.text);
+}
+
+#[tokio::test]
+async fn send_test_event_cannot_probe_internal_addresses() {
+    let h = harness().await;
+    let a = project(&h, &unique("probe@x.example")).await;
+    let internal = Receiver::start().await;
+    let sealed = h.service.sealer.seal(b"whsec").unwrap();
+    let id =
+        payment_gateway::db::insert_endpoint(&h.pool, a.id, &internal.url, &sealed, None, None)
+            .await
+            .unwrap();
+    let r = a
+        .owner
+        .req(
+            "POST",
+            &format!("/projects/{}/webhook-endpoints/{id}/test", a.id),
+            json!({}),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.text);
+    assert_eq!(r.json["ok"], false);
+    assert!(
+        internal.got.lock().unwrap().is_empty(),
+        "internal receiver was contacted"
+    );
+    assert!(!r.text.contains(&internal.url.replace("http://", "")) || r.json["error"].is_string());
+}
+
+#[tokio::test]
+async fn docs_page_forbids_framing_and_scripts_from_elsewhere() {
+    let h = harness().await;
+    for uri in ["/docs", "/docs/docs.js", "/docs/docs.css"] {
+        let r = send(&h.app, "GET", uri, None, &[], Value::Null).await;
+        assert_eq!(r.status, StatusCode::OK, "{uri}");
+        let csp = r
+            .headers
+            .get("content-security-policy")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(
+            csp.contains("script-src 'self'") && csp.contains("frame-ancestors 'none'"),
+            "{uri}: {csp}"
+        );
+        assert!(
+            !csp.contains("unsafe-inline") && !csp.contains("unsafe-eval"),
+            "{uri}: {csp}"
+        );
+        assert_eq!(
+            r.headers.get("x-content-type-options").unwrap(),
+            "nosniff",
+            "{uri}"
+        );
+        assert_eq!(r.headers.get("x-frame-options").unwrap(), "DENY", "{uri}");
+    }
+}
 async fn make_shared(h: &Harness, network: &str, allow_untrusted: bool, bps: u32) -> u64 {
     let (s, r) = call(
         &h.app,

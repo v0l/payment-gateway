@@ -142,6 +142,15 @@ The tenant's `allowed_origins` must include the embedding site. Card checkouts c
 
 `POST` to the tenant `webhook_url`, JSON `{id, type, created, data:{payment, detail}}`, with headers `X-Gateway-Event-Id` and `X-Gateway-Signature: t=<unix>,v1=<hex>` where `v1 = HMAC-SHA256(webhook_secret, "{t}.{body}")`. Reject old timestamps and dedupe on the event id. Failed deliveries retry with backoff for 3 days. Events: `payment.paid`, `payment.expired`, `payment.cancelled`, `payment.late_payment`, `attempt.failed`, `refund.completed`, `refund.failed`.
 
+The `webhook_url` setting is the project's first (default) endpoint. A project can have several endpoints (console, Webhooks tab), each with its own event filter (`*`, exact types or prefixes such as `payment.*`), signing secret (shown once), enable switch, `Send test event` button (a signed `webhook.test` event) and delivery stats. The same events can be pulled with `GET /v1/events?type=&cursor=`.
+
+## API contract
+
+- OpenAPI 3.1 at `GET /v1/openapi.json` (no auth), rendered at `/docs`. Versioning rule and history in `docs/CHANGELOG.md`: `/v1` only changes additively.
+- Errors: `{"error": "message", "error_detail": {"code": "invalid_request", "message": "...", "field": "limit"}}`. `error` stays a string for existing clients.
+- Lists return bare arrays. Pass `limit` (1 to 100, default 50) and `cursor`; when more rows exist the response carries `X-Next-Cursor`. Lists: `/v1/payments` (filters `status`, `reference`, `customer_ref`, `created_from`, `created_to`), `/v1/refunds`, `/v1/events`, `/v1/saved-methods`, `/v1/methods`.
+- API keys are created in the console (API keys tab) with a name, scopes (`payments:read`, `payments:write`, `refunds:write`, `saved:write`, `admin`) and optional expiry. The secret is shown once and stored as a hash. Keys are `pgw_test_...` for projects under test limits and `pgw_live_...` for trusted ones. A key without the needed scope gets 403 `insufficient_scope`. Expired and revoked keys get 401. The original project key is the `default` key with every scope.
+
 ## Other endpoints
 
 ```
@@ -192,6 +201,6 @@ Each test creates its own database. The build needs `protoc`.
 ### Extra suites
 
 - `tests/chaos.rs`: mock provider fault injection with invariants (one `payment.paid` per settled payment, no over refund, receipts cover the amount).
-- `tests/providers_e2e.rs`: Stripe and Revolut flows replayed from `tests/fixtures/` (built from the documented response shapes, not yet recorded from a live account). With `STRIPE_TEST_KEY` (an `sk_test_` key) or `REVOLUT_SANDBOX_TOKEN` set, the live tests also run against the real test mode APIs.
+- `tests/providers_e2e.rs`: Stripe and Revolut flows replayed from `tests/fixtures/` (Revolut fixtures are recorded from the Revolut sandbox, Stripe ones are built from the documented response shapes). With `STRIPE_TEST_KEY` (an `sk_test_` key) or `REVOLUT_SANDBOX_TOKEN` set, the live tests also run against the real test mode APIs.
 - `tests/regtest_e2e.rs` and `tests/regtest_long.rs`: real bitcoind and LND. `regtest/scripts/up.sh`, then `REGTEST=1 cargo test --test regtest_e2e --test regtest_long -- --test-threads=1`, then `regtest/scripts/reset.sh`. The long test covers parallel lightning payments, underpayment plus top up, overpayment, an RBF replacement, a gateway kill mid payment and an LND restart. `mine.sh`, `fund.sh` and `rebalance.sh` are helpers. The `regtest` workflow runs this on a schedule.
 - `scripts/load.sh`: load test, see `docs/performance.md`.

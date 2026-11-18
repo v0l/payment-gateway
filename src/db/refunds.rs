@@ -64,3 +64,37 @@ pub async fn get_refund<'e, E: Executor<'e, Database = MySql>>(
             .await?,
     )
 }
+
+pub async fn list_refunds_page(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    after: Option<u64>,
+    payment: Option<&PaymentId>,
+    status: Option<&str>,
+    limit: u32,
+) -> Result<Vec<RefundRow>> {
+    let mut sql = String::from(
+        "select r.id, r.payment_id, r.attempt_id, r.amount, r.charge_amount, r.currency, r.destination, r.status, r.external_id, r.error, r.created from refund r join payment p on p.id = r.payment_id where p.tenant_id = ?",
+    );
+    if after.is_some() {
+        sql.push_str(" and r.id < ?");
+    }
+    if payment.is_some() {
+        sql.push_str(" and r.payment_id = ?");
+    }
+    if status.is_some() {
+        sql.push_str(" and r.status = ?");
+    }
+    sql.push_str(" order by r.id desc limit ?");
+    let mut q = sqlx::query_as(&sql).bind(tenant_id);
+    if let Some(a) = after {
+        q = q.bind(a);
+    }
+    if let Some(p) = payment {
+        q = q.bind(p.to_vec());
+    }
+    if let Some(s) = status {
+        q = q.bind(s);
+    }
+    Ok(q.bind(limit + 1).fetch_all(pool).await?)
+}

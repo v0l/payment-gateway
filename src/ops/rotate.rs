@@ -31,6 +31,11 @@ pub const SEALED_COLUMNS: &[SealedColumn] = &[
         key: "id",
         column: "totp_secret",
     },
+    SealedColumn {
+        table: "webhook_endpoint",
+        key: "id",
+        column: "secret",
+    },
 ];
 
 pub const NOT_SEALED_BINARY_COLUMNS: &[(&str, &str)] = &[

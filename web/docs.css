@@ -1,0 +1,15 @@
+body { font-family: system-ui, sans-serif; margin: 0; background: #fafafa; color: #1a1a1a; }
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { margin-bottom: 4px; }
+.sub { color: #555; margin-top: 0; }
+.op { background: #fff; border: 1px solid #ddd; border-radius: 6px; margin: 12px 0; padding: 12px 16px; }
+.method { display: inline-block; min-width: 56px; padding: 2px 8px; border-radius: 4px; color: #fff; font-weight: 600; font-size: 12px; text-transform: uppercase; text-align: center; }
+.get { background: #2b7de9; }
+.post { background: #2e9e5b; }
+.delete { background: #c0392b; }
+.path { font-family: ui-monospace, monospace; margin-left: 8px; }
+.scope { color: #555; font-size: 13px; }
+table { border-collapse: collapse; margin-top: 8px; }
+td, th { border-bottom: 1px solid #eee; padding: 4px 12px 4px 0; text-align: left; font-size: 14px; }
+code, pre { font-family: ui-monospace, monospace; font-size: 13px; }
+pre { background: #f0f0f0; padding: 8px; overflow: auto; }
