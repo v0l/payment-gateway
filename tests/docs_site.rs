@@ -186,7 +186,19 @@ fn compile_js_client() -> Option<PathBuf> {
     let status = std::process::Command::new("tsc")
         .args(["--outDir"])
         .arg(&out)
-        .args(["--module", "es2020", "--target", "es2020", "--moduleResolution", "bundler", "--lib", "es2022,dom", "--skipLibCheck", "--declaration", "false"])
+        .args([
+            "--module",
+            "es2020",
+            "--target",
+            "es2020",
+            "--moduleResolution",
+            "bundler",
+            "--lib",
+            "es2022,dom",
+            "--skipLibCheck",
+            "--declaration",
+            "false",
+        ])
         .arg(root().join("clients/js/src/index.ts"))
         .output()
         .ok()?;
