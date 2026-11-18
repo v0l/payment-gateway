@@ -45,6 +45,24 @@ curl -sf "$GW/v1/payments/$ID" -H "Authorization: Bearer $KEY" | jq -r .status
 
 The status is `pending` until the payment settles, then `paid`. Do not fulfil an order on anything but the webhook or a `GET` that says `paid`.
 
+## Using the JavaScript client
+
+The same flow with the JavaScript client (`clients/js` in the repository), which also retries 429 and 5xx responses and reuses the idempotency key across retries. There are matching Rust (`clients/rust`) and Python (`clients/python`) clients.
+
+```js run
+import { Gateway } from "@payment-gateway/client";
+
+const gw = new Gateway({ baseUrl: process.env.GW, apiKey: process.env.KEY });
+const payment = await gw.createPayment(
+  { reference: "quickstart-js-1", amount: 1500, currency: "EUR" },
+  { idempotencyKey: "quickstart-js-1" },
+);
+const withAttempt = await gw.createAttempt(payment.id, { method: "lightning" });
+console.log(withAttempt.attempts[0].details.bolt11);
+const current = await gw.getPayment(payment.id);
+if (current.status !== "pending") throw new Error(current.status);
+```
+
 ## 4. Cancel
 
 A pending payment can be cancelled:

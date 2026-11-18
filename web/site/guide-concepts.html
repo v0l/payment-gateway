@@ -33,6 +33,8 @@
 <h2 id="settlement">Settlement</h2>
 <p>Settlement is exactly once. When a provider reports the money, the gateway locks the payment row, checks its state, marks the attempt and payment paid and writes the webhook row in one database transaction. Delivery happens after commit. Duplicate and out-of-order provider events are safe.</p>
 <p>Overpayment is accepted and recorded. On-chain underpayment stays pending until expiry and is then flagged for a manual decision. A payment that arrives after expiry produces a <code>payment.late_payment</code> event.</p>
+<h2 id="receipts">Receipts</h2>
+<p>A paid payment has a public receipt at <code>/receipt/{payment_id}</code>, linked from the payment's <code>receipt_url</code>. See the <a href="/guide/quickstart-hosted">hosted quickstart</a>.</p>
 <h2 id="scopes">Scopes</h2>
 <p>API keys carry scopes: <code>payments:write</code>, <code>payments:read</code>, <code>refunds:write</code>, <code>saved:write</code> and <code>admin</code>. A call without the needed scope returns 403 <code>insufficient_scope</code>.</p>
 </article>

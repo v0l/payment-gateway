@@ -30,6 +30,8 @@ Answer with any 2xx status to accept. Anything else, or a timeout, is retried wi
 
 Verify against the raw body, not a re-serialised copy. Reject timestamps more than five minutes from now, and compare in constant time.
 
+The JavaScript (`clients/js`), Rust (`clients/rust`) and Python (`clients/python`) client libraries in `clients/` ship a `verifyWebhook` helper, so you can use one of them instead of the samples below.
+
 ### JavaScript (Node)
 
 @include samples/verify.js js

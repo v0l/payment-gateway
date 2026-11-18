@@ -43,6 +43,19 @@ echo &quot;$ATTEMPT&quot; | jq -r '.attempts[0].details.bolt11'</code></pre>
 <p>Wait for the <code>payment.paid</code> webhook, or poll:</p>
 <pre><code class="language-sh">curl -sf &quot;$GW/v1/payments/$ID&quot; -H &quot;Authorization: Bearer $KEY&quot; | jq -r .status</code></pre>
 <p>The status is <code>pending</code> until the payment settles, then <code>paid</code>. Do not fulfil an order on anything but the webhook or a <code>GET</code> that says <code>paid</code>.</p>
+<h2 id="using-the-javascript-client">Using the JavaScript client</h2>
+<p>The same flow with the JavaScript client (<code>clients/js</code> in the repository), which also retries 429 and 5xx responses and reuses the idempotency key across retries. There are matching Rust (<code>clients/rust</code>) and Python (<code>clients/python</code>) clients.</p>
+<pre><code class="language-js">import { Gateway } from &quot;@payment-gateway/client&quot;;
+
+const gw = new Gateway({ baseUrl: process.env.GW, apiKey: process.env.KEY });
+const payment = await gw.createPayment(
+  { reference: &quot;quickstart-js-1&quot;, amount: 1500, currency: &quot;EUR&quot; },
+  { idempotencyKey: &quot;quickstart-js-1&quot; },
+);
+const withAttempt = await gw.createAttempt(payment.id, { method: &quot;lightning&quot; });
+console.log(withAttempt.attempts[0].details.bolt11);
+const current = await gw.getPayment(payment.id);
+if (current.status !== &quot;pending&quot;) throw new Error(current.status);</code></pre>
 <h2 id="4-cancel">4. Cancel</h2>
 <p>A pending payment can be cancelled:</p>
 <pre><code class="language-sh">curl -sf -X POST &quot;$GW/v1/payments/$ID/cancel&quot; -H &quot;Authorization: Bearer $KEY&quot; | jq -r .status</code></pre>

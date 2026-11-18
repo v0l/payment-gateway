@@ -35,6 +35,7 @@
 <p>Answer with any 2xx status to accept. Anything else, or a timeout, is retried with growing delays for three days, always with the same event id. After that the delivery is abandoned and an operator can replay it. You can also pull the same events from <code>GET /v1/events</code>, or poll <code>GET /v1/payments/{id}</code>.</p>
 <h2 id="verifying-a-signature">Verifying a signature</h2>
 <p>Verify against the raw body, not a re-serialised copy. Reject timestamps more than five minutes from now, and compare in constant time.</p>
+<p>The JavaScript (<code>clients/js</code>), Rust (<code>clients/rust</code>) and Python (<code>clients/python</code>) client libraries in <code>clients/</code> ship a <code>verifyWebhook</code> helper, so you can use one of them instead of the samples below.</p>
 <h3 id="javascript-node">JavaScript (Node)</h3>
 <pre><code class="language-js">const crypto = require(&quot;node:crypto&quot;);
 

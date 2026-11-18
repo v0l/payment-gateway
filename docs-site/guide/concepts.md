@@ -28,6 +28,10 @@ Settlement is exactly once. When a provider reports the money, the gateway locks
 
 Overpayment is accepted and recorded. On-chain underpayment stays pending until expiry and is then flagged for a manual decision. A payment that arrives after expiry produces a `payment.late_payment` event.
 
+## Receipts
+
+A paid payment has a public receipt at `/receipt/{payment_id}`, linked from the payment's `receipt_url`. See the [hosted quickstart](/guide/quickstart-hosted).
+
 ## Scopes
 
 API keys carry scopes: `payments:write`, `payments:read`, `refunds:write`, `saved:write` and `admin`. A call without the needed scope returns 403 `insufficient_scope`.

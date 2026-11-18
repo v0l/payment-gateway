@@ -180,6 +180,59 @@ async fn runnable_shell_samples_work_against_the_gateway() {
     assert!(ran >= 5, "ran {ran} samples");
 }
 
+fn compile_js_client() -> Option<PathBuf> {
+    let out = std::env::temp_dir().join(format!("pgw-js-client-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&out);
+    let status = std::process::Command::new("tsc")
+        .args(["--outDir"])
+        .arg(&out)
+        .args(["--module", "es2020", "--target", "es2020", "--moduleResolution", "bundler", "--lib", "es2022,dom", "--skipLibCheck", "--declaration", "false"])
+        .arg(root().join("clients/js/src/index.ts"))
+        .output()
+        .ok()?;
+    let _ = status;
+    std::fs::write(out.join("package.json"), "{\"type\":\"module\"}").ok()?;
+    out.join("index.js").exists().then_some(out)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn runnable_js_client_samples_work_against_the_gateway() {
+    let Some(client) = compile_js_client() else {
+        eprintln!("skipped: tsc not found");
+        return;
+    };
+    let h = harness().await;
+    let t = tenant(&h).await;
+    provider(&h, &t, "lightning", json!({}), None).await;
+    let base = serve(&h).await;
+    let mut ran = 0;
+    for f in markdown_files() {
+        let md = std::fs::read_to_string(&f).unwrap();
+        for (i, sample) in blocks(&md, "js run").iter().enumerate() {
+            let code = sample.replace(
+                "\"@payment-gateway/client\"",
+                &format!("\"{}\"", client.join("index.js").display()),
+            );
+            let file = client.join(format!("sample-{ran}-{i}.mjs"));
+            std::fs::write(&file, code).unwrap();
+            let out = std::process::Command::new("node")
+                .arg(&file)
+                .env("GW", &base)
+                .env("KEY", &t.key)
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "{}:\n{sample}\nstderr: {}",
+                f.display(),
+                String::from_utf8_lossy(&out.stderr)
+            );
+            ran += 1;
+        }
+    }
+    assert!(ran >= 1);
+}
+
 async fn signed_delivery(h: &Harness, t: &TenantFixture) -> (String, String, String) {
     let lightning = provider(h, t, "lightning", json!({}), None).await;
     let p = new_payment(h, t, eur("docs-sig", 1000)).await;

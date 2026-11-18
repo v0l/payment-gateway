@@ -23,3 +23,7 @@ echo "$PAYMENT" | jq -r .pay_url
 ```
 
 After payment the customer lands on `success_url` with `payment_id`, `reference`, `status` and `sig`. The signature is `HMAC-SHA256(webhook_secret, "{payment_id}.{reference}.{status}")` in hex. Check it, but still confirm with the webhook or `GET /v1/payments/{id}`. The redirect alone is not proof of payment.
+
+## Receipts
+
+Once a payment is paid, its `receipt_url` (also `GET /receipt/{payment_id}`) is a public, print friendly receipt with the seller details from the project settings, the lines, tax and total. Like the pay page it works from the payment id alone, needs no API key, and returns 404 until the payment is paid. Link to it from your thank-you page or email.
