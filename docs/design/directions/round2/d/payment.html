@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Payment pay_7Q4M2X</title><link rel="stylesheet" href="style.css"></head><body>
+<header class="top"><div class="bar"><a class="proj" href="overview.html"><i></i>Northwind Hosting</a><span class="mode">Live</span><div class="search"><span>Search payments, customers, keys</span><kbd>/</kbd></div><span class="me">SK</span></div>
+<nav class="tabs" aria-label="Project"><a href="overview.html">Overview</a><a href="payments.html" aria-current="page">Payments</a><a href="#.html">Customers</a><a href="#.html">Subscriptions</a><a href="#.html">Balance</a><a href="#.html">Payouts</a><a href="#.html">Providers</a><a href="#.html">Developers</a><a href="#.html">Settings</a></nav></header><main><a class="crumb" href="payments.html">Payments</a>
+<div class="dhead"><div><div class="amt">€18.00<span class="cur">EUR</span><span class="pill paid">Paid</span></div><div class="muted" style="margin-top:4px">VPS Dublin-3, 1 month</div></div><div class="btns"><a class="btn" href="#">Copy pay link</a><a class="btn" href="#">Refund</a></div></div>
+<dl class="strip"><div><dt>Paid</dt><dd>18 Nov, 21:46</dd></div><div><dt>Customer</dt><dd>cus_amelia.k</dd></div><div><dt>Method</dt><dd>Lightning</dd></div><div><dt>Time to pay</dt><dd>2 min 10 s</dd></div><div><dt>Fee</dt><dd>€0.00</dd></div></dl>
+<div class="dcols"><div>
+<section><h2>Timeline</h2><ol class="steps" style="margin-top:4px"><li>POST https://billing.northwind.example/hooks/gateway answered 200 in 214 ms<small>18 Nov, 21:46:12.470</small></li><li>Payment marked paid, receipt rn_6671 issued<small>18 Nov, 21:46:11.931</small></li><li>HTLC settled via lnd-dublin-1, preimage matched<small>18 Nov, 21:46:11.904</small></li><li class="grey">Pay page opened from Dublin, IE<small>18 Nov, 21:44:40.502</small></li><li class="grey">Lightning invoice lnbc200160n1p3x... issued, expires 22:44<small>18 Nov, 21:44:02.131</small></li><li class="grey">Created by API key pk_live_4f9a<small>18 Nov, 21:44:02.118</small></li></ol></section>
+<section><h2>Breakdown</h2><div class="bd"><div><span>VPS Dublin-3, 1 month</span><span>€18.00</span></div><div><span class="muted">Network fee paid by you</span><span>€0.00</span></div><div><span class="muted">Received in sats</span><span>20,016</span></div><div class="tot"><span>Net</span><span>€18.00</span></div></div></section>
+<section><h2>Webhook deliveries</h2><div style="overflow-x:auto"><table><thead><tr><th>Endpoint</th><th>Event</th><th>Response</th><th>Time</th><th>Sent</th></tr></thead><tbody><tr><td>billing.northwind.example/hooks/gateway</td><td class="muted">payment.paid</td><td><span class="pill paid">200</span></td><td class="muted">214 ms</td><td class="muted">21:46:12</td></tr><tr><td>ops.northwind.example/hooks/audit</td><td class="muted">payment.paid</td><td><span class="pill paid">200</span></td><td class="muted">96 ms</td><td class="muted">21:46:12</td></tr></tbody></table></div></section></div>
+<aside><section><h2>Details</h2><dl class="kv" style="margin-top:0"><div><dt>ID</dt><dd>pay_7Q4M2X</dd></div><div><dt>Invoice</dt><dd>INV-2291</dd></div><div><dt>Node</dt><dd>lnd-dublin-1</dd></div><div><dt>Created by</dt><dd>API key pk_live_4f9a</dd></div><div><dt>Order</dt><dd>VPS-88213</dd></div><div><dt>Plan</dt><dd>dublin-3-small</dd></div></dl></section>
+<section><h2>API object</h2><pre class="json">{
+  "id": "pay_7Q4M2X",
+  "amount": 1800,
+  "currency": "EUR",
+  "status": "paid",
+  "method": "lightning",
+  "paid_at": "2026-11-18T21:46:11Z",
+  "metadata": {
+    "order": "VPS-88213",
+    "plan": "dublin-3-small"
+  }
+}</pre></section></aside></div></main></body></html>
