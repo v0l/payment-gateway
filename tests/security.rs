@@ -2146,3 +2146,72 @@ fn sanitizer_redacts_every_secret_key_and_the_certificate() {
     let out = payment_gateway::validate::sanitize_test_error(all, Some(&cfg));
     assert!(!out.contains("MARKER"), "{out}");
 }
+
+#[tokio::test]
+async fn a_tenant_owner_cannot_read_change_test_or_delete_the_platform_wallet_row() {
+    let h = harness().await;
+    let a = project(&h, &unique("a@x.example")).await;
+    let sid = make_shared(&h, "regtest", true, 100).await;
+    let on = a
+        .owner
+        .req(
+            "POST",
+            &format!("/projects/{}/shared/{sid}/enabled", a.id),
+            json!({"enabled": true}),
+        )
+        .await;
+    assert_eq!(on.status, StatusCode::OK, "{}", on.text);
+    let backing = payment_gateway::db::list_provider_configs(&h.pool, a.id, false)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.shared_provider_id == Some(sid))
+        .expect("the enabled shared method has a backing row")
+        .id;
+
+    let listed = a
+        .owner
+        .req("GET", &format!("/projects/{}/providers", a.id), Value::Null)
+        .await;
+    assert_eq!(listed.status, StatusCode::OK);
+    assert_eq!(listed.json, json!([]), "{}", listed.text);
+
+    let base = format!("/projects/{}/providers/{backing}", a.id);
+    let body = json!({"method": "lightning", "provider_type": "mock", "name": "x", "config": {"macaroon": "mine"}});
+    for (method, path, body) in [
+        ("GET", base.clone(), Value::Null),
+        ("PUT", base.clone(), body.clone()),
+        ("POST", base.clone(), body),
+        ("DELETE", base.clone(), Value::Null),
+        ("POST", format!("{base}/test"), json!({})),
+        ("POST", format!("{base}/enabled"), json!({"enabled": false})),
+    ] {
+        let r = a.owner.req(method, &path, body).await;
+        assert!(
+            matches!(
+                r.status,
+                StatusCode::FORBIDDEN | StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED
+            ),
+            "{method} {path} gave {}",
+            r.status
+        );
+        assert!(!r.text.contains("sharedsecret"), "{method} {path}");
+        assert!(!r.text.contains("macaroon"), "{method} {path}");
+    }
+
+    let (status, v1) = call(&h.app, "GET", "/v1/providers", Some(&a.key), Value::Null).await;
+    assert!(
+        matches!(status, StatusCode::FORBIDDEN | StatusCode::NOT_FOUND),
+        "{status}"
+    );
+    assert!(!v1.to_string().contains("sharedsecret"));
+
+    let after = payment_gateway::db::get_tenant_provider(&h.pool, a.id, backing)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(after.enabled);
+    assert_eq!(after.shared_provider_id, Some(sid));
+    let (_, methods) = call(&h.app, "GET", "/v1/methods", Some(&a.key), Value::Null).await;
+    assert!(!methods.to_string().contains("sharedsecret"));
+}

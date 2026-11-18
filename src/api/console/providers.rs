@@ -59,6 +59,7 @@ pub(super) async fn list_providers(
         db::list_provider_configs(s.pool(), id, false)
             .await?
             .iter()
+            .filter(|p| p.shared_provider_id.is_none())
             .map(|p| {
                 provider_view(
                     &s,
@@ -174,9 +175,7 @@ pub(super) async fn update_provider(
         .await?
         .ok_or_else(ApiError::not_found)?;
     if row.shared_provider_id.is_some() {
-        return Err(ApiError::bad_request(
-            "platform managed methods are changed from the shared methods list",
-        ));
+        return Err(ApiError::not_found());
     }
     if req.method != row.method || req.provider_type != row.provider_type {
         return Err(ApiError::bad_request(
@@ -247,9 +246,7 @@ pub(super) async fn set_provider_enabled(
         .await?
         .ok_or_else(ApiError::not_found)?;
     if current.shared_provider_id.is_some() {
-        return Err(ApiError::bad_request(
-            "platform managed methods are changed from the shared methods list",
-        ));
+        return Err(ApiError::not_found());
     }
     if !db::set_provider_config_enabled(s.pool(), id, pid, e.enabled).await? {
         return Err(ApiError::not_found());
@@ -281,6 +278,9 @@ pub(super) async fn remove_provider(
     let removed = db::get_tenant_provider(s.pool(), id, pid)
         .await?
         .ok_or_else(ApiError::not_found)?;
+    if removed.shared_provider_id.is_some() {
+        return Err(ApiError::not_found());
+    }
     if db::provider_attempt_count(s.pool(), pid).await? > 0 {
         return Err(ApiError::new(
             StatusCode::CONFLICT,
@@ -308,6 +308,9 @@ pub(super) async fn test_provider(
     let row = db::get_tenant_provider(s.pool(), id, pid)
         .await?
         .ok_or_else(ApiError::not_found)?;
+    if row.shared_provider_id.is_some() {
+        return Err(ApiError::not_found());
+    }
     let config = s.service.registry.open_config(&row).ok();
     let outcome = match s.service.registry.get(pid).await {
         Ok(provider) => provider.test_connection().await,
