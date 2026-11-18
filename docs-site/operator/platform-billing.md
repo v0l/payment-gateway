@@ -21,3 +21,7 @@ An unpaid invoice is due after 3 days. A project is warned when overdue, restric
 ## Overrides
 
 Operators can change a project's plan, grant credit and waive an invoice, each with a required reason: `POST /console/api/admin/projects/{id}/platform/plan`, `.../platform/credit`, `.../platform/invoices/{invoice}/waive`. All are audit logged.
+
+## Shared custody payments
+
+A payment settled through a shared platform provider already pays the custody fee, taken from the project's balance at settlement. It is not metered again, so it carries no transaction or volume fee on the monthly invoice. Payments settled through the project's own providers are metered as above.

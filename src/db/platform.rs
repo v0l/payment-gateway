@@ -466,7 +466,7 @@ pub async fn metered_paid<'e, E: Executor<'e, Database = MySql>>(
     end: DateTime<Utc>,
 ) -> Result<Vec<(String, u64, u64)>> {
     let rows: Vec<(String, i64, i64)> = sqlx::query_as(
-        "select currency, cast(coalesce(sum(amount), 0) as signed), cast(count(*) as signed) from payment where tenant_id = ? and status = 'paid' and paid_at >= ? and paid_at < ? group by currency",
+        "select p.currency, cast(coalesce(sum(p.amount), 0) as signed), cast(count(*) as signed) from payment p where p.tenant_id = ? and p.status = 'paid' and p.paid_at >= ? and p.paid_at < ? and not exists (select 1 from payment_attempt a where a.payment_id = p.id and a.status = 'paid' and a.shared_provider_id is not null) group by p.currency",
     )
     .bind(tenant_id)
     .bind(start)

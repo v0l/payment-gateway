@@ -30,6 +30,8 @@
 <p>An unpaid invoice is due after 3 days. A project is warned when overdue, restricted from 7 days overdue (new payments are refused, refunds and withdrawals work), and disabled from 21 days (new attempts are refused as well). Withdrawals, refunds and settlement of payments created earlier are never blocked. Each change is audit logged as <code>platform.standing_changed</code> and mailed to the project owners. Paying or waiving restores service.</p>
 <h2 id="overrides">Overrides</h2>
 <p>Operators can change a project's plan, grant credit and waive an invoice, each with a required reason: <code>POST /console/api/admin/projects/{id}/platform/plan</code>, <code>.../platform/credit</code>, <code>.../platform/invoices/{invoice}/waive</code>. All are audit logged.</p>
+<h2 id="shared-custody-payments">Shared custody payments</h2>
+<p>A payment settled through a shared platform provider already pays the custody fee, taken from the project's balance at settlement. It is not metered again, so it carries no transaction or volume fee on the monthly invoice. Payments settled through the project's own providers are metered as above.</p>
 </article>
 </main>
 </div>

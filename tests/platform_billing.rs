@@ -794,3 +794,80 @@ async fn one_project_cannot_waive_or_read_another_projects_invoice() {
             .is_none()
     );
 }
+
+#[tokio::test]
+async fn shared_custody_payments_carry_only_the_custody_fee_not_the_platform_fee() {
+    use payment_gateway::ledger::{self, AccountKind};
+    use payment_gateway::providers::{EventSink, ProviderEvent};
+    use payment_gateway::service::ProviderSink;
+    use payment_gateway::shared::shared_key;
+
+    let w = world(0, 100, 10).await;
+    let (s, r) = call(
+        &w.h.app,
+        "POST",
+        "/admin/shared",
+        Some(ADMIN),
+        json!({
+            "name": unique("shared"), "method": "lightning", "provider_type": "mock",
+            "network": "regtest", "config": {"macaroon": "topsecret"},
+            "fee_bps": 150, "fee_base_msat": 2000, "allow_untrusted": true,
+        }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let sid = r["id"].as_u64().unwrap();
+    let tenant = w.h.service.tenant(w.t.id).await.unwrap();
+    w.h.service.enable_shared(&tenant, sid).await.unwrap();
+
+    w.h.service.run_platform_billing().await.unwrap();
+    let p = new_payment(&w.h, &w.t, eur("custody", 5000)).await;
+    let id = p["id"].as_str().unwrap().to_string();
+    let (s, r) = attempt(&w.h, &w.t, &id, json!({"method": "lightning"})).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let hash = r["attempts"][0]["details"]["payment_hash"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    ProviderSink {
+        service: w.h.service.clone(),
+        provider_id: shared_key(sid),
+    }
+    .event(
+        ProviderEvent::Paid {
+            lookup: hash.clone(),
+            reference: hash,
+            amount: None,
+            confirmed: true,
+            saved: None,
+        },
+        None,
+    )
+    .await
+    .unwrap();
+    pay_via(&w.h, &w.t, w.stripe, "own-provider", 10_000).await;
+
+    let received = 100_000_000i64;
+    let custody_fee = received * 150 / 10_000 + 2000;
+    let (fees,): (i64,) = sqlx::query_as(
+        "select cast(coalesce(sum(balance), 0) as signed) from ledger_account where tenant_id is null and kind = ?",
+    )
+    .bind(AccountKind::PlatformFees.as_str())
+    .fetch_one(&w.h.pool)
+    .await
+    .unwrap();
+    assert_eq!(fees, custody_fee);
+    assert_eq!(
+        ledger::tenant_balance(&w.h.pool, w.t.id, "BTC")
+            .await
+            .unwrap(),
+        received - custody_fee
+    );
+
+    w.clock.advance_days(32);
+    w.h.service.run_platform_billing().await.unwrap();
+    let rows = invoices(&w).await;
+    let period = rows.iter().find(|i| i.kind == "period").unwrap();
+    assert_eq!((period.usage_count, period.usage_volume), (1, 10_000));
+    assert_eq!(period.subtotal, 10 + 100);
+}
