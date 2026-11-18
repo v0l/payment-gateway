@@ -47,6 +47,7 @@ pub struct PurgeReport {
     pub sessions_deleted: u64,
     pub account_tokens_deleted: u64,
     pub throttle_rows_deleted: u64,
+    pub login_challenges_deleted: u64,
 }
 
 const BATCH: i64 = 500;
@@ -66,6 +67,7 @@ pub async fn purge(
                 "sessions_deleted": report.sessions_deleted,
                 "account_tokens_deleted": report.account_tokens_deleted,
                 "throttle_rows_deleted": report.throttle_rows_deleted,
+                "login_challenges_deleted": report.login_challenges_deleted,
             }))
             .record(pool, &Origin::default())
             .await;
@@ -107,6 +109,11 @@ async fn purge_tables(
             .execute(pool)
             .await?;
         report.throttle_rows_deleted = r.rows_affected();
+        let r = sqlx::query("delete from login_challenge where expires < ?")
+            .bind(cutoff)
+            .execute(pool)
+            .await?;
+        report.login_challenges_deleted = r.rows_affected();
     }
     Ok(report)
 }

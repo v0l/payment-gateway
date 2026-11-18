@@ -565,3 +565,55 @@ async fn disabling_is_audited() {
     .unwrap();
     assert!(all.iter().any(|e| e.action == "2fa.disabled"));
 }
+
+#[tokio::test]
+async fn password_reset_does_not_bypass_two_factor() {
+    let h = harness_with_mail().await;
+    let (c, id) = signed_in(&h, "a@example.com").await;
+    let (secret, _) = enrol(&h, &c, id).await;
+
+    h.mailer.clear();
+    let r = send(
+        &h.app,
+        "POST",
+        "/console/api/reset",
+        None,
+        &[],
+        json!({"email": "a@example.com"}),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK);
+    let sent = h.mailer.wait_for(1).await;
+    let text = &sent[0].text;
+    let start = text.find("/console/").expect("link");
+    let token = text[start..]
+        .split_whitespace()
+        .next()
+        .unwrap()
+        .rsplit('/')
+        .next()
+        .unwrap()
+        .trim_end_matches(['"', '<'])
+        .to_string();
+    let r = send(
+        &h.app,
+        "POST",
+        "/console/api/reset/confirm",
+        None,
+        &[],
+        json!({"token": token, "password": "a brand new password"}),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.text);
+    assert!(r.headers.get("set-cookie").is_none());
+
+    let r = password_login(&h.app, "a@example.com", "a brand new password").await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(r.json["two_factor"], true);
+    assert!(r.headers.get("set-cookie").is_none());
+    let challenge = r.json["challenge"].as_str().unwrap().to_string();
+    let wrong = second_step(&h.app, &challenge, json!({"code": "000000"})).await;
+    assert_eq!(wrong.status, StatusCode::UNAUTHORIZED);
+    let ok = second_step(&h.app, &challenge, json!({"code": code_at(&secret, 1)})).await;
+    assert_eq!(ok.status, StatusCode::OK, "{}", ok.text);
+}

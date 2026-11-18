@@ -21,6 +21,11 @@ pub const SEALED_COLUMNS: &[SealedColumn] = &[
         key: "id",
         column: "config",
     },
+    SealedColumn {
+        table: "account",
+        key: "id",
+        column: "totp_secret",
+    },
 ];
 
 pub const NOT_SEALED_BINARY_COLUMNS: &[(&str, &str)] = &[
@@ -98,7 +103,7 @@ async fn rotate_columns(
         let mut last = 0u64;
         'column: loop {
             let rows: Vec<(u64, Vec<u8>)> = sqlx::query_as(&format!(
-                "select {k}, {c} from {t} where {k} > ? order by {k} limit ?",
+                "select {k}, {c} from {t} where {k} > ? and {c} is not null order by {k} limit ?",
                 k = col.key,
                 c = col.column,
                 t = col.table
@@ -151,10 +156,13 @@ async fn rotate_columns(
 pub async fn sealed_kids(pool: &MySqlPool) -> Result<Vec<(String, String, u64)>> {
     let mut out = Vec::new();
     for col in SEALED_COLUMNS {
-        let rows: Vec<(Vec<u8>,)> =
-            sqlx::query_as(&format!("select {} from {}", col.column, col.table))
-                .fetch_all(pool)
-                .await?;
+        let rows: Vec<(Vec<u8>,)> = sqlx::query_as(&format!(
+            "select {c} from {t} where {c} is not null",
+            c = col.column,
+            t = col.table
+        ))
+        .fetch_all(pool)
+        .await?;
         let mut counts: std::collections::BTreeMap<String, u64> = Default::default();
         for (v,) in rows {
             let kid = Sealer::kid_of(&v).unwrap_or("legacy").to_string();
