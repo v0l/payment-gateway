@@ -30,6 +30,7 @@ mod operator_tools;
 mod payment_filters;
 mod payment_tools;
 mod payments;
+mod project_settings;
 mod payouts;
 mod platform_billing;
 mod projects;
@@ -56,6 +57,7 @@ use operator_tools::*;
 use payment_filters::*;
 use payment_tools::*;
 use payments::*;
+use project_settings::*;
 use payouts::*;
 use platform_billing::*;
 pub(crate) use projects::settings_diff;
@@ -181,6 +183,12 @@ pub fn router() -> Router<AppState> {
         )
         .route("/projects/{id}/stats", get(stats))
         .route("/projects/{id}/dashboard", get(dashboard))
+        .route("/projects/{id}/settings", get(get_settings))
+        .route("/projects/{id}/settings/legal", post(set_legal))
+        .route("/projects/{id}/settings/notifications", post(set_project_notifications))
+        .route("/projects/{id}/settings/enabled", post(set_enabled))
+        .route("/projects/{id}/delete-request", post(request_delete).delete(cancel_delete))
+        .route("/projects/{id}/delete-confirm", post(confirm_delete))
         .route("/operator/tenants", get(tenant_overview))
         .route("/operator/tenants/{id}/support", get(support_view))
         .route("/operator/search", get(global_search))

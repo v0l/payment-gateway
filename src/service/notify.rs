@@ -40,6 +40,9 @@ impl Service {
         if !self.mailer.enabled() {
             return Ok(());
         }
+        if !db::notification_enabled(&self.pool, tenant_id, kind).await? {
+            return Ok(());
+        }
         let recipients = db::notification_recipients(&self.pool, tenant_id).await?;
         if recipients.is_empty() {
             return Ok(());
