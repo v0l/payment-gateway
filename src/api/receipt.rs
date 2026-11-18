@@ -130,7 +130,7 @@ fn row(label: &str, value: &str) -> String {
 
 fn lines_table(b: &Breakdown, currency: &str) -> String {
     let mut out = String::from(
-        "<div class=\"scroll\"><table class=\"lines\"><thead><tr><th>Item</th><th class=\"num\">Qty</th><th class=\"num\">Unit</th><th class=\"num\">Tax</th><th class=\"num\">Total</th></tr></thead><tbody>",
+        "<div class=\"scroll\"><table class=\"lines\"><thead><tr><th>Item</th><th class=\"num\">Qty</th><th class=\"num\">Unit</th><th class=\"num\">Total</th></tr></thead><tbody>",
     );
     for l in &b.lines {
         let mut name = esc(&l.name);
@@ -146,23 +146,25 @@ fn lines_table(b: &Breakdown, currency: &str) -> String {
                 esc(&money(l.discount, currency))
             ));
         }
-        let tax = match l.tax_rate_bps {
-            Some(bps) => format!("{} ({})", money(l.tax, currency), percent(bps)),
-            None => money(l.tax, currency),
-        };
+        if l.tax > 0 {
+            let tax = match l.tax_rate_bps {
+                Some(bps) => format!("Tax {} ({})", money(l.tax, currency), percent(bps)),
+                None => format!("Tax {}", money(l.tax, currency)),
+            };
+            name.push_str(&format!("<span class=\"sub\">{}</span>", esc(&tax)));
+        }
         out.push_str(&format!(
-            "<tr><td>{}</td><td class=\"num money\">{}</td><td class=\"num money\">{}</td><td class=\"num money\">{}</td><td class=\"num money\">{}</td></tr>",
+            "<tr><td>{}</td><td class=\"num money\">{}</td><td class=\"num money\">{}</td><td class=\"num money\">{}</td></tr>",
             name,
             l.quantity,
             esc(&money(l.unit_amount, currency)),
-            esc(&tax),
-            esc(&money(l.total, currency)),
+            esc(&money(l.net, currency)),
         ));
     }
     out.push_str("</tbody><tfoot>");
     let foot = |label: String, value: String| {
         format!(
-            "<tr><td colspan=\"4\" class=\"num\">{}</td><td class=\"num money\">{}</td></tr>",
+            "<tr><td colspan=\"3\" class=\"num\">{}</td><td class=\"num money\">{}</td></tr>",
             esc(&label),
             esc(&value)
         )
@@ -249,9 +251,8 @@ pub fn render(p: &PaymentRow, tenant: &Tenant, method: Option<&str>) -> String {
     };
 
     format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Receipt {}</title><link rel=\"stylesheet\" href=\"/assets/tokens.css\"><link rel=\"stylesheet\" href=\"/assets/receipt.css\"></head><body><main><div class=\"receipt\"><header><div><h1>Receipt</h1><div class=\"muted\">{}</div></div><div>{}</div></header><dl class=\"meta\">{}</dl>{}<div class=\"actions\"><button type=\"button\" id=\"print\">Print</button></div></div></main><script src=\"/assets/receipt.js\"></script></body></html>",
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Receipt {}</title><link rel=\"stylesheet\" href=\"/assets/tokens.css\"><link rel=\"stylesheet\" href=\"/assets/receipt.css\"></head><body><main><div class=\"receipt\"><header><div><h1>Receipt</h1></div><div>{}</div></header><dl class=\"meta\">{}</dl>{}<div class=\"actions\"><button type=\"button\" id=\"print\">Print</button></div></div></main><script src=\"/assets/receipt.js\"></script></body></html>",
         esc(&p.reference),
-        esc(&seller),
         seller_html,
         meta,
         body

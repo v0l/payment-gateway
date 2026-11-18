@@ -619,3 +619,82 @@ async fn openapi_documents_line_items_and_the_payment_view() {
         .ends_with("/Payment"));
     assert!(r.json["paths"].get("/receipt/{id}").is_none());
 }
+
+fn cents(text: &str) -> i64 {
+    let n = text.trim().trim_end_matches(" EUR").replace(',', "");
+    let (sign, n) = match n.strip_prefix('-') {
+        Some(rest) => (-1, rest.to_string()),
+        None => (1, n),
+    };
+    let (whole, frac) = n.split_once('.').unwrap();
+    sign * (whole.parse::<i64>().unwrap() * 100 + frac.parse::<i64>().unwrap())
+}
+
+fn last_cells(html: &str, from: &str, to: &str) -> Vec<String> {
+    let start = html.find(from).unwrap();
+    let section = &html[start..start + html[start..].find(to).unwrap()];
+    section
+        .split("<tr>")
+        .skip(1)
+        .map(|row| {
+            let cell = row.rsplit("<td class=\"num money\">").next().unwrap();
+            cell.split("</td>").next().unwrap().to_string()
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn receipt_line_totals_sum_to_the_subtotal() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let fixture = json!({
+        "reference": "rcpt-sum",
+        "currency": "EUR",
+        "line_items": [
+            {"name": "Widget", "quantity": 3, "unit_amount": 333, "tax_rate": 8.25},
+            {"name": "Shipping", "unit_amount": 500, "tax_rate": 23},
+            {"name": "Gift wrap", "unit_amount": 250}
+        ],
+        "discount": {"percent": 10, "code": "SAVE10"}
+    });
+    let id = paid_payment(&h, &t, fixture).await;
+    let r = send(
+        &h.app,
+        "GET",
+        &format!("/receipt/{id}"),
+        None,
+        &[],
+        Value::Null,
+    )
+    .await;
+    let lines = last_cells(&r.text, "<tbody>", "</tbody>");
+    assert_eq!(lines.len(), 3);
+    let sum: i64 = lines.iter().map(|c| cents(c)).sum();
+    let foot = last_cells(&r.text, "<tfoot>", "</tfoot>");
+    assert_eq!(cents(&foot[0]), 1749, "{foot:?}");
+    assert_eq!(sum, cents(&foot[0]), "{lines:?} {foot:?}");
+    assert_eq!(cents(&foot[1]), -175);
+    assert_eq!(cents(&foot[2]), 178);
+    assert_eq!(cents(&foot[0]) + cents(&foot[1]) + cents(&foot[2]), 1752);
+}
+
+#[tokio::test]
+async fn receipt_names_the_seller_once_and_fills_the_card_width() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    set_seller(&h, &t).await;
+    let id = paid_payment(&h, &t, body("rcpt-once")).await;
+    let r = send(
+        &h.app,
+        "GET",
+        &format!("/receipt/{id}"),
+        None,
+        &[],
+        Value::Null,
+    )
+    .await;
+    assert_eq!(r.text.matches("Acme &lt;b&gt;Ltd&lt;/b&gt;").count(), 1);
+    let css = send(&h.app, "GET", "/assets/receipt.css", None, &[], Value::Null).await;
+    assert!(css.text.contains(".lines { width: 100%"));
+    assert!(!css.text.contains("nth-child"));
+}

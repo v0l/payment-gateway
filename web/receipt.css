@@ -12,11 +12,14 @@ dl.meta { display: grid; grid-template-columns: max-content 1fr; gap: var(--spac
 dl.meta dt { color: var(--muted); }
 dl.meta dd { margin: 0; overflow-wrap: anywhere; }
 dl.meta dd.mono { font-family: var(--font-mono); font-size: var(--fs-sm); }
-.scroll { overflow-x: auto; }
+.scroll { overflow-x: auto; width: 100%; }
+.lines { width: 100%; table-layout: auto; }
 table { width: 100%; border-collapse: collapse; margin-bottom: var(--space-3); }
 th, td { text-align: left; padding: var(--space-2) var(--space-1); border-bottom: 1px solid var(--line); vertical-align: top; }
 th { color: var(--muted); font-size: var(--fs-sm); font-weight: 600; }
-th.num, td.num { text-align: right; }
+th.num, td.num { text-align: right; padding-left: var(--space-3); }
+th:first-child, td:first-child { padding-left: 0; }
+th:last-child, td:last-child { padding-right: 0; }
 .money { font-variant-numeric: tabular-nums; white-space: nowrap; }
 tfoot td { border-bottom: 0; }
 tr.total td { font-weight: 700; font-size: var(--fs-lg); border-top: 2px solid var(--text); border-bottom: 0; }
@@ -28,9 +31,11 @@ button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .receipt { padding: var(--space-4); }
   dl.meta { grid-template-columns: 1fr; }
   dl.meta dd { margin-bottom: var(--space-2); }
-  .lines th:nth-child(3), .lines td:nth-child(3), .lines th:nth-child(4), .lines td:nth-child(4) { display: none; }
-  .lines tfoot td:first-child { width: 100%; }
+  th, td { padding-top: var(--space-2); padding-bottom: var(--space-2); }
+  th.num, td.num { padding-left: var(--space-2); }
+  .lines td:first-child, .lines th:first-child { padding-right: var(--space-2); }
 }
+@page { margin: 16mm; }
 @media print {
   :root { color-scheme: light; }
   body { background: #fff; color: black; }
