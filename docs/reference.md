@@ -182,9 +182,26 @@ Accessibility checks: `scripts/e2e/` holds a Playwright and axe-core run (`npm c
 
 ## Webhooks
 
-`POST` to the tenant `webhook_url`, JSON `{id, type, created, data:{payment, detail}}`, with headers `X-Gateway-Event-Id` and `X-Gateway-Signature: t=<unix>,v1=<hex>` where `v1 = HMAC-SHA256(webhook_secret, "{t}.{body}")`. Reject old timestamps and dedupe on the event id. Failed deliveries retry with backoff for 3 days. Events: `payment.paid`, `payment.expired`, `payment.cancelled`, `payment.late_payment`, `attempt.failed`, `refund.completed`, `refund.failed`, `withdrawal.requested`, `withdrawal.completed`, `withdrawal.failed` (the withdrawal events carry `data.withdrawal` and follow endpoint filters such as `withdrawal.*`), `payment.disputed`, `payment.dispute_closed`.
+`POST` to the tenant `webhook_url`, JSON `{id, type, created, data:{payment, detail}}`, with headers `X-Gateway-Event-Id` and `X-Gateway-Signature: t=<unix>,v1=<hex>` where `v1 = HMAC-SHA256(webhook_secret, "{t}.{body}")`. Reject old timestamps and dedupe on the event id. Failed deliveries retry with backoff for 3 days. Events: `payment.paid`, `payment.expired`, `payment.cancelled`, `payment.late_payment`, `attempt.failed`, `refund.completed`, `refund.failed`, `withdrawal.requested`, `withdrawal.completed`, `withdrawal.failed` (the withdrawal events carry `data.withdrawal` and follow endpoint filters such as `withdrawal.*`), `payment.disputed`, `payment.dispute_closed`, and the subscription events listed under Recurring billing.
 
 The `webhook_url` setting is the project's first (default) endpoint. A project can have several endpoints (console, Webhooks tab), each with its own event filter (`*`, exact types or prefixes such as `payment.*`), signing secret (shown once), enable switch, `Send test event` button (a signed `webhook.test` event) and delivery stats. The same events can be pulled with `GET /v1/events?type=&cursor=`.
+
+## Recurring billing
+
+Plans and subscriptions live under `/v1` and in the console (Plans and Subscriptions tabs). Scopes: `payments:read` and `payments:write`.
+
+- `POST /v1/plans` `{name, amount, currency, interval: day|week|month|year (default month), interval_count (default 1), trial_days (default 0), grace_days (default 3), description}`; `GET /v1/plans`, `GET /v1/plans/{id}`, `POST /v1/plans/{id}/archive`.
+- `POST /v1/subscriptions` `{customer_ref, plan_id, saved_method_id?}`. With a saved method the first period is charged at once (or after the trial). Without one the response is `incomplete` and carries `payment_id` and `pay_url`: the customer pays that first payment (with `save_method` for a card) and the subscription turns `active` when it settles. An unpaid first payment cancels the subscription after a day.
+- `GET /v1/subscriptions` (filters `customer_ref`, `status`), `GET /v1/subscriptions/{id}` (with billing history), `POST /v1/subscriptions/{id}/pause`, `/resume`, `/cancel` `{at_period_end}`, `/change-plan` `{plan_id, proration: none|prorate}`.
+- Statuses: `incomplete`, `trialing`, `active`, `past_due`, `paused`, `cancelled`.
+
+The billing worker creates one invoice (a payment with reference `sub_<id>_<period>`) per subscription and period. A database unique key on subscription and period makes that exactly once even with several workers. Period ends are computed from the anchor date, so a subscription started on 31 January bills on 28 February (29 in leap years) and then 31 March again.
+
+A failed charge of a saved method is retried 1, 3 and 5 days after the period start with a new payment each time (a failed attempt never leaves a charge behind). After the third retry fails the subscription is `past_due`, and a week later it is cancelled with `cancel_reason: payment_failed`. Methods that cannot be charged off session (no saved method, for example Lightning or on-chain) get a payment for the period and an `invoice.payment_required` event carrying `pay_url`; the customer has `grace_days` to pay before `invoice.failed` and `past_due`.
+
+Plan change proration: with `proration: prorate`, the difference is `(new_amount - old_amount) * remaining_days / period_days`, using integer division truncated toward zero, `remaining_days` the days left in the current period rounded up and `period_days` the period length in whole days. A positive amount is charged at once as a separate payment and a negative amount becomes a credit deducted from the next invoice (`credit` on the subscription). With `none` the new price applies from the next period. The change itself applies immediately and the billing cycle dates do not move.
+
+Subscription events (`data.subscription` is always present, `data.payment` is null when there is none): `subscription.created`, `invoice.paid`, `invoice.failed`, `invoice.payment_required`, `subscription.past_due`, `subscription.cancelled`, `subscription.paused`, `subscription.resumed`, `subscription.updated`.
 
 ## API contract
 
