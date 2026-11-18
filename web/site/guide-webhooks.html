@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webhooks | Payment Gateway</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<a class="brand" href="/">Payment Gateway</a>
+<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/operator/">Operators</a> <a href="/docs">API reference</a> <a href="/legal/">Legal</a> <a class="button" href="/console">Sign in</a></nav>
+</header>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/webhooks" aria-current="page">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article>
+<h1 id="webhooks">Webhooks</h1>
+<p>The gateway sends an HTTP <code>POST</code> with a JSON body to each of the project's webhook endpoints. Create endpoints, choose which events each receives and send test events in the console.</p>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;evt_...&quot;,
+  &quot;type&quot;: &quot;payment.paid&quot;,
+  &quot;created&quot;: 1767225600,
+  &quot;data&quot;: {&quot;payment&quot;: {&quot;id&quot;: &quot;...&quot;, &quot;status&quot;: &quot;paid&quot;, &quot;reference&quot;: &quot;order-1&quot;}, &quot;detail&quot;: {}}
+}</code></pre>
+<p>Withdrawal events carry <code>data.withdrawal</code> instead of <code>data.payment</code>. Subscription events carry <code>data.subscription</code> and <code>data.payment</code>, which is null when there is no payment. See <a href="/guide/subscriptions">subscriptions</a>.</p>
+<h2 id="headers">Headers</h2>
+<ul><li><code>X-Gateway-Event-Id</code>: the event id. Deduplicate on it, deliveries are at least once.</li><li><code>X-Gateway-Signature</code>: <code>t=&lt;unix seconds&gt;,v1=&lt;hex&gt;</code> where <code>v1</code> is <code>HMAC-SHA256(secret, &quot;{t}.{body}&quot;)</code> over the raw request body.</li></ul>
+<h2 id="events">Events</h2>
+<p><code>payment.paid</code>, <code>payment.expired</code>, <code>payment.cancelled</code>, <code>payment.late_payment</code>, <code>payment.disputed</code>, <code>payment.dispute_closed</code>, <code>attempt.failed</code>, <code>refund.completed</code>, <code>refund.failed</code>, <code>withdrawal.requested</code>, <code>withdrawal.completed</code>, <code>withdrawal.failed</code>, <code>subscription.created</code>, <code>invoice.paid</code>, <code>invoice.failed</code>, <code>invoice.payment_required</code>, <code>subscription.past_due</code>, <code>subscription.cancelled</code>, <code>subscription.paused</code>, <code>subscription.resumed</code>, <code>subscription.updated</code>. <code>payment.disputed</code> fires when a card or PayPal dispute opens and <code>payment.dispute_closed</code> when it is decided. The payment carries <code>disputed</code> and <code>dispute_status</code> (<code>open</code>, <code>won</code> or <code>lost</code>). Ignore event types you do not know, new ones can be added.</p>
+<h2 id="delivery-and-retries">Delivery and retries</h2>
+<p>Answer with any 2xx status to accept. Anything else, or a timeout, is retried with growing delays for three days, always with the same event id. After that the delivery is abandoned and an operator can replay it. You can also pull the same events from <code>GET /v1/events</code>, or poll <code>GET /v1/payments/{id}</code>.</p>
+<h2 id="verifying-a-signature">Verifying a signature</h2>
+<p>Verify against the raw body, not a re-serialised copy. Reject timestamps more than five minutes from now, and compare in constant time.</p>
+<p>The JavaScript (<code>clients/js</code>), Rust (<code>clients/rust</code>) and Python (<code>clients/python</code>) client libraries in <code>clients/</code> ship a <code>verifyWebhook</code> helper, so you can use one of them instead of the samples below.</p>
+<h3 id="javascript-node">JavaScript (Node)</h3>
+<pre><code class="language-js">const crypto = require(&quot;node:crypto&quot;);
+
+function verify(secret, header, body, nowSeconds, toleranceSeconds = 300) {
+  const parts = Object.fromEntries(header.split(&quot;,&quot;).map((p) =&gt; p.split(&quot;=&quot;)));
+  const timestamp = Number(parts.t);
+  if (!Number.isFinite(timestamp) || !parts.v1) return false;
+  if (Math.abs(nowSeconds - timestamp) &gt; toleranceSeconds) return false;
+  const expected = crypto.createHmac(&quot;sha256&quot;, secret).update(`${timestamp}.${body}`).digest();
+  const given = Buffer.from(parts.v1, &quot;hex&quot;);
+  return given.length === expected.length &amp;&amp; crypto.timingSafeEqual(given, expected);
+}
+
+module.exports = { verify };</code></pre>
+<h3 id="python">Python</h3>
+<pre><code class="language-python">import hashlib
+import hmac
+
+
+def verify(secret, header, body, now_seconds, tolerance_seconds=300):
+    parts = dict(p.split(&quot;=&quot;, 1) for p in header.split(&quot;,&quot;) if &quot;=&quot; in p)
+    try:
+        timestamp = int(parts[&quot;t&quot;])
+        given = bytes.fromhex(parts[&quot;v1&quot;])
+    except (KeyError, ValueError):
+        return False
+    if abs(now_seconds - timestamp) &gt; tolerance_seconds:
+        return False
+    signed = f&quot;{timestamp}.{body}&quot;.encode()
+    expected = hmac.new(secret.encode(), signed, hashlib.sha256).digest()
+    return hmac.compare_digest(given, expected)</code></pre>
+<h3 id="rust">Rust</h3>
+<p>The Rust sample needs the <code>hmac</code>, <code>sha2</code> and <code>hex</code> crates.</p>
+<pre><code class="language-rust">use hmac::{Hmac, Mac};
+use sha2::Sha256;
+
+pub fn verify_webhook(secret: &amp;str, header: &amp;str, body: &amp;str, now: i64, tolerance: i64) -&gt; bool {
+    let mut timestamp = None;
+    let mut signature = None;
+    for part in header.split(',') {
+        match part.split_once('=') {
+            Some((&quot;t&quot;, v)) =&gt; timestamp = v.parse::&lt;i64&gt;().ok(),
+            Some((&quot;v1&quot;, v)) =&gt; signature = hex::decode(v).ok(),
+            _ =&gt; {}
+        }
+    }
+    let (Some(timestamp), Some(signature)) = (timestamp, signature) else {
+        return false;
+    };
+    if (now - timestamp).abs() &gt; tolerance {
+        return false;
+    }
+    let mut mac = Hmac::&lt;Sha256&gt;::new_from_slice(secret.as_bytes()).expect(&quot;hmac accepts any key length&quot;);
+    mac.update(format!(&quot;{timestamp}.{body}&quot;).as_bytes());
+    mac.verify_slice(&amp;signature).is_ok()
+}</code></pre>
+</article>
+</main>
+</div>
+</body>
+</html>

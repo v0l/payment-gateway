@@ -81,6 +81,7 @@ pub struct Service {
     pub provider_failures: std::sync::Mutex<std::collections::HashMap<u64, u32>>,
     pub metrics: Arc<crate::metrics::Metrics>,
     pub payouts: crate::payouts::Runtime,
+    pub clock: Arc<dyn crate::lease::Clock>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -147,6 +148,26 @@ impl Service {
         public_url: String,
         mailer: Arc<dyn Mailer>,
     ) -> Arc<Self> {
+        Self::with_clock(
+            pool,
+            sealer,
+            registry,
+            rates,
+            public_url,
+            mailer,
+            Arc::new(crate::lease::SystemClock),
+        )
+    }
+
+    pub fn with_clock(
+        pool: MySqlPool,
+        sealer: Sealer,
+        registry: Registry,
+        rates: Arc<dyn RateService>,
+        public_url: String,
+        mailer: Arc<dyn Mailer>,
+        clock: Arc<dyn crate::lease::Clock>,
+    ) -> Arc<Self> {
         let (changes, _) = broadcast::channel(1024);
         let metrics: Arc<crate::metrics::Metrics> = Default::default();
         let mut registry = registry;
@@ -167,6 +188,7 @@ impl Service {
             provider_failures: Default::default(),
             metrics,
             payouts: Default::default(),
+            clock,
         });
         let as_recorder: Arc<dyn crate::providers::HealthRecorder> = service.clone();
         let recorder = Arc::downgrade(&as_recorder);
@@ -259,6 +281,8 @@ mod tests {
 }
 
 mod attempts;
+mod billing;
+mod billing_run;
 mod deliveries;
 mod expiry;
 mod health;

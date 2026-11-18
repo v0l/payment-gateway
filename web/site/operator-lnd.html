@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LND and macaroons | Payment Gateway</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<a class="brand" href="/">Payment Gateway</a>
+<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/operator/">Operators</a> <a href="/docs">API reference</a> <a href="/legal/">Legal</a> <a class="button" href="/console">Sign in</a></nav>
+</header>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd" aria-current="page">LND and macaroons</a></li><li><a href="/operator/providers">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article>
+<h1 id="lnd-and-macaroons">LND and macaroons</h1>
+<p>The gateway talks to LND over gRPC with a TLS certificate and a macaroon. Do not give it <code>admin.macaroon</code>. Bake two macaroons that carry only the calls the gateway makes, so a deployment that only receives money holds no right to spend it.</p>
+<h2 id="receive-macaroon">Receive macaroon</h2>
+<p>Used by the Lightning and on-chain providers (<code>macaroon_path</code>). It can create and look up invoices, cancel them, watch settlements, create addresses and read wallet transactions. It cannot send coins or pay invoices.</p>
+<pre><code class="language-sh">lncli bakemacaroon \
+  uri:/lnrpc.Lightning/AddInvoice \
+  uri:/lnrpc.Lightning/LookupInvoice \
+  uri:/lnrpc.Lightning/SubscribeInvoices \
+  uri:/invoicesrpc.Invoices/CancelInvoice \
+  uri:/invoicesrpc.Invoices/SubscribeSingleInvoice \
+  uri:/lnrpc.Lightning/NewAddress \
+  uri:/lnrpc.Lightning/GetTransactions \
+  uri:/lnrpc.Lightning/SubscribeTransactions \
+  --save_to=gateway-receive.macaroon</code></pre>
+<h2 id="payout-macaroon">Payout macaroon</h2>
+<p>Used only by the payout worker (<code>GATEWAY_PAYOUT_LND_MACAROON</code>), and only needed when withdrawals or refunds are enabled. It can pay invoices, track payments and send on-chain.</p>
+<pre><code class="language-sh">lncli bakemacaroon \
+  uri:/routerrpc.Router/SendPaymentV2 \
+  uri:/routerrpc.Router/TrackPaymentV2 \
+  uri:/lnrpc.Lightning/SendCoins \
+  uri:/lnrpc.Lightning/GetTransactions \
+  --save_to=gateway-payout.macaroon</code></pre>
+<p>Lightning and on-chain refunds send funds from the provider's node, so a provider that must issue refunds needs the payout permissions on its own macaroon too. If you want refunds, bake a third macaroon with both sets, and keep it off any host that does not need it.</p>
+<h2 id="tested-on-regtest">Tested on regtest</h2>
+<p>The script <code>regtest/scripts/macaroons.sh</code> bakes both macaroons with exactly these permissions inside the regtest LND container. The test <code>tests/regtest_macaroon.rs</code> points the Lightning and on-chain providers at the receive macaroon, takes a real Lightning payment through the gateway and checks that it settles, then checks that the receive macaroon is denied <code>SendCoins</code> and the payout macaroon is denied <code>AddInvoice</code>. Run it with:</p>
+<pre><code class="language-sh">regtest/scripts/up.sh
+regtest/scripts/macaroons.sh
+REGTEST=1 CARGO_BUILD_JOBS=2 cargo test --test regtest_macaroon
+regtest/scripts/reset.sh</code></pre>
+<p>The script it runs:</p>
+<pre><code class="language-sh">#!/usr/bin/env bash
+source &quot;$(dirname &quot;$0&quot;)/lib.sh&quot;
+node=&quot;${1:-lnd-gateway}&quot;
+out=&quot;${REGTEST_DIR}&quot;
+
+receive_permissions=(
+  uri:/lnrpc.Lightning/AddInvoice
+  uri:/lnrpc.Lightning/LookupInvoice
+  uri:/lnrpc.Lightning/SubscribeInvoices
+  uri:/invoicesrpc.Invoices/CancelInvoice
+  uri:/invoicesrpc.Invoices/SubscribeSingleInvoice
+  uri:/lnrpc.Lightning/NewAddress
+  uri:/lnrpc.Lightning/GetTransactions
+  uri:/lnrpc.Lightning/SubscribeTransactions
+)
+
+payout_permissions=(
+  uri:/routerrpc.Router/SendPaymentV2
+  uri:/routerrpc.Router/TrackPaymentV2
+  uri:/lnrpc.Lightning/SendCoins
+  uri:/lnrpc.Lightning/GetTransactions
+)
+
+bake() {
+  local name=&quot;$1&quot;; shift
+  lncli &quot;$node&quot; bakemacaroon --save_to=&quot;/tmp/$name.macaroon&quot; &quot;$@&quot; &gt;/dev/null
+  dc cp &quot;$node:/tmp/$name.macaroon&quot; &quot;$out/$name.macaroon&quot;
+}
+
+bake gateway-receive &quot;${receive_permissions[@]}&quot;
+bake gateway-payout &quot;${payout_permissions[@]}&quot;
+echo &quot;macaroons in $out&quot;</code></pre>
+<h2 id="add-the-provider">Add the provider</h2>
+<pre><code class="language-sh">curl -X POST &quot;$GW/admin/tenants/1/providers&quot; \
+  -H &quot;Authorization: Bearer $GATEWAY_ADMIN_TOKEN&quot; -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;method&quot;:&quot;lightning&quot;,&quot;provider_type&quot;:&quot;lnd&quot;,&quot;name&quot;:&quot;main&quot;,
+       &quot;config&quot;:{&quot;url&quot;:&quot;https://lnd:10009&quot;,&quot;cert_path&quot;:&quot;/lnd/tls.cert&quot;,&quot;macaroon_path&quot;:&quot;/lnd/gateway-receive.macaroon&quot;}}'</code></pre>
+<p>Add <code>&quot;method&quot;:&quot;onchain&quot;</code> the same way, with optional <code>address_type</code> (<code>p2tr</code>, <code>p2wkh</code>, <code>np2wkh</code>) and <code>min_confirmations</code>. Mount the certificate and macaroon as read-only files. Rotating a macaroon means baking a new one and updating the file, and the old one stays valid until you change the LND root key or bake with a different <code>--root_key_id</code>.</p>
+</article>
+</main>
+</div>
+</body>
+</html>

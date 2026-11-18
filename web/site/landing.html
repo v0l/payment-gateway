@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A payment gateway for apps. Ask it to collect money by Lightning, on-chain, card, bank or PayPal and it tells you when it is paid.">
+<title>Payment Gateway</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<a class="brand" href="/">Payment Gateway</a>
+<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/docs">API reference</a> <a href="/operator/">Operators</a> <a href="#pricing">Pricing</a> <a class="button" href="/console">Sign in</a></nav>
+</header>
+<main id="content" class="wide">
+<section class="hero" aria-labelledby="hero-title">
+<h1 id="hero-title">Take payments. Get told when they land.</h1>
+<p>Your app asks the gateway to collect an amount. The gateway offers the customer Lightning, on-chain Bitcoin, cards, bank payments or PayPal, and sends your app a signed webhook when the money has arrived.</p>
+<div class="actions">
+<a class="button" href="/console">Sign in to the console</a>
+<a class="button secondary" href="/guide/quickstart-api">Read the quickstart</a>
+</div>
+</section>
+<section aria-labelledby="what-title">
+<h2 id="what-title">What it is</h2>
+<div class="cards">
+<article class="card"><h3>One payment object</h3><p>Create a payment once. The customer chooses how to pay, and every attempt hangs off the same payment.</p></article>
+<article class="card"><h3>Three ways to integrate</h3><p>Call the API and draw your own screen, send customers to the hosted pay page, or embed it in an iframe.</p></article>
+<article class="card"><h3>Safe to retry</h3><p>Idempotency keys on create, signed webhooks with three days of retries, and exactly one settlement per payment.</p></article>
+</div>
+</section>
+<section aria-labelledby="start-title">
+<h2 id="start-title">Start here</h2>
+<ul>
+<li><a href="/guide/">Documentation</a>: concepts, quickstarts, webhooks, going live.</li>
+<li><a href="/docs">API reference</a>: every endpoint, generated from the OpenAPI document.</li>
+<li><a href="/operator/">Operator guide</a>: deploy and run your own gateway.</li>
+<li><a href="/console">Console</a>: projects, API keys, providers, payments.</li>
+</ul>
+</section>
+<section id="pricing" aria-labelledby="pricing-title">
+<h2 id="pricing-title">Pricing</h2>
+<p>Pricing has not been decided yet. New projects start in test mode with low limits and cost nothing while you build.</p>
+</section>
+</main>
+<footer>
+<nav aria-label="Legal">
+<ul>
+<li><a href="/legal/terms">Terms</a></li>
+<li><a href="/legal/privacy">Privacy</a></li>
+<li><a href="/legal/acceptable-use">Acceptable use</a></li>
+<li><a href="/legal/custody">Custodial and non-custodial</a></li>
+</ul>
+</nav>
+</footer>
+</body>
+</html>

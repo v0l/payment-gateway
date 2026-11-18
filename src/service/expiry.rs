@@ -40,7 +40,7 @@ impl Service {
     }
 
     pub async fn expire_due(&self) -> Result<usize> {
-        let now = Utc::now();
+        let now = self.clock.now();
         let mut count = 0;
         for due in db::due_pending_payments(&self.pool, now).await? {
             let pid = due.pid();

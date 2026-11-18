@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quickstart: iframe | Payment Gateway</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<a class="brand" href="/">Payment Gateway</a>
+<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/operator/">Operators</a> <a href="/docs">API reference</a> <a href="/legal/">Legal</a> <a class="button" href="/console">Sign in</a></nav>
+</header>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe" aria-current="page">Quickstart: iframe</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article>
+<h1 id="quickstart-iframe">Quickstart: iframe</h1>
+<p>The same pay page can run inside your own page. The gateway sends <code>frame-ancestors</code> limited to the project's <code>allowed_origins</code>, so add the embedding site there first (see the <a href="/guide/quickstart-hosted">hosted quickstart</a>).</p>
+<p>Create the payment on your server as in the <a href="/guide/quickstart-api">API quickstart</a>, pass the payment id to the page, then:</p>
+<pre><code class="language-html">&lt;div id=&quot;pay&quot;&gt;&lt;/div&gt;
+&lt;script src=&quot;https://pay.example.com/gateway.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;/checkout.js&quot;&gt;&lt;/script&gt;</code></pre>
+<p>And in <code>checkout.js</code>, which keeps your own page free of inline scripts:</p>
+<pre><code class="language-js">PaymentGateway.open({
+  gateway: &quot;https://pay.example.com&quot;,
+  paymentId: document.getElementById(&quot;pay&quot;).dataset.paymentId,
+  container: &quot;#pay&quot;,
+  onPaid: function () { window.location = &quot;/thanks&quot;; }
+});</code></pre>
+<p>The frame posts <code>pgw:ready</code>, <code>pgw:resize</code>, <code>pgw:paid</code>, <code>pgw:expired</code> and <code>pgw:cancelled</code>. <code>gateway.js</code> turns them into the <code>onReady</code>, <code>onPaid</code> and similar callbacks and resizes the frame. Card checkouts from Stripe and Revolut refuse to be framed, so for those methods the embed redirects the top window.</p>
+<h2 id="modal">Modal</h2>
+<p>Pass <code>mode: &quot;modal&quot;</code> to open the pay page as an overlay instead of inside a container. It has a close button, Escape closes it, focus returns to the element that opened it, and no <code>container</code> is needed.</p>
+<pre><code class="language-js">PaymentGateway.open({
+  gateway: &quot;https://pay.example.com&quot;,
+  paymentId: &quot;PAYMENT_ID&quot;,
+  mode: &quot;modal&quot;,
+  onClosed: function () { console.log(&quot;closed&quot;); }
+});</code></pre>
+<p>Other options are <code>onReady</code>, <code>onPaid</code>, <code>onExpired</code>, <code>onCancelled</code>, <code>onError({code, message})</code>, <code>title</code> and <code>closeLabel</code>. <code>open</code> returns <code>{frame, close()}</code>. The script only accepts messages from the gateway origin, from its own frame and for the matching payment id.</p>
+<h2 id="content-security-policy">Content Security Policy</h2>
+<p>If your page sends a CSP, allow the gateway as a script and frame source. The frame and modal sizing is applied from script, so you do not need to relax <code>style-src</code>:</p>
+<pre><code class="language-text">Content-Security-Policy: script-src 'self' https://pay.example.com; frame-src https://pay.example.com</code></pre>
+<p>As with every integration mode, confirm payment on your server from the webhook.</p>
+</article>
+</main>
+</div>
+</body>
+</html>

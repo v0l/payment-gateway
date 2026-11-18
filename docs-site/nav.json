@@ -1,0 +1,49 @@
+{
+  "sections": [
+    {
+      "id": "guide",
+      "title": "Guide",
+      "pages": [
+        {"slug": "index", "title": "Overview"},
+        {"slug": "concepts", "title": "Concepts"},
+        {"slug": "quickstart-api", "title": "Quickstart: API only"},
+        {"slug": "quickstart-hosted", "title": "Quickstart: hosted page"},
+        {"slug": "quickstart-iframe", "title": "Quickstart: iframe"},
+        {"slug": "webhooks", "title": "Webhooks"},
+        {"slug": "going-live", "title": "Going live checklist"},
+        {"slug": "refunds-saved", "title": "Refunds and saved methods"},
+        {"slug": "subscriptions", "title": "Subscriptions and recurring billing"},
+        {"slug": "custody", "title": "Custody and payouts"},
+        {"slug": "errors", "title": "Error reference"},
+        {"slug": "faq", "title": "FAQ"},
+        {"slug": "reference", "title": "API reference"}
+      ]
+    },
+    {
+      "id": "operator",
+      "title": "Operator guide",
+      "pages": [
+        {"slug": "index", "title": "Overview"},
+        {"slug": "deploy", "title": "Deploying"},
+        {"slug": "lnd", "title": "LND and macaroons"},
+        {"slug": "providers", "title": "Stripe, Revolut and PayPal"},
+        {"slug": "shared-providers", "title": "Shared platform providers"},
+        {"slug": "backups", "title": "Backups and key rotation"},
+        {"slug": "monitoring", "title": "Monitoring and alerts"},
+        {"slug": "runbooks", "title": "Runbooks"}
+      ]
+    },
+    {
+      "id": "legal",
+      "title": "Legal (drafts)",
+      "banner": "Draft template. It has not been reviewed by a lawyer and must be reviewed and adapted before use.",
+      "pages": [
+        {"slug": "index", "title": "Overview"},
+        {"slug": "terms", "title": "Terms of service"},
+        {"slug": "privacy", "title": "Privacy policy"},
+        {"slug": "acceptable-use", "title": "Acceptable use"},
+        {"slug": "custody", "title": "Custodial and non-custodial"}
+      ]
+    }
+  ]
+}

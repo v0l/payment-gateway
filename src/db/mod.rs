@@ -229,6 +229,7 @@ const SAVED_COLS: &str = "id, tenant_id, customer_ref, provider_config_id, exter
 const REFUND_COLS: &str = "id, payment_id, attempt_id, amount, charge_amount, currency, destination, status, external_id, error, created";
 
 mod attempts;
+mod branding;
 mod deliveries;
 mod endpoints;
 mod keys;
@@ -240,10 +241,12 @@ mod refunds;
 mod saved;
 mod shared;
 mod stats;
+mod subscriptions;
 mod tenants;
 mod withdrawals;
 
 pub use attempts::*;
+pub use branding::*;
 pub use deliveries::*;
 pub use endpoints::*;
 pub use keys::*;
@@ -255,5 +258,6 @@ pub use refunds::*;
 pub use saved::*;
 pub use shared::*;
 pub use stats::*;
+pub use subscriptions::*;
 pub use tenants::*;
 pub use withdrawals::*;

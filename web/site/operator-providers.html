@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stripe, Revolut and PayPal | Payment Gateway</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<a class="brand" href="/">Payment Gateway</a>
+<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/operator/">Operators</a> <a href="/docs">API reference</a> <a href="/legal/">Legal</a> <a class="button" href="/console">Sign in</a></nav>
+</header>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers" aria-current="page">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article>
+<h1 id="stripe-revolut-and-paypal">Stripe, Revolut and PayPal</h1>
+<h2 id="stripe">Stripe</h2>
+<p>Add the provider with a secret key and the webhook signing secret:</p>
+<pre><code class="language-sh">curl -X POST &quot;$GW/admin/tenants/1/providers&quot; \
+  -H &quot;Authorization: Bearer $GATEWAY_ADMIN_TOKEN&quot; -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;method&quot;:&quot;stripe&quot;,&quot;provider_type&quot;:&quot;stripe&quot;,&quot;name&quot;:&quot;cards&quot;,&quot;config&quot;:{&quot;secret_key&quot;:&quot;sk_live_...&quot;,&quot;webhook_secret&quot;:&quot;whsec_...&quot;}}'</code></pre>
+<p>The response holds a <code>hook_url</code> of the form <code>https://pay.example.com/hook/{tenant}/{provider}</code>. In the Stripe dashboard add a webhook endpoint with that URL and subscribe it to:</p>
+<ul><li><code>checkout.session.completed</code></li><li><code>checkout.session.async_payment_succeeded</code></li><li><code>checkout.session.async_payment_failed</code></li></ul>
+<p>Also subscribe it to <code>charge.refunded</code>, <code>charge.refund.updated</code>, <code>charge.dispute.created</code> and <code>charge.dispute.closed</code> so refunds and disputes reach the payment.</p>
+<p>Copy the endpoint's signing secret (<code>whsec_...</code>) into the provider config. The gateway rejects hook calls whose signature does not verify. Use a restricted key where Stripe allows it.</p>
+<h2 id="revolut">Revolut</h2>
+<pre><code class="language-sh">curl -X POST &quot;$GW/admin/tenants/1/providers&quot; \
+  -H &quot;Authorization: Bearer $GATEWAY_ADMIN_TOKEN&quot; -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;method&quot;:&quot;revolut&quot;,&quot;provider_type&quot;:&quot;revolut&quot;,&quot;name&quot;:&quot;revolut&quot;,&quot;config&quot;:{&quot;url&quot;:&quot;https://merchant.revolut.com&quot;,&quot;token&quot;:&quot;...&quot;,&quot;api_version&quot;:&quot;...&quot;,&quot;public_key&quot;:&quot;...&quot;}}'</code></pre>
+<p>The gateway registers its webhook with Revolut itself and stores the signing secret, so there is nothing to copy. Use <code>https://sandbox-merchant.revolut.com</code> for the sandbox. If the public URL changes, save the provider again to register the new hook.</p>
+<h2 id="paypal">PayPal</h2>
+<pre><code class="language-sh">curl -X POST &quot;$GW/admin/tenants/1/providers&quot; \
+  -H &quot;Authorization: Bearer $GATEWAY_ADMIN_TOKEN&quot; -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;method&quot;:&quot;paypal&quot;,&quot;provider_type&quot;:&quot;paypal&quot;,&quot;name&quot;:&quot;paypal&quot;,&quot;config&quot;:{&quot;client_id&quot;:&quot;...&quot;,&quot;client_secret&quot;:&quot;...&quot;,&quot;mode&quot;:&quot;sandbox&quot;,&quot;webhook_id&quot;:&quot;...&quot;}}'</code></pre>
+<p><code>mode</code> is <code>sandbox</code> or <code>live</code> and defaults to <code>sandbox</code>. In the PayPal developer dashboard create a webhook that points at the provider's <code>hook_url</code> and subscribe it to <code>CHECKOUT.ORDER.APPROVED</code>, <code>PAYMENT.CAPTURE.COMPLETED</code>, <code>PAYMENT.CAPTURE.DENIED</code>, <code>PAYMENT.CAPTURE.REFUNDED</code> and <code>CUSTOMER.DISPUTE.*</code>. Store its id as <code>webhook_id</code>. The customer returns from PayPal to <code>/pay/{id}/return</code>, which captures the approved order.</p>
+<h2 id="disputes-and-provider-health">Disputes and provider health</h2>
+<p>Stripe, Revolut and PayPal disputes show on the payment as <code>disputed</code> and <code>dispute_status</code> and fire <code>payment.disputed</code> and <code>payment.dispute_closed</code> webhooks. Revolut registers its dispute events itself.</p>
+<p>Each provider keeps a rolling 24 hour success and error count and its last error, shown in the console. In the console, Test connection checks the credentials without creating a payment. After 10 failures in a row a customer provider is disabled and the project owners are mailed. Providers of trusted projects are never disabled, the operators are mailed instead.</p>
+<p>All providers need the gateway to be reachable from the internet on <code>GATEWAY_PUBLIC_URL</code>. Hook routes are rate limited per IP.</p>
+</article>
+</main>
+</div>
+</body>
+</html>

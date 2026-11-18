@@ -18,6 +18,8 @@ use std::collections::HashMap;
 
 mod activity;
 mod balance;
+mod billing;
+mod branding;
 mod endpoints;
 mod keys;
 mod operator;
@@ -33,6 +35,8 @@ mod twofactor;
 
 use activity::*;
 use balance::*;
+use billing::*;
+use branding::*;
 use endpoints::*;
 use keys::*;
 use operator::*;
@@ -57,10 +61,12 @@ const JS_PROVIDERS: &str = include_str!("../../../web/console/providers.js");
 const JS_WEBHOOKS: &str = include_str!("../../../web/console/webhooks.js");
 const JS_KEYS: &str = include_str!("../../../web/console/keys.js");
 const JS_TEAM: &str = include_str!("../../../web/console/team.js");
+const JS_BRANDING: &str = include_str!("../../../web/console/branding.js");
 const JS_SETTINGS: &str = include_str!("../../../web/console/settings.js");
 const JS_ACCOUNT: &str = include_str!("../../../web/console/account.js");
 const JS_ADMIN: &str = include_str!("../../../web/console/admin.js");
 const JS_ACTIVITY: &str = include_str!("../../../web/console/activity.js");
+const JS_BILLING: &str = include_str!("../../../web/console/billing.js");
 const JS_BALANCE: &str = include_str!("../../../web/console/balance.js");
 const JS_SHARED: &str = include_str!("../../../web/console/shared.js");
 const JS_PAYOUTS: &str = include_str!("../../../web/console/payouts.js");
@@ -94,6 +100,10 @@ pub fn router() -> Router<AppState> {
         .route("/projects", get(list_projects).post(create_project))
         .route("/projects/{id}", get(get_project))
         .route("/projects/{id}/settings", post(update_settings))
+        .route(
+            "/projects/{id}/branding",
+            get(get_branding).post(set_branding),
+        )
         .route("/projects/{id}/limits", get(get_limits))
         .route("/admin/projects/{id}/limits", post(set_limits))
         .route("/projects/{id}/rotate-key", post(rotate_key))
@@ -157,6 +167,17 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{id}/members/{account}", delete(remove_member))
         .route("/projects/{id}/activity", get(project_activity))
         .route("/projects/{id}/balance", get(project_balance))
+        .route("/projects/{id}/plans", get(list_plans).post(create_plan))
+        .route("/projects/{id}/plans/{plan}/archive", post(archive_plan))
+        .route(
+            "/projects/{id}/subscriptions",
+            get(list_subscriptions).post(create_subscription),
+        )
+        .route("/projects/{id}/subscriptions/{sub}", get(get_subscription))
+        .route(
+            "/projects/{id}/subscriptions/{sub}/{action}",
+            post(subscription_action),
+        )
         .route("/projects/{id}/ledger", get(project_ledger))
         .route("/projects/{id}/shared", get(project_shared))
         .route(
@@ -258,11 +279,13 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "webhooks.js" => asset(JS_WEBHOOKS, "text/javascript"),
         "keys.js" => asset(JS_KEYS, "text/javascript"),
         "team.js" => asset(JS_TEAM, "text/javascript"),
+        "branding.js" => asset(JS_BRANDING, "text/javascript"),
         "settings.js" => asset(JS_SETTINGS, "text/javascript"),
         "account.js" => asset(JS_ACCOUNT, "text/javascript"),
         "admin.js" => asset(JS_ADMIN, "text/javascript"),
         "balance.js" => asset(JS_BALANCE, "text/javascript"),
         "shared.js" => asset(JS_SHARED, "text/javascript"),
+        "billing.js" => asset(JS_BILLING, "text/javascript"),
         "activity.js" => asset(JS_ACTIVITY, "text/javascript"),
         "payouts.js" => asset(JS_PAYOUTS, "text/javascript"),
         "app.js" => asset(JS_APP, "text/javascript"),

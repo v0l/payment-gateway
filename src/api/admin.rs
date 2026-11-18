@@ -34,6 +34,10 @@ pub fn router() -> Router<AppState> {
         .route("/tenants", post(create_tenant).get(list_tenants))
         .route("/tenants/{id}", get(get_tenant))
         .route("/tenants/{id}/settings", post(update_settings))
+        .route(
+            "/tenants/{id}/branding",
+            get(get_branding).post(set_branding),
+        )
         .route("/tenants/{id}/enabled", post(set_enabled))
         .route("/tenants/{id}/rotate-key", post(rotate_key))
         .route(
@@ -171,6 +175,40 @@ async fn get_tenant(
         .await?
         .map(|t| Json(t.into()))
         .ok_or_else(ApiError::not_found)
+}
+
+async fn get_branding(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    Path(id): Path<u64>,
+) -> ApiResult<crate::branding::Branding> {
+    db::get_tenant(s.pool(), id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    Ok(Json(db::get_branding(s.pool(), id).await?))
+}
+
+async fn set_branding(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<u64>,
+    Json(req): Json<crate::branding::Branding>,
+) -> ApiResult<crate::branding::Branding> {
+    db::get_tenant(s.pool(), id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    let branding = req
+        .validated()
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    db::set_branding(s.pool(), id, &branding).await?;
+    Event::new(Action::SettingsChanged, Actor::AdminToken)
+        .tenant(id)
+        .target("project", id)
+        .details(json!({"changed": ["branding"]}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
+    Ok(Json(branding))
 }
 
 async fn update_settings(

@@ -44,7 +44,7 @@ impl Service {
         if recipients.is_empty() {
             return Ok(());
         }
-        let now = Utc::now();
+        let now = self.clock.now();
         let cutoff = now - Duration::seconds(NOTIFY_INTERVAL_SECS);
         if !db::claim_notification(&self.pool, tenant_id, kind, now, cutoff).await? {
             return Ok(());

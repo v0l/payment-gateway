@@ -6,6 +6,8 @@ The API is versioned by path prefix. Inside `/v1` changes are additive only: new
 
 ## v1 (current)
 
+- Landing page at `/`, documentation at `/guide/`, operator guide at `/operator/` and draft legal templates at `/legal/`, all static and served from the binary. No API change.
+- Recurring billing: `/v1/plans` and `/v1/subscriptions` (create, list, get, pause, resume, cancel, change plan with optional proration) and the events `subscription.created`, `invoice.paid`, `invoice.failed`, `invoice.payment_required`, `subscription.past_due`, `subscription.cancelled`, `subscription.paused`, `subscription.resumed`, `subscription.updated`. Subscription events carry `data.subscription` and a null `data.payment` when there is no payment. Purely additive.
 - OpenAPI 3.1 description at `GET /v1/openapi.json` (no auth) and a rendered reference at `/docs`.
 - Scoped API keys per project: `payments:read`, `payments:write`, `refunds:write`, `saved:write`, `admin`. The existing project key is now a `default` key with all scopes. Keys can expire, be revoked and show when they were last used. Keys are stored as a SHA-256 hash.
 - Several webhook endpoints per project with event filters, per-endpoint signing secrets, enable and disable, test events and delivery stats. Each project's existing `webhook_url` and signing secret became its first (default) endpoint, matching all events. All deliveries now go through endpoints, so there is exactly one delivery per event per endpoint. The `webhook_url` field in the settings API and `webhook_secret` rotation still work for one release by reading and writing that default endpoint; use the endpoints API instead. The field is removed in the next release.

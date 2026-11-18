@@ -1,3 +1,4 @@
+use super::billing;
 use super::page::{self, Page};
 use super::{ApiError, ApiResult, AppState, bearer};
 use crate::api_keys::*;
@@ -75,6 +76,24 @@ pub fn router() -> Router<AppState> {
         .route("/saved-methods", get(list_saved))
         .route("/saved-methods/{id}", delete(delete_saved))
         .route("/saved-methods/{id}/charge", post(charge_saved))
+        .route(
+            "/plans",
+            post(billing::create_plan).get(billing::list_plans),
+        )
+        .route("/plans/{id}", get(billing::get_plan))
+        .route("/plans/{id}/archive", post(billing::archive_plan))
+        .route(
+            "/subscriptions",
+            post(billing::create_subscription).get(billing::list_subscriptions),
+        )
+        .route("/subscriptions/{id}", get(billing::get_subscription))
+        .route("/subscriptions/{id}/pause", post(billing::pause))
+        .route("/subscriptions/{id}/resume", post(billing::resume))
+        .route("/subscriptions/{id}/cancel", post(billing::cancel))
+        .route(
+            "/subscriptions/{id}/change-plan",
+            post(billing::change_plan),
+        )
 }
 
 fn pid(raw: &str) -> Result<db::PaymentId, ApiError> {

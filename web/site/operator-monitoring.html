@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitoring and alerts | Payment Gateway</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<a class="brand" href="/">Payment Gateway</a>
+<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/operator/">Operators</a> <a href="/docs">API reference</a> <a href="/legal/">Legal</a> <a class="button" href="/console">Sign in</a></nav>
+</header>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/monitoring" aria-current="page">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article>
+<h1 id="monitoring-and-alerts">Monitoring and alerts</h1>
+<h2 id="endpoints">Endpoints</h2>
+<ul><li><code>GET /health</code>: liveness, always cheap.</li><li><code>GET /ready</code>: readiness, checks the database.</li><li><code>GET /metrics</code>: Prometheus text. Send <code>Authorization: Bearer</code> with the admin token or <code>METRICS_TOKEN</code>.</li><li><code>GET /status</code>: operator status as JSON, or HTML with <code>Accept: text/html</code>, with the admin token. Shows the version, uptime, database state, the lease holder and the webhook backlog.</li></ul>
+<p>Logs are one JSON object per line with <code>ts</code>, <code>level</code>, <code>msg</code>, <code>request_id</code> and <code>tenant_id</code>. Send <code>x-request-id</code> and it is echoed back. Secrets are redacted and webhook bodies are never logged.</p>
+<h2 id="metrics">Metrics</h2>
+<p><code>gateway_http_requests_total</code>, <code>gateway_http_request_duration_seconds</code>, <code>gateway_settlements_total</code>, <code>gateway_settlement_duration_seconds</code>, <code>gateway_webhook_deliveries_total{outcome}</code>, <code>gateway_webhook_pending</code>, <code>gateway_webhook_oldest_pending_age_seconds</code>, <code>gateway_provider_calls_total{method,op,outcome}</code>, <code>gateway_provider_call_duration_seconds</code>, <code>gateway_watcher_up{provider}</code>, <code>gateway_leader</code> and <code>gateway_db_pool_connections{state}</code>.</p>
+<h2 id="suggested-alerts">Suggested alerts</h2>
+<table><thead><tr><th scope="col">Alert</th><th scope="col">Condition</th><th scope="col">Why</th></tr></thead><tbody><tr><td>No leader</td><td><code>sum(gateway_leader) == 0</code> for 2 minutes</td><td>Nothing settles or delivers without the worker lease.</td></tr><tr><td>Two leaders</td><td><code>sum(gateway_leader) &gt; 1</code> for 2 minutes</td><td>Lease problem, check the database clock.</td></tr><tr><td>Watcher down</td><td><code>gateway_watcher_up == 0</code> for 5 minutes</td><td>A provider's settlement stream is not running.</td></tr><tr><td>Webhook backlog</td><td><code>gateway_webhook_oldest_pending_age_seconds &gt; 900</code></td><td>Customers are not being told about payments.</td></tr><tr><td>Provider errors</td><td>rising <code>gateway_provider_calls_total{outcome=&quot;error&quot;}</code></td><td>A provider or credential is failing.</td></tr><tr><td>Not ready</td><td><code>/ready</code> failing for 1 minute</td><td>Database unreachable.</td></tr><tr><td>Pool exhausted</td><td><code>gateway_db_pool_connections{state=&quot;idle&quot;} == 0</code> for 5 minutes</td><td>Raise <code>DB_MAX_CONNECTIONS</code> or find the slow query.</td></tr></tbody></table>
+<p>Check the exact label values on your own <code>/metrics</code> output before pasting these into a rule file.</p>
+</article>
+</main>
+</div>
+</body>
+</html>

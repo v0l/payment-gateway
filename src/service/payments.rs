@@ -135,7 +135,7 @@ impl Service {
 
         let mut id = [0u8; 32];
         rand::thread_rng().fill_bytes(&mut id);
-        let now = Utc::now();
+        let now = self.clock.now();
         let new = NewPayment {
             id,
             tenant_id: tenant.id,

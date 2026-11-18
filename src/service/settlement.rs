@@ -24,7 +24,7 @@ impl Service {
             .await?
             .unwrap_or_else(|| p.clone());
         let view = PaymentView::build(&fresh, &self.public_url, &attempts, &refunds);
-        let now = Utc::now();
+        let now = self.clock.now();
         let event_id = random_hex(16);
         let body = json!({
             "id": event_id,
@@ -220,7 +220,7 @@ impl Service {
             reference,
             amount.unwrap_or(required),
             confirmed,
-            Utc::now(),
+            self.clock.now(),
         )
         .await?;
         let received: u64 = db::receipts_for_attempt(&mut *tx, attempt.id)
@@ -235,7 +235,7 @@ impl Service {
             return Ok(());
         }
 
-        let now = Utc::now();
+        let now = self.clock.now();
         db::mark_attempt_paid(&mut *tx, attempt.id, now).await?;
         let split = self
             .post_settlement(&mut tx, tenant.id, &attempt, received)
@@ -275,6 +275,9 @@ impl Service {
         self.notify(&pid);
         for other in to_cancel {
             self.cancel_at_provider(&other).await;
+        }
+        if let Err(e) = self.after_payment_paid(&pid).await {
+            log::warn!("subscription update after payment failed: {e:?}");
         }
         Ok(())
     }

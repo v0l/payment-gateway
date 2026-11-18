@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms of service | Payment Gateway</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<a class="brand" href="/">Payment Gateway</a>
+<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/operator/">Operators</a> <a href="/docs">API reference</a> <a href="/legal/">Legal</a> <a class="button" href="/console">Sign in</a></nav>
+</header>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms" aria-current="page">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+<p class="draft" role="note">Draft template. It has not been reviewed by a lawyer and must be reviewed and adapted before use.</p>
+<article>
+<h1 id="terms-of-service">Terms of service</h1>
+<p>[Operator legal name] (&quot;we&quot;) provides the Payment Gateway service (&quot;the service&quot;) to the person or organisation that creates a project (&quot;you&quot;).</p>
+<h2 id="the-service">The service</h2>
+<p>The service lets your application create payments and collect them through the payment providers you configure. It reports the result to your application by webhook and API. Details are in the documentation.</p>
+<h2 id="your-account">Your account</h2>
+<p>You keep your sign-in details and API keys secret. You are responsible for activity under your keys. Tell us at [contact address] if a key is exposed, and rotate it.</p>
+<h2 id="test-mode-and-limits">Test mode and limits</h2>
+<p>New projects start in test mode with usage limits. We may change limits and may lift them for a project at our discretion.</p>
+<h2 id="providers">Providers</h2>
+<p>Payments are processed by the providers you connect, such as a Lightning or Bitcoin node, Stripe, Revolut or PayPal. Your agreement with each provider is separate from these terms.</p>
+<h2 id="fees">Fees</h2>
+<p>[Fees to be decided. Describe platform fees and billing here.]</p>
+<h2 id="custody">Custody</h2>
+<p>What the service holds, if anything, is described in the <a href="/legal/custody">custodial statement</a>. [Operator to confirm.]</p>
+<h2 id="acceptable-use">Acceptable use</h2>
+<p>You follow the <a href="/legal/acceptable-use">acceptable use policy</a>.</p>
+<h2 id="availability">Availability</h2>
+<p>[Operator to state any service level, maintenance windows and support channels.]</p>
+<h2 id="suspension-and-ending">Suspension and ending</h2>
+<p>[Operator to state when and how a project may be suspended or closed, and what happens to data and balances.]</p>
+<h2 id="liability">Liability</h2>
+<p>[Operator to set limits of liability with legal advice.]</p>
+<h2 id="governing-law">Governing law</h2>
+<p>[Operator to state governing law and venue.]</p>
+<h2 id="changes">Changes</h2>
+<p>[Operator to state how changes to these terms are announced.]</p>
+</article>
+</main>
+</div>
+</body>
+</html>

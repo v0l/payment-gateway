@@ -101,6 +101,8 @@ Classes are in `console.css` (existing) and `components.css` (new). See the styl
   | neutral | `expired`, `cancelled` | expired, cancelled | expired, cancelled | none | cancelled | none |
   | red | `failed`, `disputed`, `refund_failed`, `bad` | failed, disputed | failed | refund_failed | failed | failed (abandoned) |
 
+  Subscriptions: active green, trialing blue, incomplete amber, past_due red, paused and cancelled neutral. Invoice periods: paid green, open amber, void neutral.
+
   Unknown statuses fall back to a neutral outlined pill.
 - **Money.** Stored and compared as integer minor units; BTC is msats. Never use floats for storing or comparing. Display only: fiat with `Intl.NumberFormat(undefined, {style:"currency"})` so the person's locale decides separators; BTC amounts as whole sats with thousands separators and the word "sats" ("250,000 sats", rounded up from msats on the pay page). Show msats only in the console where sub-sat precision matters, written "250,000,000 msats". Wrap in `.money` (tabular figures, no wrapping). Show the currency code when it is not obvious from the symbol. A fee is shown beside the amount as "+1.50 EUR fee", never folded in silently.
 - **Copyable ids and secrets.** Ids are monospace and truncated in the middle only with a full value in `title`. A copy control is a button reading "Copy" that changes to "Copied" for 1.5 s and announces through `aria-live`. Secrets are shown once in the `secret` box (dashed amber border) with the text "(shown once, copy it now)". They are never put in a URL, a log or a toast.

@@ -96,6 +96,10 @@ Projects can add `webhook_endpoint` rows (url, sealed secret, event filter, enab
 
 `api_key` rows hold a SHA-256 hash, prefix, scopes, optional expiry, last_used (throttled to one write a minute) and revoked_at. Tenant auth resolves the key, then each handler asks for one scope. The spec is built in `src/openapi.rs` and a test fails when a `/v1` route is missing from it. Pagination is keyset (`created,id` or `id`) with the cursor in `X-Next-Cursor`.
 
+## Recurring billing
+
+`billing_plan`, `subscription` and `subscription_period` (unique on subscription and period index) hold the model. Period dates come from `billing::period_bounds` (anchor plus N intervals, month ends clamped without drift). The worker claims a subscription by locking its row and setting `claimed_until`, inserts the period row (the unique key is the exactly once guard), creates a payment with idempotency key `sub-<id>-<period>-<attempt>` and charges the saved method. Settlement of a period payment calls `after_payment_paid`, which marks the period paid and emits `invoice.paid`. Events without a payment use nullable `payment_id` on `gateway_event` and `webhook_delivery`. The service reads time from an injected `Clock` so tests never sleep. Formulas and the retry schedule are in the README.
+
 ## Settlement rules
 
 - Amounts are integer minor units (msats for BTC), as in `payments-rs` `CurrencyAmount`.
