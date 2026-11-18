@@ -1,4 +1,5 @@
 use super::{ApiError, AppState};
+use crate::branding::Branding;
 use crate::db::{self, Tenant, parse_payment_id};
 use crate::model::{AttemptView, CreateAttempt};
 use crate::service::MethodChoice;
@@ -21,6 +22,8 @@ const PAY_HTML: &str = include_str!("../../web/pay.html");
 const PAY_JS: &str = include_str!("../../web/pay.js");
 const PAY_CSS: &str = include_str!("../../web/pay.css");
 const TOKENS_CSS: &str = include_str!("../../web/tokens.css");
+const FAVICON_SVG: &str = include_str!("../../web/favicon.svg");
+const PAY_I18N_JS: &str = include_str!("../../web/pay-i18n.js");
 const GATEWAY_JS: &str = include_str!("../../web/gateway.js");
 
 pub fn router() -> Router<AppState> {
@@ -43,8 +46,30 @@ pub fn router() -> Router<AppState> {
             "/assets/tokens.css",
             get(|| async { asset(TOKENS_CSS, "text/css") }),
         )
+        .route("/assets/pay-i18n.js", get(|| async { asset(PAY_I18N_JS, "text/javascript") }))
+        .route("/assets/i18n/{file}", get(i18n_file))
+        .route("/favicon.ico", get(|| async { asset(FAVICON_SVG, "image/svg+xml") }))
+        .route("/favicon.svg", get(|| async { asset(FAVICON_SVG, "image/svg+xml") }))
         .route("/gateway.js", get(|| async { gateway_js() }))
         .route("/hook/{tenant}/{provider}", post(hook))
+}
+
+const I18N_FILES: [(&str, &str); 7] = [
+    ("en.json", include_str!("../../web/i18n/en.json")),
+    ("es.json", include_str!("../../web/i18n/es.json")),
+    ("fr.json", include_str!("../../web/i18n/fr.json")),
+    ("de.json", include_str!("../../web/i18n/de.json")),
+    ("pt.json", include_str!("../../web/i18n/pt.json")),
+    ("it.json", include_str!("../../web/i18n/it.json")),
+    ("ga.json", include_str!("../../web/i18n/ga.json")),
+];
+
+async fn i18n_file(Path(file): Path<String>) -> Result<Response, ApiError> {
+    I18N_FILES
+        .iter()
+        .find(|(name, _)| *name == file)
+        .map(|(_, body)| asset(body, "application/json"))
+        .ok_or_else(ApiError::not_found)
 }
 
 fn asset(body: &'static str, content_type: &'static str) -> Response {
@@ -146,8 +171,58 @@ struct PublicState {
     discount: Option<crate::invoice::DiscountView>,
     tax: u64,
     methods: Vec<MethodChoice>,
-    attempts: Vec<AttemptView>,
+    attempts: Vec<PublicAttemptView>,
     return_url: Option<String>,
+    receipt_url: Option<String>,
+    branding: Branding,
+    server_time: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Serialize)]
+struct Progress {
+    required: u64,
+    received: u64,
+    confirmed: u64,
+    min_confirmations: u32,
+}
+
+#[derive(Serialize)]
+struct PublicAttemptView {
+    #[serde(flatten)]
+    view: AttemptView,
+    progress: Progress,
+}
+
+async fn min_confirmations(s: &AppState, a: &db::AttemptRow) -> u32 {
+    if a.method != "onchain" {
+        return 1;
+    }
+    let Ok(Some(cfg)) = db::get_provider_config(s.pool(), a.provider_config_id).await else {
+        return 1;
+    };
+    s.service
+        .registry
+        .open_config(&cfg)
+        .ok()
+        .and_then(|c| c["min_confirmations"].as_u64())
+        .unwrap_or(1) as u32
+}
+
+async fn public_progress(s: &AppState, a: &db::AttemptRow) -> Result<PublicAttemptView, ApiError> {
+    let receipts = db::receipts_for_attempt(s.pool(), a.id).await?;
+    Ok(PublicAttemptView {
+        view: public_attempt(a),
+        progress: Progress {
+            required: crate::service::required_receipt(a),
+            received: receipts.iter().map(|r| r.amount).sum(),
+            confirmed: receipts
+                .iter()
+                .filter(|r| r.confirmed)
+                .map(|r| r.amount)
+                .sum(),
+            min_confirmations: min_confirmations(s, a).await,
+        },
+    })
 }
 
 fn public_attempt(a: &db::AttemptRow) -> AttemptView {
@@ -170,6 +245,10 @@ async fn build_state(
         vec![]
     };
     let breakdown = p.breakdown();
+    let mut shown = vec![];
+    for a in &attempts {
+        shown.push(public_progress(s, a).await?);
+    }
     Ok(PublicState {
         line_items: breakdown
             .as_ref()
@@ -196,8 +275,11 @@ async fn build_state(
         },
         allowed_origins: tenant.origins(),
         methods,
-        attempts: attempts.iter().map(public_attempt).collect(),
+        attempts: shown,
         return_url: s.service.signed_return_url(tenant, p),
+        receipt_url: (p.status == "paid").then(|| format!("/receipt/{}", hex::encode(&p.id))),
+        branding: db::get_branding(s.pool(), tenant.id).await?,
+        server_time: chrono::Utc::now(),
     })
 }
 

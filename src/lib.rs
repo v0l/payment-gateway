@@ -3,6 +3,7 @@ pub mod accounts;
 pub mod api;
 pub mod api_keys;
 pub mod audit;
+pub mod branding;
 pub mod config;
 pub mod crypto;
 pub mod db;

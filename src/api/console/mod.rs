@@ -18,6 +18,7 @@ use std::collections::HashMap;
 
 mod activity;
 mod balance;
+mod branding;
 mod endpoints;
 mod keys;
 mod operator;
@@ -32,6 +33,7 @@ mod twofactor;
 
 use activity::*;
 use balance::*;
+use branding::*;
 use endpoints::*;
 use keys::*;
 use operator::*;
@@ -91,6 +93,7 @@ pub fn router() -> Router<AppState> {
         .route("/projects", get(list_projects).post(create_project))
         .route("/projects/{id}", get(get_project))
         .route("/projects/{id}/settings", post(update_settings))
+        .route("/projects/{id}/branding", get(get_branding).post(set_branding))
         .route("/projects/{id}/limits", get(get_limits))
         .route("/admin/projects/{id}/limits", post(set_limits))
         .route("/projects/{id}/rotate-key", post(rotate_key))
