@@ -12,6 +12,7 @@ pub(super) struct ProviderView {
     fee_currency: Option<String>,
     config: Value,
     hook_url: String,
+    platform_managed: bool,
 }
 
 pub(super) fn provider_view(s: &AppState, tenant: u64, p: &ProviderConfigRow) -> ProviderView {
@@ -32,6 +33,7 @@ pub(super) fn provider_view(s: &AppState, tenant: u64, p: &ProviderConfigRow) ->
         fee_currency: p.fee_currency.clone(),
         config,
         hook_url: s.service.hook_url(tenant, p.id),
+        platform_managed: p.shared_provider_id.is_some(),
     }
 }
 
@@ -148,6 +150,11 @@ pub(super) async fn update_provider(
     let row = db::get_tenant_provider(s.pool(), id, pid)
         .await?
         .ok_or_else(ApiError::not_found)?;
+    if row.shared_provider_id.is_some() {
+        return Err(ApiError::bad_request(
+            "platform managed methods are changed from the shared methods list",
+        ));
+    }
     if req.method != row.method || req.provider_type != row.provider_type {
         return Err(ApiError::bad_request(
             "method and provider_type cannot change",
@@ -213,6 +220,14 @@ pub(super) async fn set_provider_enabled(
     Json(e): Json<Enabled>,
 ) -> ApiResult<Value> {
     sess.project(&s, id, Role::Admin).await?;
+    let current = db::get_tenant_provider(s.pool(), id, pid)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    if current.shared_provider_id.is_some() {
+        return Err(ApiError::bad_request(
+            "platform managed methods are changed from the shared methods list",
+        ));
+    }
     if !db::set_provider_config_enabled(s.pool(), id, pid, e.enabled).await? {
         return Err(ApiError::not_found());
     }

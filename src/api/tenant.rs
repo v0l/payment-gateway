@@ -60,6 +60,7 @@ fn idempotency(headers: &axum::http::HeaderMap) -> Option<String> {
 #[derive(Serialize)]
 struct MethodView {
     id: u64,
+    platform_managed: bool,
     method: String,
     name: String,
     fee_rate: Option<f64>,
@@ -72,10 +73,12 @@ async fn list_methods(
     State(s): State<AppState>,
 ) -> ApiResult<Vec<MethodView>> {
     Ok(Json(
-        db::list_provider_configs(s.pool(), t.id, true)
+        s.service
+            .usable_configs(&t)
             .await?
             .into_iter()
             .map(|p| MethodView {
+                platform_managed: p.shared_provider_id.is_some(),
                 id: p.id,
                 method: p.method,
                 name: p.name,

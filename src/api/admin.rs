@@ -49,6 +49,10 @@ pub fn router() -> Router<AppState> {
         .route("/tenants/{id}/balance", get(tenant_balance))
         .route("/tenants/{id}/ledger", get(tenant_ledger))
         .route("/ledger/reconcile", get(ledger_reconcile))
+        .route("/shared", get(shared_list).post(shared_create))
+        .route("/shared/{id}", post(shared_update))
+        .route("/shared/{id}/tenants/{tenant}/fee", post(shared_override))
+        .route("/tenants/{id}/allow-negative", post(shared_allow_negative))
         .route("/deliveries", get(list_deliveries))
         .route("/deliveries/{id}/replay", post(replay_delivery))
 }
@@ -468,4 +472,62 @@ async fn ledger_reconcile(
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(found))
+}
+
+fn admin_event(action: Action) -> Event {
+    Event::new(action, Actor::AdminToken)
+}
+
+async fn shared_list(
+    _: AdminAuth,
+    State(s): State<AppState>,
+) -> ApiResult<Vec<super::shared::SharedProviderView>> {
+    super::shared::list(&s).await
+}
+
+async fn shared_create(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<super::shared::SharedInput>,
+) -> ApiResult<Value> {
+    super::shared::create(&s, admin_event, &Origin::from_headers(&headers), req).await
+}
+
+async fn shared_update(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<u64>,
+    Json(req): Json<super::shared::SharedPatch>,
+) -> ApiResult<super::shared::SharedProviderView> {
+    super::shared::update(&s, admin_event, &Origin::from_headers(&headers), id, req).await
+}
+
+async fn shared_override(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    Path((id, tenant)): Path<(u64, u64)>,
+    Json(req): Json<super::shared::OverrideInput>,
+) -> ApiResult<Value> {
+    super::shared::set_override(
+        &s,
+        admin_event,
+        &Origin::from_headers(&headers),
+        id,
+        tenant,
+        req,
+    )
+    .await
+}
+
+async fn shared_allow_negative(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<u64>,
+    Json(req): Json<super::shared::AllowNegative>,
+) -> ApiResult<Value> {
+    super::shared::allow_negative(&s, admin_event, &Origin::from_headers(&headers), id, req).await
 }

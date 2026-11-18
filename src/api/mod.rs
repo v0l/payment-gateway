@@ -3,6 +3,7 @@ mod console;
 pub mod ledger;
 mod public;
 mod sandbox;
+mod shared;
 mod tenant;
 
 use crate::service::{Error, Service};

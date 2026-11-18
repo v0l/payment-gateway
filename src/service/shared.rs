@@ -6,7 +6,7 @@ use crate::shared::{self, FeeTerms, Split};
 pub const LEDGER_CURRENCY: &str = "BTC";
 
 impl Service {
-    pub(super) async fn usable_configs(&self, tenant: &Tenant) -> Result<Vec<ProviderConfigRow>> {
+    pub async fn usable_configs(&self, tenant: &Tenant) -> Result<Vec<ProviderConfigRow>> {
         let configs = db::list_provider_configs(&self.pool, tenant.id, true).await?;
         let mut out = Vec::with_capacity(configs.len());
         for cfg in configs {
@@ -216,4 +216,18 @@ pub struct SharedChoice {
     pub fee_bps: u32,
     pub fee_base_msat: u64,
     pub enabled: bool,
+}
+
+impl Service {
+    pub async fn set_allow_negative(&self, tenant_id: u64, allow: bool) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        ledger::set_allow_negative(
+            &mut tx,
+            &AccountRef::tenant(tenant_id, AccountKind::TenantBalance, LEDGER_CURRENCY),
+            allow,
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(())
+    }
 }

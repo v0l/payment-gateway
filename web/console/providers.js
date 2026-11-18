@@ -23,6 +23,7 @@ function providers(pid) {
     }
     body.appendChild(el("div", { class: "row" }, [el("button", { class: "primary", text: "Add provider", onclick: function () { go("#/p/" + pid + "/providers/new"); } })]));
     load();
+    sharedMethods(pid, body);
   });
 }
 

@@ -43,6 +43,12 @@ pub enum Action {
     PrivacyExported,
     PrivacyDeleted,
     LedgerReconciled,
+    SharedProviderCreated,
+    SharedProviderUpdated,
+    SharedMethodEnabled,
+    SharedMethodDisabled,
+    SharedFeeOverridden,
+    AllowNegativeChanged,
 }
 
 impl Action {
@@ -85,6 +91,12 @@ impl Action {
             Self::PrivacyExported => "privacy.exported",
             Self::PrivacyDeleted => "privacy.deleted",
             Self::LedgerReconciled => "ledger.reconciled",
+            Self::SharedProviderCreated => "shared_provider.created",
+            Self::SharedProviderUpdated => "shared_provider.updated",
+            Self::SharedMethodEnabled => "shared_method.enabled",
+            Self::SharedMethodDisabled => "shared_method.disabled",
+            Self::SharedFeeOverridden => "shared_fee.overridden",
+            Self::AllowNegativeChanged => "balance.allow_negative_changed",
         }
     }
 }

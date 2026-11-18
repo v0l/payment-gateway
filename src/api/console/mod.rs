@@ -24,6 +24,7 @@ mod projects;
 mod providers;
 mod recovery;
 mod session;
+mod shared;
 mod team;
 
 use activity::*;
@@ -35,6 +36,7 @@ use projects::*;
 use providers::*;
 use recovery::*;
 use session::*;
+use shared::*;
 use team::*;
 
 pub const COOKIE: &str = "pgw_session";
@@ -51,6 +53,7 @@ const JS_ACCOUNT: &str = include_str!("../../../web/console/account.js");
 const JS_ADMIN: &str = include_str!("../../../web/console/admin.js");
 const JS_ACTIVITY: &str = include_str!("../../../web/console/activity.js");
 const JS_BALANCE: &str = include_str!("../../../web/console/balance.js");
+const JS_SHARED: &str = include_str!("../../../web/console/shared.js");
 const JS_APP: &str = include_str!("../../../web/console/app.js");
 const CSS: &str = include_str!("../../../web/console.css");
 
@@ -115,6 +118,24 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{id}/activity", get(project_activity))
         .route("/projects/{id}/balance", get(project_balance))
         .route("/projects/{id}/ledger", get(project_ledger))
+        .route("/projects/{id}/shared", get(project_shared))
+        .route(
+            "/projects/{id}/shared/{shared}/enabled",
+            post(project_shared_enabled),
+        )
+        .route(
+            "/admin/shared",
+            get(admin_shared_list).post(admin_shared_create),
+        )
+        .route("/admin/shared/{id}", post(admin_shared_update))
+        .route(
+            "/admin/shared/{id}/projects/{tenant}/fee",
+            post(admin_shared_override),
+        )
+        .route(
+            "/admin/projects/{id}/allow-negative",
+            post(admin_allow_negative),
+        )
         .route("/admin/audit", get(admin_audit))
         .route("/admin/accounts", get(admin_accounts))
         .route("/admin/accounts/{id}/disabled", post(admin_disable))
@@ -167,6 +188,7 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "account.js" => asset(JS_ACCOUNT, "text/javascript"),
         "admin.js" => asset(JS_ADMIN, "text/javascript"),
         "balance.js" => asset(JS_BALANCE, "text/javascript"),
+        "shared.js" => asset(JS_SHARED, "text/javascript"),
         "activity.js" => asset(JS_ACTIVITY, "text/javascript"),
         "app.js" => asset(JS_APP, "text/javascript"),
         "app.css" => asset(CSS, "text/css"),
