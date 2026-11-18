@@ -2,6 +2,7 @@ pub mod account_tokens;
 pub mod accounts;
 pub mod api;
 pub mod api_keys;
+pub mod billing;
 pub mod audit;
 pub mod branding;
 pub mod config;

@@ -235,6 +235,7 @@ mod providers;
 mod refunds;
 mod saved;
 mod stats;
+mod subscriptions;
 mod tenants;
 mod withdrawals;
 
@@ -250,5 +251,6 @@ pub use providers::*;
 pub use refunds::*;
 pub use saved::*;
 pub use stats::*;
+pub use subscriptions::*;
 pub use tenants::*;
 pub use withdrawals::*;
