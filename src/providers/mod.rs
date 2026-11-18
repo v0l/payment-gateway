@@ -219,13 +219,14 @@ impl Registry {
         let row = db::get_provider_config(&self.pool, id)
             .await?
             .context("unknown provider config")?;
-        let config = self.open_config(&row)?;
+        let mut config = self.open_config(&row)?;
         let trusted = db::get_tenant(&self.pool, row.tenant_id)
             .await?
             .map(|t| t.trusted)
             .unwrap_or(false);
         if !trusted && let Some(url) = config.get("url").and_then(Value::as_str) {
-            crate::ssrf::resolve_public(url).await?;
+            let pinned = crate::ssrf::pin_url(&crate::ssrf::SystemResolver, url).await?;
+            config["url"] = Value::String(pinned);
         }
         let built = tokio::time::timeout(self.call_timeout, self.factory.build(&row, config))
             .await

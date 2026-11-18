@@ -72,7 +72,25 @@ pub fn pick_public(host: &str, addrs: &[SocketAddr]) -> Result<SocketAddr> {
     Ok(addrs[0])
 }
 
+#[async_trait::async_trait]
+pub trait Resolver: Send + Sync {
+    async fn lookup(&self, host: &str, port: u16) -> Result<Vec<SocketAddr>>;
+}
+
+pub struct SystemResolver;
+
+#[async_trait::async_trait]
+impl Resolver for SystemResolver {
+    async fn lookup(&self, host: &str, port: u16) -> Result<Vec<SocketAddr>> {
+        Ok(tokio::net::lookup_host((host, port)).await?.collect())
+    }
+}
+
 pub async fn resolve_public(url: &str) -> Result<Target> {
+    resolve_public_with(&SystemResolver, url).await
+}
+
+pub async fn resolve_public_with(resolver: &dyn Resolver, url: &str) -> Result<Target> {
     let parsed = url::Url::parse(url)?;
     if !matches!(parsed.scheme(), "http" | "https") {
         bail!("only http and https urls are allowed");
@@ -85,13 +103,21 @@ pub async fn resolve_public(url: &str) -> Result<Target> {
         None => bail!("url has no host"),
         Some(url::Host::Ipv4(ip)) => (ip.to_string(), vec![SocketAddr::new(ip.into(), port)]),
         Some(url::Host::Ipv6(ip)) => (ip.to_string(), vec![SocketAddr::new(ip.into(), port)]),
-        Some(url::Host::Domain(d)) => (
-            d.to_string(),
-            tokio::net::lookup_host((d, port)).await?.collect(),
-        ),
+        Some(url::Host::Domain(d)) => (d.to_string(), resolver.lookup(d, port).await?),
     };
     let addr = pick_public(&host, &addrs)?;
     Ok(Target { host, addr })
+}
+
+pub async fn pin_url(resolver: &dyn Resolver, url: &str) -> Result<String> {
+    let target = resolve_public_with(resolver, url).await?;
+    let mut parsed = url::Url::parse(url)?;
+    let set = match target.addr.ip() {
+        IpAddr::V4(ip) => parsed.set_ip_host(IpAddr::V4(ip)),
+        IpAddr::V6(ip) => parsed.set_ip_host(IpAddr::V6(ip)),
+    };
+    set.map_err(|_| anyhow::anyhow!("cannot pin {url}"))?;
+    Ok(parsed.to_string())
 }
 
 pub fn require_https(url: &str) -> Result<()> {
@@ -108,6 +134,34 @@ pub fn require_https(url: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct Flipping(std::sync::Mutex<Vec<Vec<SocketAddr>>>);
+
+    #[async_trait::async_trait]
+    impl Resolver for Flipping {
+        async fn lookup(&self, _host: &str, _port: u16) -> Result<Vec<SocketAddr>> {
+            Ok(self.0.lock().unwrap().remove(0))
+        }
+    }
+
+    #[tokio::test]
+    async fn pinned_url_uses_the_checked_address_when_dns_flips() {
+        let r = Flipping(std::sync::Mutex::new(vec![
+            vec!["8.8.8.8:10009".parse().unwrap()],
+            vec!["10.0.0.5:10009".parse().unwrap()],
+        ]));
+        let pinned = pin_url(&r, "https://lnd.example.com:10009").await.unwrap();
+        assert_eq!(pinned, "https://8.8.8.8:10009/");
+        assert_eq!(r.0.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn pinning_refuses_an_internal_first_answer() {
+        let r = Flipping(std::sync::Mutex::new(vec![vec![
+            "10.0.0.5:10009".parse().unwrap(),
+        ]]));
+        assert!(pin_url(&r, "https://lnd.example.com:10009").await.is_err());
+    }
 
     #[test]
     fn private_and_special_ranges_are_blocked() {
