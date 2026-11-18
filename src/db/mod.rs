@@ -195,6 +195,7 @@ const REFUND_COLS: &str = "id, payment_id, attempt_id, amount, charge_amount, cu
 
 mod attempts;
 mod deliveries;
+mod notify;
 mod payments;
 mod providers;
 mod refunds;
@@ -204,6 +205,7 @@ mod tenants;
 
 pub use attempts::*;
 pub use deliveries::*;
+pub use notify::*;
 pub use payments::*;
 pub use providers::*;
 pub use refunds::*;

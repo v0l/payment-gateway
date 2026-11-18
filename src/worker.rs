@@ -59,8 +59,12 @@ pub fn spawn(service: Arc<Service>, tick: Duration) -> Workers {
                     for cfg in configs {
                         if matches!(cfg.method.as_str(), "lightning" | "onchain") {
                             start_watcher(s.clone(), cfg.id, watching.clone(), &watcher_handles);
-                            if let Err(e) = s.reconcile_provider(cfg.id).await {
-                                log::warn!("reconcile provider {} failed: {e:?}", cfg.id);
+                            match s.reconcile_provider(cfg.id).await {
+                                Ok(_) => s.provider_recovered(cfg.id),
+                                Err(e) => {
+                                    log::warn!("reconcile provider {} failed: {e:?}", cfg.id);
+                                    s.provider_failed(cfg.id, &format!("{e:?}")).await;
+                                }
                             }
                         }
                         if matches!(cfg.method.as_str(), "stripe" | "revolut") {
@@ -123,6 +127,7 @@ fn start_watcher(
                 Ok(p) => p,
                 Err(e) => {
                     log::error!("provider {provider_id} unavailable: {e:#}");
+                    s.provider_failed(provider_id, &format!("{e:#}")).await;
                     tokio::time::sleep(backoff).await;
                     backoff = (backoff * 2).min(Duration::from_secs(120));
                     continue;
@@ -141,10 +146,14 @@ fn start_watcher(
             let result = provider.watch(sink, cursor).await;
             if started.elapsed() > Duration::from_secs(60) {
                 backoff = Duration::from_secs(2);
+                s.provider_recovered(provider_id);
             }
             match result {
                 Ok(()) => log::warn!("watcher {provider_id} ended"),
-                Err(e) => log::error!("watcher {provider_id} failed: {e:#}"),
+                Err(e) => {
+                    log::error!("watcher {provider_id} failed: {e:#}");
+                    s.provider_failed(provider_id, &format!("{e:#}")).await;
+                }
             }
             s.registry.invalidate(provider_id);
             tokio::time::sleep(backoff).await;

@@ -401,13 +401,20 @@ async fn create_invite(
         },
     )
     .await?;
+    let url = format!("{}/console/invite/{token}", s.service.public_url);
+    s.service.send_mail(crate::mailer::templates::invite(
+        &email,
+        &url,
+        None,
+        crate::accounts::INVITE_DAYS,
+    ));
     Event::new(Action::InviteCreated, Actor::AdminToken)
         .target("invite", &email)
         .details(json!({"email": email, "operator": i.operator}))
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(serde_json::json!({
-        "invite_url": format!("{}/console/invite/{token}", s.service.public_url),
+        "invite_url": url,
         "email": email,
         "expires_in_days": crate::accounts::INVITE_DAYS,
     })))

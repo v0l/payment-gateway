@@ -93,13 +93,20 @@ pub(super) async fn admin_invite(
         },
     )
     .await?;
+    let url = format!("{}/console/invite/{token}", s.service.public_url);
+    s.service.send_mail(crate::mailer::templates::invite(
+        &email,
+        &url,
+        None,
+        accounts::INVITE_DAYS,
+    ));
     sess.event(Action::InviteCreated)
         .target("invite", &email)
         .details(json!({"email": email, "operator": i.operator}))
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(
-        json!({"invite_url": format!("{}/console/invite/{token}", s.service.public_url), "email": email, "expires_in_days": accounts::INVITE_DAYS}),
+        json!({"invite_url": url, "email": email, "expires_in_days": accounts::INVITE_DAYS}),
     ))
 }
 

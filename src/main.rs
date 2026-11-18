@@ -21,12 +21,14 @@ async fn main() -> Result<()> {
         sealer.clone(),
         Arc::new(DefaultFactory::new(config.allow_mock)),
     );
-    let service = Service::new(
+    let mailer = payment_gateway::mailer::from_env()?;
+    let service = Service::with_mailer(
         pool,
         sealer,
         registry,
         Arc::new(HttpRates::mempool()),
         config.public_url.clone(),
+        mailer.unwrap_or_else(|| Arc::new(payment_gateway::mailer::DisabledMailer)),
     );
     let sandbox = match payment_gateway::sandbox::SandboxConfig::from_env()? {
         Some(cfg) => Some(payment_gateway::sandbox::Sandbox::from_config(

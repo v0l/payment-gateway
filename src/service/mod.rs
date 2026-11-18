@@ -3,6 +3,7 @@ use crate::db::{
     self, AttemptRow, NewAttempt, NewPayment, NewSavedMethod, PaymentId, PaymentRow,
     ProviderConfigRow, Tenant,
 };
+use crate::mailer::{DisabledMailer, Mailer};
 use crate::model::{
     AttemptView, CreateAttempt, CreatePayment, METHODS, PaymentView, RefundInput, RefundView,
     charge_currency, is_fiat_method, method_supports, options_from_config,
@@ -71,6 +72,8 @@ pub struct Service {
     pub public_url: String,
     pub http: reqwest::Client,
     pub changes: broadcast::Sender<PaymentId>,
+    pub mailer: Arc<dyn Mailer>,
+    pub provider_failures: std::sync::Mutex<std::collections::HashMap<u64, u32>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -118,6 +121,24 @@ impl Service {
         rates: Arc<dyn RateService>,
         public_url: String,
     ) -> Arc<Self> {
+        Self::with_mailer(
+            pool,
+            sealer,
+            registry,
+            rates,
+            public_url,
+            Arc::new(DisabledMailer),
+        )
+    }
+
+    pub fn with_mailer(
+        pool: MySqlPool,
+        sealer: Sealer,
+        registry: Registry,
+        rates: Arc<dyn RateService>,
+        public_url: String,
+        mailer: Arc<dyn Mailer>,
+    ) -> Arc<Self> {
         let (changes, _) = broadcast::channel(1024);
         Arc::new(Self {
             pool,
@@ -131,6 +152,8 @@ impl Service {
                 .build()
                 .expect("http client"),
             changes,
+            mailer,
+            provider_failures: Default::default(),
         })
     }
 
@@ -220,6 +243,7 @@ mod attempts;
 mod deliveries;
 mod expiry;
 mod limits;
+mod notify;
 mod payments;
 mod refunds;
 mod saved;

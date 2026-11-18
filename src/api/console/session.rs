@@ -13,6 +13,8 @@ pub(super) struct Me {
     is_operator: bool,
     csrf: String,
     projects: Vec<accounts::ProjectRef>,
+    notify: bool,
+    mail_enabled: bool,
 }
 
 pub(super) async fn me_for(s: &AppState, sess: &Session) -> Result<Me, ApiError> {
@@ -22,6 +24,8 @@ pub(super) async fn me_for(s: &AppState, sess: &Session) -> Result<Me, ApiError>
         is_operator: sess.account.is_operator,
         csrf: sess.session.csrf.clone(),
         projects: accounts::projects_for_account(s.pool(), &sess.account).await?,
+        notify: sess.account.notify,
+        mail_enabled: s.service.mailer.enabled(),
     })
 }
 
@@ -76,6 +80,8 @@ pub(super) async fn login(
         is_operator: account.is_operator,
         csrf,
         projects,
+        notify: account.notify,
+        mail_enabled: s.service.mailer.enabled(),
     };
     let mut r = Json(body).into_response();
     r.headers_mut().insert(
@@ -249,6 +255,8 @@ pub(super) async fn signup(
         is_operator: account.is_operator,
         csrf,
         projects,
+        notify: account.notify,
+        mail_enabled: s.service.mailer.enabled(),
     })
     .into_response();
     r.headers_mut().insert(

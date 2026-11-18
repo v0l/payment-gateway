@@ -100,6 +100,7 @@ pub struct AccountRow {
     pub disabled: bool,
     pub created: DateTime<Utc>,
     pub last_login: Option<DateTime<Utc>>,
+    pub notify: bool,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -136,7 +137,8 @@ pub struct ProjectRef {
     pub role: String,
 }
 
-const ACCOUNT_COLS: &str = "id, email, password_hash, is_operator, disabled, created, last_login";
+const ACCOUNT_COLS: &str =
+    "id, email, password_hash, is_operator, disabled, created, last_login, notify";
 
 pub async fn insert_account<'e, E: Executor<'e, Database = MySql>>(
     ex: E,
@@ -201,6 +203,32 @@ pub async fn set_password(pool: &MySqlPool, id: u64, password_hash: &str) -> Res
     sqlx::query("update account set password_hash = ? where id = ?")
         .bind(password_hash)
         .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn set_notify(pool: &MySqlPool, id: u64, notify: bool) -> Result<()> {
+    sqlx::query("update account set notify = ? where id = ?")
+        .bind(notify)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn set_email(pool: &MySqlPool, id: u64, email: &str) -> Result<()> {
+    sqlx::query("update account set email = ? where id = ?")
+        .bind(email)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn delete_all_sessions(pool: &MySqlPool, account_id: u64) -> Result<()> {
+    sqlx::query("delete from account_session where account_id = ?")
+        .bind(account_id)
         .execute(pool)
         .await?;
     Ok(())

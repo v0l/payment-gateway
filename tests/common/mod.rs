@@ -8,6 +8,7 @@ use http_body_util::BodyExt;
 use payment_gateway::api::{self};
 use payment_gateway::crypto::Sealer;
 use payment_gateway::db;
+use payment_gateway::mailer::{DisabledMailer, Mailer, RecordingMailer};
 use payment_gateway::providers::mock::MockProvider;
 use payment_gateway::providers::{DefaultFactory, Registry};
 use payment_gateway::rates::StaticRates;
@@ -25,6 +26,7 @@ pub struct Harness {
     pub service: Arc<Service>,
     pub factory: Arc<DefaultFactory>,
     pub pool: MySqlPool,
+    pub mailer: Arc<RecordingMailer>,
 }
 
 pub fn unique(prefix: &str) -> String {
@@ -41,6 +43,20 @@ fn rand_u32() -> u32 {
 }
 
 pub async fn harness() -> Harness {
+    build_harness(false).await
+}
+
+pub async fn harness_with_mail() -> Harness {
+    build_harness(true).await
+}
+
+async fn build_harness(mail: bool) -> Harness {
+    let mailer = Arc::new(RecordingMailer::new());
+    let service_mailer: Arc<dyn Mailer> = if mail {
+        mailer.clone()
+    } else {
+        Arc::new(DisabledMailer)
+    };
     let base = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL");
     let name = unique("t_");
     let admin = MySqlPool::connect(&base).await.unwrap();
@@ -53,12 +69,13 @@ pub async fn harness() -> Harness {
     let sealer = Sealer::new(&[9u8; 32]);
     let factory = Arc::new(DefaultFactory::new(true));
     let registry = Registry::new(pool.clone(), sealer.clone(), factory.clone());
-    let service = Service::new(
+    let service = Service::with_mailer(
         pool.clone(),
         sealer,
         registry,
         Arc::new(StaticRates::new(&[("EUR", 50_000.0), ("USD", 60_000.0)])),
         "https://pay.test".to_string(),
+        service_mailer,
     );
     let app = api::router(payment_gateway::api::AppState::new(
         service.clone(),
@@ -71,6 +88,7 @@ pub async fn harness() -> Harness {
         service,
         factory,
         pool,
+        mailer,
     }
 }
 

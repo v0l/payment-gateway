@@ -4,6 +4,11 @@ function route() {
   var h = location.hash.replace(/^#/, "") || "/";
   var m = h.match(/^\/invite\/(.+)$/) || location.pathname.match(/^\/console\/invite\/(.+)$/);
   if (m && !me) { return invitePage(m[1]); }
+  var rc = location.pathname.match(/^\/console\/reset\/(.+)$/);
+  if (rc) { return resetConfirmPage(rc[1]); }
+  var ec = location.pathname.match(/^\/console\/confirm-email\/(.+)$/);
+  if (ec) { return confirmEmailPage(ec[1]); }
+  if (!me && h === "/reset") { return resetRequestPage(); }
   if (!me) { return loginPage(); }
   var parts = h.split("/").filter(Boolean);
   if (parts.length === 0) { return me.projects.length ? go("#/p/" + me.projects[0].id + "/overview") : newProject(); }

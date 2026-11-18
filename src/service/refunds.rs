@@ -101,6 +101,7 @@ impl Service {
         let p = db::lock_payment(&mut *tx, id)
             .await?
             .ok_or(Error::NotFound)?;
+        let mut failure = None;
         match outcome {
             Ok(done) => {
                 db::finish_refund(
@@ -135,6 +136,7 @@ impl Service {
             }
             Err(e) => {
                 let msg = format!("{e:#}");
+                failure = Some(msg.clone());
                 db::finish_refund(&mut *tx, refund_id, "failed", None, Some(&msg)).await?;
                 self.emit(
                     &mut tx,
@@ -148,6 +150,9 @@ impl Service {
         }
         tx.commit().await?;
         self.notify(id);
+        if let Some(error) = failure {
+            self.notify_refund_failed(tenant.id, &error).await;
+        }
         let row = db::get_refund(&self.pool, refund_id)
             .await?
             .ok_or(Error::NotFound)?;

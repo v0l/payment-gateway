@@ -1,3 +1,4 @@
+pub mod account_tokens;
 pub mod accounts;
 pub mod api;
 pub mod audit;
@@ -6,6 +7,7 @@ pub mod crypto;
 pub mod db;
 pub mod limiter;
 pub mod limits;
+pub mod mailer;
 pub mod model;
 pub mod providers;
 pub mod ratelimit;

@@ -108,6 +108,24 @@ GET    /admin/deliveries?undelivered=1       POST /admin/deliveries/{id}/replay
 
 Lightning refunds need a bolt11 invoice with an amount, on-chain refunds an address. Card refunds go back to the card.
 
+## Email
+
+Mail is off unless both variables are set. With mail off, invite links are only shown in the console and password reset does nothing.
+
+| Variable | Meaning |
+| --- | --- |
+| `SMTP_URL` | `smtps://user:pass@host:465` (implicit TLS) or `smtp://user:pass@host:587?tls=required` (STARTTLS) |
+| `MAIL_FROM` | Sender, for example `Gateway <noreply@example.com>` |
+
+With mail on:
+
+- `POST /console/api/reset {"email"}` always answers `{"ok":true}` and is rate limited. A single use token valid for 1 hour is emailed (only its hash is stored). `POST /console/api/reset/confirm {"token","password"}` sets the password, signs out every session and voids other reset tokens. The console pages are `/console#/reset` and `/console/reset/<token>`.
+- Operator and team invites are also emailed. The link is still in the API response.
+- `POST /console/api/email {"password","new_email"}` emails a confirmation to the new address, `POST /console/api/email/confirm {"token"}` applies it.
+- Project owners get an email for abandoned webhook deliveries, a provider that failed 3 times in a row and failed refunds, at most one per event type per project per hour. `POST /console/api/notifications {"enabled"}` turns them off for an account.
+
+Mail is plain text plus simple HTML, with no tracking and no remote images.
+
 ## Develop
 
 ```

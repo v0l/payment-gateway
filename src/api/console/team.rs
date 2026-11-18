@@ -22,7 +22,7 @@ pub(super) async fn invite_member(
     Path(id): Path<u64>,
     Json(i): Json<MemberInvite>,
 ) -> ApiResult<Value> {
-    let (_, my_role) = sess.project(&s, id, Role::Admin).await?;
+    let (tenant, my_role) = sess.project(&s, id, Role::Admin).await?;
     let role = Role::parse(&i.role)
         .ok_or_else(|| ApiError::bad_request("role must be viewer, admin or owner"))?;
     if role > my_role {
@@ -44,6 +44,13 @@ pub(super) async fn invite_member(
         },
     )
     .await?;
+    let url = format!("{}/console/invite/{token}", s.service.public_url);
+    s.service.send_mail(crate::mailer::templates::invite(
+        &email,
+        &url,
+        Some(&tenant.name),
+        accounts::INVITE_DAYS,
+    ));
     sess.event(Action::InviteCreated)
         .tenant(id)
         .target("invite", &email)
@@ -51,7 +58,7 @@ pub(super) async fn invite_member(
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(
-        json!({"invite_url": format!("{}/console/invite/{token}", s.service.public_url), "email": email, "expires_in_days": accounts::INVITE_DAYS}),
+        json!({"invite_url": url, "email": email, "expires_in_days": accounts::INVITE_DAYS}),
     ))
 }
 

@@ -23,6 +23,10 @@ impl Service {
                     let next = (now + Duration::seconds(delay)).min(give_up + Duration::seconds(1));
                     let next = if now >= give_up { None } else { Some(next) };
                     db::delivery_failed(&self.pool, d.id, next, now, &e.to_string()).await?;
+                    if next.is_none() {
+                        self.notify_webhook_abandoned(d.tenant_id, &e.to_string())
+                            .await;
+                    }
                 }
             }
         }

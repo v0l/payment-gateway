@@ -21,6 +21,7 @@ mod operator;
 mod payments;
 mod projects;
 mod providers;
+mod recovery;
 mod session;
 mod team;
 
@@ -30,6 +31,7 @@ use payments::*;
 pub(crate) use projects::settings_diff;
 use projects::*;
 use providers::*;
+use recovery::*;
 use session::*;
 use team::*;
 
@@ -54,6 +56,11 @@ pub fn router() -> Router<AppState> {
         .route("/login", post(login))
         .route("/logout", post(logout))
         .route("/signup", post(signup))
+        .route("/reset", post(request_reset))
+        .route("/reset/confirm", post(confirm_reset))
+        .route("/email", post(request_email_change))
+        .route("/email/confirm", post(confirm_email_change))
+        .route("/notifications", post(set_notifications))
         .route("/invite/{token}", get(invite_info))
         .route("/me", get(me))
         .route("/password", post(change_password))
