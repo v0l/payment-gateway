@@ -126,23 +126,50 @@ pub(super) async fn create_attempt(
 pub(super) async fn cancel_payment(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path((id, payment)): Path<(u64, String)>,
 ) -> ApiResult<PaymentView> {
     let (t, _) = sess.project(&s, id, Role::Admin).await?;
     let pid = parse_payment_id(&payment).ok_or_else(ApiError::not_found)?;
     let row = s.service.cancel_payment(&t, &pid).await?;
+    sess.event(Action::PaymentCancelled)
+        .tenant(id)
+        .target("payment", &payment)
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(s.service.view(&row).await?))
 }
 
 pub(super) async fn refund_payment(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path((id, payment)): Path<(u64, String)>,
     Json(input): Json<RefundInput>,
 ) -> ApiResult<RefundView> {
     let (t, _) = sess.project(&s, id, Role::Admin).await?;
     let pid = parse_payment_id(&payment).ok_or_else(ApiError::not_found)?;
-    Ok(Json(s.service.refund(&t, &pid, input).await?))
+    let origin = Origin::from_headers(&headers);
+    sess.event(Action::RefundRequested)
+        .tenant(id)
+        .target("payment", &payment)
+        .details(json!({"amount": input.amount, "attempt_id": input.attempt_id}))
+        .record(s.pool(), &origin)
+        .await;
+    let outcome = s.service.refund(&t, &pid, input).await;
+    let details = match &outcome {
+        Ok(r) => {
+            json!({"refund_id": r.id, "status": r.status, "amount": r.amount, "currency": r.currency})
+        }
+        Err(_) => json!({"status": "rejected"}),
+    };
+    sess.event(Action::RefundResult)
+        .tenant(id)
+        .target("payment", &payment)
+        .details(details)
+        .record(s.pool(), &origin)
+        .await;
+    Ok(Json(outcome?))
 }
 
 pub(super) async fn stats(

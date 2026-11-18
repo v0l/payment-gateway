@@ -18,6 +18,7 @@ pub(super) struct MemberInvite {
 pub(super) async fn invite_member(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
     Json(i): Json<MemberInvite>,
 ) -> ApiResult<Value> {
@@ -43,6 +44,12 @@ pub(super) async fn invite_member(
         },
     )
     .await?;
+    sess.event(Action::InviteCreated)
+        .tenant(id)
+        .target("invite", &email)
+        .details(json!({"email": email, "role": role.as_str()}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(
         json!({"invite_url": format!("{}/console/invite/{token}", s.service.public_url), "email": email, "expires_in_days": accounts::INVITE_DAYS}),
     ))
@@ -51,6 +58,7 @@ pub(super) async fn invite_member(
 pub(super) async fn remove_member(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path((id, account)): Path<(u64, u64)>,
 ) -> ApiResult<Value> {
     let (_, my_role) = sess.project(&s, id, Role::Admin).await?;
@@ -70,5 +78,11 @@ pub(super) async fn remove_member(
         ));
     }
     accounts::remove_member(s.pool(), id, account).await?;
+    sess.event(Action::MemberRemoved)
+        .tenant(id)
+        .target("account", account)
+        .details(json!({"role": target.as_str()}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(json!({"removed": true})))
 }

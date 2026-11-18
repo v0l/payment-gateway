@@ -1,14 +1,16 @@
 use super::{ApiError, ApiResult, AppState, bearer};
+use crate::audit::{self, Action, Actor, Event, Origin};
 use crate::crypto::{hash_api_key, new_api_key, new_webhook_secret};
 use crate::db::{self, DeliveryRow, NewProviderConfig, ProviderConfigRow};
 use crate::model::METHODS;
 use crate::validate::{self, SettingsInput};
 use axum::extract::{FromRequestParts, Path, Query, State};
+use axum::http::HeaderMap;
 use axum::http::request::Parts;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use subtle::ConstantTimeEq;
 
@@ -43,6 +45,7 @@ pub fn router() -> Router<AppState> {
             post(set_provider_enabled),
         )
         .route("/invites", post(create_invite))
+        .route("/audit", get(list_audit))
         .route("/deliveries", get(list_deliveries))
         .route("/deliveries/{id}/replay", post(replay_delivery))
 }
@@ -101,6 +104,7 @@ fn valid_url(url: &str) -> bool {
 async fn create_tenant(
     _: AdminAuth,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<CreateTenant>,
 ) -> ApiResult<CreatedTenant> {
     if req.name.trim().is_empty() {
@@ -120,6 +124,12 @@ async fn create_tenant(
         &sealed,
     )
     .await?;
+    Event::new(Action::ProjectCreated, Actor::AdminToken)
+        .tenant(id)
+        .target("project", id)
+        .details(json!({"name": req.name.trim()}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(CreatedTenant {
         id,
         api_key,
@@ -151,6 +161,7 @@ async fn get_tenant(
 async fn update_settings(
     _: AdminAuth,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
     Json(req): Json<SettingsInput>,
 ) -> ApiResult<TenantView> {
@@ -163,7 +174,16 @@ async fn update_settings(
     if !db::update_tenant_settings(s.pool(), id, &settings).await? {
         return Err(ApiError::not_found());
     }
-    get_tenant(AdminAuth, State(s), Path(id)).await
+    let after = db::get_tenant(s.pool(), id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    Event::new(Action::SettingsChanged, Actor::AdminToken)
+        .tenant(id)
+        .target("project", id)
+        .details(audit::changed(&crate::api::settings_diff(&tenant, &after)))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
+    Ok(Json(after.into()))
 }
 
 #[derive(Deserialize)]
@@ -174,10 +194,17 @@ struct SetEnabled {
 async fn set_enabled(
     _: AdminAuth,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
     Json(req): Json<SetEnabled>,
 ) -> ApiResult<Value> {
     if db::set_tenant_enabled(s.pool(), id, req.enabled).await? {
+        Event::new(Action::ProjectEnabledChanged, Actor::AdminToken)
+            .tenant(id)
+            .target("project", id)
+            .details(json!({"enabled": req.enabled}))
+            .record(s.pool(), &Origin::from_headers(&headers))
+            .await;
         Ok(Json(serde_json::json!({ "enabled": req.enabled })))
     } else {
         Err(ApiError::not_found())
@@ -187,10 +214,16 @@ async fn set_enabled(
 async fn rotate_key(
     _: AdminAuth,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
 ) -> ApiResult<Value> {
     let api_key = new_api_key();
     if db::rotate_tenant_key(s.pool(), id, &hash_api_key(&api_key)).await? {
+        Event::new(Action::KeyRotated, Actor::AdminToken)
+            .tenant(id)
+            .target("project", id)
+            .record(s.pool(), &Origin::from_headers(&headers))
+            .await;
         Ok(Json(serde_json::json!({ "api_key": api_key })))
     } else {
         Err(ApiError::not_found())
@@ -211,6 +244,7 @@ struct CreateProvider {
 async fn create_provider(
     _: AdminAuth,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
     Json(req): Json<CreateProvider>,
 ) -> ApiResult<Value> {
@@ -253,6 +287,12 @@ async fn create_provider(
         },
     )
     .await?;
+    Event::new(Action::ProviderCreated, Actor::AdminToken)
+        .tenant(id)
+        .target("provider", provider_id)
+        .details(json!({"method": req.method, "provider_type": req.provider_type, "name": req.name.trim()}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(serde_json::json!({
         "id": provider_id,
         "hook_url": s.service.hook_url(id, provider_id),
@@ -270,11 +310,22 @@ async fn list_providers(
 async fn set_provider_enabled(
     _: AdminAuth,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path((id, provider_id)): Path<(u64, u64)>,
     Json(req): Json<SetEnabled>,
 ) -> ApiResult<Value> {
     if db::set_provider_config_enabled(s.pool(), id, provider_id, req.enabled).await? {
         s.service.registry.invalidate(provider_id);
+        let action = if req.enabled {
+            Action::ProviderEnabled
+        } else {
+            Action::ProviderDisabled
+        };
+        Event::new(action, Actor::AdminToken)
+            .tenant(id)
+            .target("provider", provider_id)
+            .record(s.pool(), &Origin::from_headers(&headers))
+            .await;
         Ok(Json(serde_json::json!({ "enabled": req.enabled })))
     } else {
         Err(ApiError::not_found())
@@ -298,9 +349,14 @@ async fn list_deliveries(
 async fn replay_delivery(
     _: AdminAuth,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
 ) -> ApiResult<Value> {
     if db::replay_delivery(s.pool(), id, chrono::Utc::now()).await? {
+        Event::new(Action::DeliveryReplayed, Actor::AdminToken)
+            .target("delivery", id)
+            .record(s.pool(), &Origin::from_headers(&headers))
+            .await;
         Ok(Json(serde_json::json!({ "queued": true })))
     } else {
         Err(ApiError::not_found())
@@ -317,6 +373,7 @@ struct InviteInput {
 async fn create_invite(
     _: AdminAuth,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Json(i): Json<InviteInput>,
 ) -> ApiResult<Value> {
     let email = crate::accounts::normalize_email(&i.email)
@@ -341,9 +398,25 @@ async fn create_invite(
         },
     )
     .await?;
+    Event::new(Action::InviteCreated, Actor::AdminToken)
+        .target("invite", &email)
+        .details(json!({"email": email, "operator": i.operator}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(serde_json::json!({
         "invite_url": format!("{}/console/invite/{token}", s.service.public_url),
         "email": email,
         "expires_in_days": crate::accounts::INVITE_DAYS,
     })))
+}
+
+async fn list_audit(
+    _: AdminAuth,
+    State(s): State<AppState>,
+    Query(q): Query<HashMap<String, String>>,
+) -> ApiResult<Vec<audit::AuditEvent>> {
+    let tenant = q.get("tenant_id").and_then(|t| t.parse().ok());
+    Ok(Json(
+        audit::list(s.pool(), &audit::Filter::from_query(tenant, &q)).await?,
+    ))
 }

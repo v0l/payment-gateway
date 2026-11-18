@@ -9,6 +9,7 @@ use axum::Router;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
+pub(crate) use console::settings_diff;
 use serde_json::json;
 use std::sync::Arc;
 

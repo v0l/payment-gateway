@@ -1,5 +1,6 @@
 pub mod accounts;
 pub mod api;
+pub mod audit;
 pub mod config;
 pub mod crypto;
 pub mod db;

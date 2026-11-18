@@ -10,6 +10,7 @@ function route() {
   if (parts[0] === "new") return newProject();
   if (parts[0] === "account") return account();
   if (parts[0] === "admin" && me.is_operator) return admin();
+  if (parts[0] === "audit" && me.is_operator) return auditLog();
   if (parts[0] === "p" && parts[1]) {
     var pid = parts[1], tab = parts[2] || "overview";
     if (tab === "overview") return overview(pid);
@@ -17,6 +18,7 @@ function route() {
     if (tab === "providers") { if (parts[3]) return providerForm(pid, parts[3]); return providers(pid); }
     if (tab === "webhooks") return webhooks(pid);
     if (tab === "team") return team(pid);
+    if (tab === "activity") return activity(pid);
     if (tab === "settings") return settings(pid);
   }
   go("#/");

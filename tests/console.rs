@@ -1218,6 +1218,7 @@ async fn every_console_script_is_served_and_loaded_by_the_shell() {
         "settings",
         "account",
         "admin",
+        "activity",
         "app",
     ] {
         let path = format!("/console/{name}.js");

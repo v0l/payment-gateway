@@ -142,6 +142,23 @@ pub fn redacted(config: &Value) -> Value {
     )
 }
 
+pub fn changed_config_keys(old: &Value, new: &Value) -> Vec<String> {
+    let empty = serde_json::Map::new();
+    let (old, new) = (
+        old.as_object().unwrap_or(&empty),
+        new.as_object().unwrap_or(&empty),
+    );
+    let mut keys: Vec<String> = old
+        .keys()
+        .chain(new.keys())
+        .filter(|k| old.get(*k) != new.get(*k))
+        .map(|k| format!("config.{k}"))
+        .collect();
+    keys.sort();
+    keys.dedup();
+    keys
+}
+
 pub fn merge_update(old: &Value, new: &Value) -> Value {
     let mut merged = old.as_object().cloned().unwrap_or_default();
     if let Some(n) = new.as_object() {

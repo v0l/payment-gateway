@@ -34,6 +34,7 @@ pub(super) async fn admin_accounts(
 pub(super) async fn admin_disable(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
     Json(e): Json<Enabled>,
 ) -> ApiResult<Value> {
@@ -44,6 +45,15 @@ pub(super) async fn admin_disable(
     if !accounts::set_account_disabled(s.pool(), id, !e.enabled).await? {
         return Err(ApiError::not_found());
     }
+    let action = if e.enabled {
+        Action::AccountEnabled
+    } else {
+        Action::AccountDisabled
+    };
+    sess.event(action)
+        .target("account", id)
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(json!({"enabled": e.enabled})))
 }
 
@@ -57,6 +67,7 @@ pub(super) struct OperatorInvite {
 pub(super) async fn admin_invite(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Json(i): Json<OperatorInvite>,
 ) -> ApiResult<Value> {
     sess.operator()?;
@@ -82,6 +93,11 @@ pub(super) async fn admin_invite(
         },
     )
     .await?;
+    sess.event(Action::InviteCreated)
+        .target("invite", &email)
+        .details(json!({"email": email, "operator": i.operator}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(
         json!({"invite_url": format!("{}/console/invite/{token}", s.service.public_url), "email": email, "expires_in_days": accounts::INVITE_DAYS}),
     ))
@@ -95,6 +111,7 @@ pub(super) struct Trusted {
 pub(super) async fn admin_trusted(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
     Json(t): Json<Trusted>,
 ) -> ApiResult<Value> {
@@ -102,5 +119,11 @@ pub(super) async fn admin_trusted(
     if !db::set_tenant_trusted(s.pool(), id, t.trusted).await? {
         return Err(ApiError::not_found());
     }
+    sess.event(Action::ProjectTrustChanged)
+        .tenant(id)
+        .target("project", id)
+        .details(json!({"trusted": t.trusted}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(json!({"trusted": t.trusted})))
 }

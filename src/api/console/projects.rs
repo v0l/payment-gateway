@@ -34,6 +34,27 @@ pub(super) fn project_view(t: Tenant, role: Role) -> ProjectView {
     }
 }
 
+pub(crate) fn settings_diff(before: &Tenant, after: &Tenant) -> [(&'static str, bool); 7] {
+    [
+        ("webhook_url", before.webhook_url != after.webhook_url),
+        ("display_name", before.display_name != after.display_name),
+        ("logo_url", before.logo_url != after.logo_url),
+        ("accent_color", before.accent_color != after.accent_color),
+        (
+            "allowed_origins",
+            before.allowed_origins != after.allowed_origins,
+        ),
+        (
+            "default_success_url",
+            before.default_success_url != after.default_success_url,
+        ),
+        (
+            "default_cancel_url",
+            before.default_cancel_url != after.default_cancel_url,
+        ),
+    ]
+}
+
 pub(super) async fn list_projects(
     sess: Session,
     State(s): State<AppState>,
@@ -51,6 +72,7 @@ pub(super) struct NewProject {
 pub(super) async fn create_project(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Json(p): Json<NewProject>,
 ) -> ApiResult<Value> {
     let name = p.name.trim().to_string();
@@ -71,6 +93,12 @@ pub(super) async fn create_project(
     let id = accounts::insert_project(&mut *tx, &name, &hash_api_key(&key), &sealed).await?;
     accounts::add_member(&mut *tx, id, sess.account.id, Role::Owner).await?;
     tx.commit().await?;
+    sess.event(Action::ProjectCreated)
+        .tenant(id)
+        .target("project", id)
+        .details(json!({"name": name}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(
         json!({"id": id, "name": name, "api_key": key, "webhook_secret": secret}),
     ))
@@ -88,6 +116,7 @@ pub(super) async fn get_project(
 pub(super) async fn update_settings(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
     Json(req): Json<SettingsInput>,
 ) -> ApiResult<ProjectView> {
@@ -96,30 +125,49 @@ pub(super) async fn update_settings(
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
     db::update_tenant_settings(s.pool(), id, &settings).await?;
-    let t = db::get_tenant(s.pool(), id)
+    let after = db::get_tenant(s.pool(), id)
         .await?
         .ok_or_else(ApiError::not_found)?;
+    sess.event(Action::SettingsChanged)
+        .tenant(id)
+        .target("project", id)
+        .details(audit::changed(&settings_diff(&t, &after)))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
+    let t = after;
     Ok(Json(project_view(t, role)))
 }
 
 pub(super) async fn rotate_key(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
 ) -> ApiResult<Value> {
     sess.project(&s, id, Role::Admin).await?;
     let key = new_api_key();
     db::rotate_tenant_key(s.pool(), id, &hash_api_key(&key)).await?;
+    sess.event(Action::KeyRotated)
+        .tenant(id)
+        .target("project", id)
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(json!({"api_key": key})))
 }
 
 pub(super) async fn rotate_webhook_secret(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
 ) -> ApiResult<Value> {
     sess.project(&s, id, Role::Owner).await?;
     let secret = new_webhook_secret();
     accounts::set_webhook_secret(s.pool(), id, &s.service.sealer.seal(secret.as_bytes())?).await?;
+    sess.event(Action::WebhookSecretRotated)
+        .tenant(id)
+        .target("project", id)
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(json!({"webhook_secret": secret})))
 }

@@ -1,5 +1,6 @@
 use super::{ApiError, ApiResult, AppState};
 use crate::accounts::{self, AccountRow, Role, SessionRow};
+use crate::audit::{self, Action, Actor, Event, Origin};
 use crate::crypto::{hash_api_key, new_api_key, new_webhook_secret};
 use crate::db::{self, NewProviderConfig, ProviderConfigRow, Tenant, parse_payment_id};
 use crate::model::{CreateAttempt, METHODS, PaymentView, RefundInput, RefundView};
@@ -15,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
+mod activity;
 mod operator;
 mod payments;
 mod projects;
@@ -22,8 +24,10 @@ mod providers;
 mod session;
 mod team;
 
+use activity::*;
 use operator::*;
 use payments::*;
+pub(crate) use projects::settings_diff;
 use projects::*;
 use providers::*;
 use session::*;
@@ -41,6 +45,7 @@ const JS_TEAM: &str = include_str!("../../../web/console/team.js");
 const JS_SETTINGS: &str = include_str!("../../../web/console/settings.js");
 const JS_ACCOUNT: &str = include_str!("../../../web/console/account.js");
 const JS_ADMIN: &str = include_str!("../../../web/console/admin.js");
+const JS_ACTIVITY: &str = include_str!("../../../web/console/activity.js");
 const JS_APP: &str = include_str!("../../../web/console/app.js");
 const CSS: &str = include_str!("../../../web/console.css");
 
@@ -95,6 +100,8 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{id}/members", get(members))
         .route("/projects/{id}/invites", post(invite_member))
         .route("/projects/{id}/members/{account}", delete(remove_member))
+        .route("/projects/{id}/activity", get(project_activity))
+        .route("/admin/audit", get(admin_audit))
         .route("/admin/accounts", get(admin_accounts))
         .route("/admin/accounts/{id}/disabled", post(admin_disable))
         .route("/admin/invites", post(admin_invite))
@@ -145,6 +152,7 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "settings.js" => asset(JS_SETTINGS, "text/javascript"),
         "account.js" => asset(JS_ACCOUNT, "text/javascript"),
         "admin.js" => asset(JS_ADMIN, "text/javascript"),
+        "activity.js" => asset(JS_ACTIVITY, "text/javascript"),
         "app.js" => asset(JS_APP, "text/javascript"),
         "app.css" => asset(CSS, "text/css"),
         _ => page().await,
@@ -220,6 +228,10 @@ impl Session {
             ));
         }
         Ok((tenant, role))
+    }
+
+    fn event(&self, action: Action) -> Event {
+        Event::new(action, Actor::Account(self.account.id))
     }
 
     fn operator(&self) -> Result<(), ApiError> {

@@ -85,6 +85,7 @@ pub(super) fn check_fees(
 pub(super) async fn create_provider(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
     Json(req): Json<ProviderInput>,
 ) -> ApiResult<Value> {
@@ -124,6 +125,12 @@ pub(super) async fn create_provider(
         },
     )
     .await?;
+    sess.event(Action::ProviderCreated)
+        .tenant(id)
+        .target("provider", pid)
+        .details(json!({"method": req.method, "provider_type": req.provider_type, "name": name}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(
         json!({"id": pid, "hook_url": s.service.hook_url(id, pid)}),
     ))
@@ -132,6 +139,7 @@ pub(super) async fn create_provider(
 pub(super) async fn update_provider(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path((id, pid)): Path<(u64, u64)>,
     Json(req): Json<ProviderInput>,
 ) -> ApiResult<ProviderView> {
@@ -167,9 +175,27 @@ pub(super) async fn update_provider(
     )
     .await?;
     s.service.registry.invalidate(pid);
-    let row = db::get_tenant_provider(s.pool(), id, pid)
+    let updated = db::get_tenant_provider(s.pool(), id, pid)
         .await?
         .ok_or_else(ApiError::not_found)?;
+    let mut fields = validate::changed_config_keys(&old, &merged);
+    for (name, changed) in [
+        ("name", row.name != updated.name),
+        ("fee_rate", row.fee_rate != updated.fee_rate),
+        ("fee_base", row.fee_base != updated.fee_base),
+        ("fee_currency", row.fee_currency != updated.fee_currency),
+    ] {
+        if changed {
+            fields.push(name.to_string());
+        }
+    }
+    sess.event(Action::ProviderUpdated)
+        .tenant(id)
+        .target("provider", pid)
+        .details(json!({"changed": fields}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
+    let row = updated;
     Ok(Json(provider_view(&s, id, &row)))
 }
 
@@ -181,6 +207,7 @@ pub(super) struct Enabled {
 pub(super) async fn set_provider_enabled(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path((id, pid)): Path<(u64, u64)>,
     Json(e): Json<Enabled>,
 ) -> ApiResult<Value> {
@@ -189,16 +216,27 @@ pub(super) async fn set_provider_enabled(
         return Err(ApiError::not_found());
     }
     s.service.registry.invalidate(pid);
+    let action = if e.enabled {
+        Action::ProviderEnabled
+    } else {
+        Action::ProviderDisabled
+    };
+    sess.event(action)
+        .tenant(id)
+        .target("provider", pid)
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(json!({"enabled": e.enabled})))
 }
 
 pub(super) async fn remove_provider(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path((id, pid)): Path<(u64, u64)>,
 ) -> ApiResult<Value> {
     sess.project(&s, id, Role::Owner).await?;
-    db::get_tenant_provider(s.pool(), id, pid)
+    let removed = db::get_tenant_provider(s.pool(), id, pid)
         .await?
         .ok_or_else(ApiError::not_found)?;
     if db::provider_attempt_count(s.pool(), pid).await? > 0 {
@@ -209,5 +247,11 @@ pub(super) async fn remove_provider(
     }
     db::delete_provider(s.pool(), id, pid).await?;
     s.service.registry.invalidate(pid);
+    sess.event(Action::ProviderDeleted)
+        .tenant(id)
+        .target("provider", pid)
+        .details(json!({"method": removed.method, "provider_type": removed.provider_type, "name": removed.name}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
     Ok(Json(json!({"deleted": true})))
 }

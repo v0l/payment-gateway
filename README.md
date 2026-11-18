@@ -100,6 +100,7 @@ POST   /v1/payments/{id}/refund              {"amount":500,"destination":"<bolt1
 GET    /v1/saved-methods?customer_ref=       DELETE /v1/saved-methods/{id}
 POST   /v1/saved-methods/{id}/charge         a payment body, charged off session
 GET    /v1/methods      GET /v1/rates
+GET    /admin/audit?action=&actor=&tenant_id=&before=&limit=   (audit log, newest first)
 GET    /admin/deliveries?undelivered=1       POST /admin/deliveries/{id}/replay
 ```
 
