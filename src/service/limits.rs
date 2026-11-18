@@ -51,11 +51,10 @@ impl Service {
         &self,
         tx: &mut sqlx::MySqlConnection,
         tenant: &Tenant,
+        limits: Limits,
         amount: u64,
         currency: &str,
     ) -> Result<()> {
-        let limits = self.limits_for(tenant).await?;
-        self.check_standing(tenant.id).await?;
         let converted = rates::convert(self.rates.as_ref(), amount, currency, LIMIT_CURRENCY)
             .await
             .map_err(|e| Error::Upstream(format!("rate lookup failed: {e}")))?;
