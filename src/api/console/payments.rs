@@ -7,29 +7,8 @@ pub(super) async fn list_payments(
     Query(q): Query<HashMap<String, String>>,
 ) -> ApiResult<Value> {
     sess.project(&s, id, Role::Viewer).await?;
-    let status = q.get("status").filter(|v| !v.is_empty());
-    if status.is_some_and(|v| {
-        ![
-            "pending",
-            "paid",
-            "expired",
-            "cancelled",
-            "refunded",
-            "partially_refunded",
-        ]
-        .contains(&v.as_str())
-    }) {
-        return Err(ApiError::bad_request("unknown status"));
-    }
-    let before = q
-        .get("before")
-        .filter(|v| !v.is_empty())
-        .map(|v| parse_cursor(v))
-        .transpose()
-        .map_err(|_| ApiError::bad_request("before must be a cursor from a previous page"))?;
-    let search = q.get("q").map(|v| v.trim()).filter(|v| !v.is_empty());
-    let rows =
-        db::list_payments(s.pool(), id, status.map(String::as_str), search, before, 51).await?;
+    let filter = parse_filter(&q)?;
+    let rows = db::search_payments(s.pool(), id, &filter, 51).await?;
     let more = rows.len() > 50;
     let mut out = vec![];
     for row in rows.iter().take(50) {

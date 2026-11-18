@@ -21,8 +21,11 @@ mod balance;
 mod billing;
 mod branding;
 mod endpoints;
+mod export;
 mod keys;
 mod operator;
+mod payment_filters;
+mod payment_tools;
 mod payments;
 mod payouts;
 mod platform_billing;
@@ -41,8 +44,11 @@ use balance::*;
 use billing::*;
 use branding::*;
 use endpoints::*;
+use export::*;
 use keys::*;
 use operator::*;
+use payment_filters::*;
+use payment_tools::*;
 use payments::*;
 use payouts::*;
 use platform_billing::*;
@@ -168,6 +174,19 @@ pub fn router() -> Router<AppState> {
             post(test_endpoint),
         )
         .route("/projects/{id}/stats", get(stats))
+        .route("/projects/{id}/payments-export", get(export_payments))
+        .route("/projects/{id}/payments-bulk-cancel", post(bulk_cancel))
+        .route("/projects/{id}/manual-paid", post(set_manual_paid))
+        .route("/projects/{id}/saved-views", get(list_views).post(save_view))
+        .route("/projects/{id}/saved-views/{view}", delete(delete_view))
+        .route(
+            "/projects/{id}/payments/{payment}/notes",
+            get(list_notes).post(add_note),
+        )
+        .route(
+            "/projects/{id}/payments/{payment}/mark-paid",
+            post(mark_paid),
+        )
         .route("/projects/{id}/deliveries", get(deliveries))
         .route("/projects/{id}/deliveries/{delivery}/replay", post(replay))
         .route("/projects/{id}/deliveries/{delivery}", get(delivery_detail))

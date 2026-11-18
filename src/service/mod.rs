@@ -289,6 +289,7 @@ mod deliveries;
 mod expiry;
 mod health;
 mod limits;
+mod manual;
 mod notify;
 mod payments;
 mod payout_send;
