@@ -49,6 +49,8 @@ There is no password reset flow. Accounts are created from operator invites and 
 | 10 | Untrusted LND URLs are checked at configuration time but the connection is not pinned to the checked address (DNS rebinding gap) | Follow-up issue | none yet |
 | 11 | Ledger balance and entries (console and admin) | Reviewed: project routes check membership, admin routes need the admin token, no change needed | `ledger_balance_and_entries_are_private_to_the_project` |
 | 12 | 2FA login challenge and codes across accounts | Reviewed: a challenge only completes with a factor of the account it was issued for, and is single use. 2FA routes need a session and CSRF | `two_factor_challenges_and_codes_cannot_cross_accounts`, `two_factor_routes_need_a_session_and_csrf_and_only_touch_own_account` |
+| 13 | `/metrics`, `/status` and `/ready` exposure | Reviewed: metrics and status answer 401 to anonymous calls, tenant keys and console sessions. The metrics token opens only `/metrics`. `/ready` returns only readiness flags | `ops_endpoints_need_the_admin_or_metrics_token_and_never_a_tenant_key` |
+| 14 | JSON logs and credentials | Reviewed: API keys, bearer tokens, session cookies and CSRF tokens never appear in request logs, and the redactor masks Authorization and cookie style strings | `json_logs_never_carry_authorization_or_cookie_values` |
 
 The console HTML shell, which now includes the 2FA screens, is served by the same handler and covered by the CSP and frame checks. The sandbox and regtest tooling create payments without return URLs, so the allow-list does not affect them.
 

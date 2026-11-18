@@ -981,3 +981,187 @@ async fn two_factor_routes_need_a_session_and_csrf_and_only_touch_own_account() 
         .await;
     assert_eq!(r.status, StatusCode::NOT_FOUND, "{}", r.text);
 }
+
+use payment_gateway::api::ops::Ops;
+use payment_gateway::api::{self, AppState};
+use payment_gateway::logging::{Logger, format_line};
+use std::sync::{Mutex, OnceLock};
+
+const METRICS_TOKEN: &str = "metrics-token-metrics-token-1";
+
+#[tokio::test]
+async fn ops_endpoints_need_the_admin_or_metrics_token_and_never_a_tenant_key() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let a = project(&h, &unique("ops@x.example")).await;
+    let app = api::router(
+        AppState::new(h.service.clone(), ADMIN.into(), true, None).with_ops(Ops {
+            metrics_token: Some(METRICS_TOKEN.into()),
+            ..Default::default()
+        }),
+    );
+    for path in ["/metrics", "/status"] {
+        for token in [
+            None,
+            Some("nope"),
+            Some(t.key.as_str()),
+            Some(a.key.as_str()),
+            Some(""),
+        ] {
+            let r = send(&app, "GET", path, token, &[], Value::Null).await;
+            assert_eq!(r.status, StatusCode::UNAUTHORIZED, "{path} {token:?}");
+            assert!(
+                r.text.len() < 200 && !r.text.contains("gateway_"),
+                "{path}: {}",
+                r.text
+            );
+        }
+        let cookie = format!("pgw_session={}", a.owner.cookie);
+        let r = send(&app, "GET", path, None, &[("cookie", &cookie)], Value::Null).await;
+        assert_eq!(
+            r.status,
+            StatusCode::UNAUTHORIZED,
+            "{path} with a console session"
+        );
+        let r = send(&app, "GET", path, Some(ADMIN), &[], Value::Null).await;
+        assert_eq!(r.status, StatusCode::OK, "{path}");
+    }
+    let r = send(
+        &app,
+        "GET",
+        "/metrics",
+        Some(METRICS_TOKEN),
+        &[],
+        Value::Null,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK);
+    let r = send(
+        &app,
+        "GET",
+        "/status",
+        Some(METRICS_TOKEN),
+        &[],
+        Value::Null,
+    )
+    .await;
+    assert_eq!(
+        r.status,
+        StatusCode::UNAUTHORIZED,
+        "the metrics token does not open /status"
+    );
+    let r = send(&app, "POST", "/metrics", Some(ADMIN), &[], json!({})).await;
+    assert!(r.status.is_client_error());
+
+    let r = send(&app, "GET", "/ready", None, &[], Value::Null).await;
+    assert_eq!(r.status, StatusCode::OK);
+    let keys: Vec<&str> = r
+        .json
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    for k in keys {
+        assert!(
+            ["ready", "db", "migrations", "shutting_down", "leader"].contains(&k),
+            "{k}"
+        );
+    }
+    assert!(!r.text.contains(&t.key) && !r.text.contains("tenant"));
+}
+
+fn captured() -> &'static Mutex<Vec<String>> {
+    static LINES: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+    static INSTALLED: OnceLock<()> = OnceLock::new();
+    let lines = LINES.get_or_init(Default::default);
+    INSTALLED.get_or_init(|| {
+        let sink = Box::new(|line: &str| captured().lock().unwrap().push(line.to_string()));
+        let logger = Logger::new(log::LevelFilter::Trace, true, sink);
+        if log::set_boxed_logger(Box::new(logger)).is_ok() {
+            log::set_max_level(log::LevelFilter::Trace);
+        }
+    });
+    lines
+}
+
+#[tokio::test]
+async fn json_logs_never_carry_authorization_or_cookie_values() {
+    let h = harness().await;
+    let a = project(&h, &unique("logs@x.example")).await;
+    let lines = captured();
+    let marker_cookie = "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc1";
+    let marker_bearer = "pgw_markerbearer0123456789abcdef";
+
+    let cookie = format!("pgw_session={}", a.owner.cookie);
+    let bearer = format!("Bearer {}", a.key);
+    for (method, uri, token, headers) in [
+        ("GET", "/v1/payments/zz", Some(a.key.as_str()), vec![]),
+        ("GET", "/v1/payments/zz", Some(marker_bearer), vec![]),
+        (
+            "GET",
+            "/console/api/me",
+            None,
+            vec![("cookie", cookie.as_str())],
+        ),
+        (
+            "GET",
+            "/console/api/me",
+            None,
+            vec![("cookie", marker_cookie)],
+        ),
+        (
+            "POST",
+            "/console/api/login",
+            None,
+            vec![
+                ("cookie", cookie.as_str()),
+                ("authorization", bearer.as_str()),
+            ],
+        ),
+        (
+            "GET",
+            "/nowhere",
+            Some(a.key.as_str()),
+            vec![("cookie", cookie.as_str())],
+        ),
+    ] {
+        let _ = send(
+            &h.app,
+            method,
+            uri,
+            token,
+            &headers,
+            json!({"email": "q", "password": "r"}),
+        )
+        .await;
+    }
+    let all = lines.lock().unwrap().join("\n");
+    assert!(all.contains("request "), "request lines were captured");
+    for secret in [
+        a.key.as_str(),
+        a.owner.cookie.as_str(),
+        a.owner.csrf.as_str(),
+        marker_bearer,
+        marker_cookie,
+    ] {
+        assert!(!all.contains(secret), "log leaked {secret}");
+    }
+    assert!(
+        !all.to_lowercase().contains("authorization:"),
+        "header name with value in logs"
+    );
+
+    for line in [
+        format!("incoming Authorization: Bearer {}", a.key),
+        format!("incoming Authorization: {}", a.key),
+        format!("incoming cookie: pgw_session={}", a.owner.cookie),
+        format!("headers {{\"cookie\": \"pgw_session={}\"}}", a.owner.cookie),
+    ] {
+        let out = format_line(log::Level::Info, "t", &line, true);
+        assert!(
+            !out.contains(&a.key) && !out.contains(&a.owner.cookie),
+            "{out}"
+        );
+    }
+}
