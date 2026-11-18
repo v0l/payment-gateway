@@ -19,6 +19,8 @@ use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
 use tower::ServiceExt;
 
+pub mod console;
+
 pub const ADMIN: &str = "admin-token-admin-token-admin";
 
 pub struct Harness {

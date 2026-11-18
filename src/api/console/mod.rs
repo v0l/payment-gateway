@@ -34,6 +34,7 @@ mod shared;
 mod team;
 mod treasury;
 mod twofactor;
+mod webhook_tools;
 
 use activity::*;
 use balance::*;
@@ -54,6 +55,7 @@ use shared::*;
 use team::*;
 use treasury::*;
 use twofactor::*;
+use webhook_tools::*;
 
 pub const COOKIE: &str = "pgw_session";
 const HTML: &str = include_str!("../../../web/console.html");
@@ -168,6 +170,14 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{id}/stats", get(stats))
         .route("/projects/{id}/deliveries", get(deliveries))
         .route("/projects/{id}/deliveries/{delivery}/replay", post(replay))
+        .route("/projects/{id}/deliveries/{delivery}", get(delivery_detail))
+        .route("/projects/{id}/deliveries-resend-failed", post(resend_failed))
+        .route("/projects/{id}/webhook-health", get(webhook_health))
+        .route("/projects/{id}/webhook-verify", post(verify_signature))
+        .route(
+            "/projects/{id}/payments/{payment}/resend-webhook",
+            post(resend_payment_webhook),
+        )
         .route("/projects/{id}/members", get(members))
         .route("/projects/{id}/invites", post(invite_member))
         .route("/projects/{id}/members/{account}", delete(remove_member))

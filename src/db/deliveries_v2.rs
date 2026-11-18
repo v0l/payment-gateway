@@ -78,3 +78,22 @@ pub async fn endpoint_health(
     .fetch_all(pool)
     .await?)
 }
+
+pub async fn replay_latest_payment_event(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    payment: &PaymentId,
+    now: DateTime<Utc>,
+) -> Result<u64> {
+    let r = sqlx::query(
+        "update webhook_delivery set delivered_at = null, abandoned_at = null, next_attempt = ? where tenant_id = ? and payment_id = ? and event_id = (select event_id from (select event_id from webhook_delivery where tenant_id = ? and payment_id = ? order by id desc limit 1) latest)",
+    )
+    .bind(now)
+    .bind(tenant_id)
+    .bind(&payment[..])
+    .bind(tenant_id)
+    .bind(&payment[..])
+    .execute(pool)
+    .await?;
+    Ok(r.rows_affected())
+}
