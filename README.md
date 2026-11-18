@@ -8,6 +8,7 @@ Methods: Lightning (LND), on-chain Bitcoin (LND), Stripe, Revolut, and altcoins 
 
 ```
 GATEWAY_ENCRYPTION_KEY=$(openssl rand -hex 32)   # keep this, provider secrets are sealed with it
+# or several, newest first: GATEWAY_ENCRYPTION_KEYS=k2:<hex>,k1:<hex>
 GATEWAY_ADMIN_TOKEN=$(openssl rand -hex 24)
 DATABASE_URL=mysql://user:pass@host/gateway
 GATEWAY_PUBLIC_URL=https://pay.example.com        # used for pay pages and provider webhooks
@@ -16,6 +17,12 @@ GATEWAY_ALLOW_MOCK=1                              # tests only, never in product
 ```
 
 Migrations run on start. One process runs the API, the provider watchers (LND streams), the expiry sweep and the webhook sender, so run a single replica.
+
+## Keys, backups and data
+
+The encryption key seals provider credentials and webhook secrets in the database. It lives only in the deployment secret (`GATEWAY_ENCRYPTION_KEY` or `GATEWAY_ENCRYPTION_KEYS`) and must also be escrowed offline, separately from database backups: for example in a password manager vault and a sealed paper copy held by a second person. If every copy is lost, provider configs and webhook secrets cannot be read and must be re-entered; payments, attempts, refunds and receipts are not encrypted and survive. A leaked key plus a database backup exposes every provider credential.
+
+Operator commands (`payment-gateway <command>`, same environment): `rotate-keys`, `purge`, `check-integrity`, `privacy-export`, `privacy-delete`. Runbooks: [key rotation](docs/runbooks/key-rotation.md), [backup, restore and disaster recovery](docs/runbooks/restore.md), [retention and personal data](docs/runbooks/retention-and-privacy.md).
 
 ## Console
 

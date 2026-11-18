@@ -1,0 +1,40 @@
+# Proposal only. Review the names, schedule and storage, then apply by hand.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: payment-gateway-backup
+spec:
+  schedule: "17 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: backup
+              image: registry.example.com/payment-gateway-backup:latest
+              command: ["/opt/pgw/scripts/backup.sh"]
+              env:
+                - name: DB_HOST
+                  value: mariadb
+                - name: DB_NAME
+                  value: gateway
+                - name: DB_USER
+                  valueFrom:
+                    secretKeyRef: {name: payment-gateway-backup, key: db-user}
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef: {name: payment-gateway-backup, key: db-password}
+                - name: RESTIC_REPOSITORY
+                  valueFrom:
+                    secretKeyRef: {name: payment-gateway-backup, key: restic-repository}
+                - name: RESTIC_PASSWORD
+                  valueFrom:
+                    secretKeyRef: {name: payment-gateway-backup, key: restic-password}
+              resources:
+                requests: {cpu: 50m, memory: 128Mi}
+                limits: {memory: 512Mi}

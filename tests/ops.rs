@@ -1,0 +1,708 @@
+mod common;
+use chrono::{Duration, Utc};
+use common::*;
+use payment_gateway::crypto::Sealer;
+use payment_gateway::ops::integrity;
+use payment_gateway::ops::privacy::{self, Subject};
+use payment_gateway::ops::retention::{self, RetentionPolicy};
+use payment_gateway::ops::rotate::{
+    NOT_SEALED_BINARY_COLUMNS, RotateOptions, SEALED_COLUMNS, rotate_keys, sealed_kids,
+};
+use payment_gateway::providers::{EventSink, ProviderEvent};
+use payment_gateway::service::ProviderSink;
+use serde_json::json;
+use sqlx::MySqlPool;
+
+fn key(n: u8) -> [u8; 32] {
+    [n; 32]
+}
+
+fn sealer(kids: &[(&str, u8)]) -> Sealer {
+    let keys: Vec<(String, [u8; 32])> =
+        kids.iter().map(|(k, n)| (k.to_string(), key(*n))).collect();
+    Sealer::with_keys(&keys).unwrap()
+}
+
+async fn seed_secrets(h: &Harness, sealer: &Sealer, tenants: usize) {
+    for _ in 0..tenants {
+        let t = tenant(h).await;
+        provider(h, &t, "lightning", json!({"macaroon": "m"}), None).await;
+    }
+    sqlx::query("update tenant set webhook_secret = ?")
+        .bind(sealer.seal(b"whsec").unwrap())
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    sqlx::query("update provider_config set config = ?")
+        .bind(sealer.seal(b"{\"macaroon\":\"m\"}").unwrap())
+        .execute(&h.pool)
+        .await
+        .unwrap();
+}
+
+async fn kid_counts(pool: &MySqlPool) -> Vec<(String, String, u64)> {
+    sealed_kids(pool).await.unwrap()
+}
+
+#[tokio::test]
+async fn rotation_moves_every_sealed_value_to_the_newest_key() {
+    let h = harness().await;
+    let k1 = sealer(&[("k1", 1)]);
+    seed_secrets(&h, &k1, 5).await;
+
+    let k2 = sealer(&[("k2", 2), ("k1", 1)]);
+    let report = rotate_keys(
+        &h.pool,
+        &k2,
+        &RotateOptions {
+            batch: 2,
+            max_rows: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(report.rotated(), 10);
+    assert!(
+        kid_counts(&h.pool)
+            .await
+            .iter()
+            .all(|(_, kid, _)| kid == "k2")
+    );
+
+    let k3 = sealer(&[("k3", 3), ("k2", 2)]);
+    let report = rotate_keys(&h.pool, &k3, &RotateOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(report.rotated(), 10);
+    assert!(
+        kid_counts(&h.pool)
+            .await
+            .iter()
+            .all(|(_, kid, _)| kid == "k3")
+    );
+
+    let only_k3 = sealer(&[("k3", 3)]);
+    let (secret,): (Vec<u8>,) = sqlx::query_as("select webhook_secret from tenant limit 1")
+        .fetch_one(&h.pool)
+        .await
+        .unwrap();
+    assert_eq!(only_k3.open(&secret).unwrap(), b"whsec");
+    let (cfg,): (Vec<u8>,) = sqlx::query_as("select config from provider_config limit 1")
+        .fetch_one(&h.pool)
+        .await
+        .unwrap();
+    assert_eq!(only_k3.open(&cfg).unwrap(), b"{\"macaroon\":\"m\"}");
+
+    let again = rotate_keys(&h.pool, &k3, &RotateOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(again.rotated(), 0);
+}
+
+#[tokio::test]
+async fn rotation_resumes_after_a_crash_halfway() {
+    let h = harness().await;
+    let k1 = sealer(&[("k1", 1)]);
+    seed_secrets(&h, &k1, 6).await;
+    let k2 = sealer(&[("k2", 2), ("k1", 1)]);
+
+    let first = rotate_keys(
+        &h.pool,
+        &k2,
+        &RotateOptions {
+            batch: 2,
+            max_rows: Some(4),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(first.stopped_early);
+    assert_eq!(first.rotated(), 4);
+    let mixed = kid_counts(&h.pool).await;
+    assert!(mixed.iter().any(|(_, kid, _)| kid == "k1"));
+    assert!(mixed.iter().any(|(_, kid, _)| kid == "k2"));
+
+    let rows: Vec<(Vec<u8>,)> = sqlx::query_as("select webhook_secret from tenant")
+        .fetch_all(&h.pool)
+        .await
+        .unwrap();
+    for (v,) in rows {
+        assert_eq!(k2.open(&v).unwrap(), b"whsec");
+    }
+
+    let second = rotate_keys(&h.pool, &k2, &RotateOptions::default())
+        .await
+        .unwrap();
+    assert!(!second.stopped_early);
+    assert_eq!(second.rotated(), 12 - 4);
+    assert!(
+        kid_counts(&h.pool)
+            .await
+            .iter()
+            .all(|(_, kid, _)| kid == "k2")
+    );
+}
+
+#[tokio::test]
+async fn rotation_stops_on_a_value_no_key_opens_and_changes_nothing_else() {
+    let h = harness().await;
+    seed_secrets(&h, &sealer(&[("k1", 1)]), 2).await;
+    sqlx::query("update tenant set webhook_secret = ? where id = (select min(id) from (select id from tenant) x)")
+        .bind(sealer(&[("lost", 9)]).seal(b"x").unwrap())
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    let k2 = sealer(&[("k2", 2), ("k1", 1)]);
+    assert!(
+        rotate_keys(&h.pool, &k2, &RotateOptions::default())
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn legacy_unprefixed_values_are_rotated() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let _ = t;
+    use aes_gcm::aead::{Aead, KeyInit};
+    let cipher = aes_gcm::Aes256Gcm::new((&key(1)).into());
+    let nonce = [7u8; 12];
+    let mut legacy = nonce.to_vec();
+    legacy.extend(
+        cipher
+            .encrypt(aes_gcm::Nonce::from_slice(&nonce), &b"whsec"[..])
+            .unwrap(),
+    );
+    sqlx::query("update tenant set webhook_secret = ?")
+        .bind(&legacy)
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    let k2 = sealer(&[("k2", 2), ("default", 1)]);
+    let r = rotate_keys(&h.pool, &k2, &RotateOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(r.rotated(), 1);
+    let (v,): (Vec<u8>,) = sqlx::query_as("select webhook_secret from tenant")
+        .fetch_one(&h.pool)
+        .await
+        .unwrap();
+    assert_eq!(Sealer::kid_of(&v), Some("k2"));
+}
+
+#[tokio::test]
+async fn every_binary_column_is_registered_as_sealed_or_known_plain() {
+    let h = harness().await;
+    let cols: Vec<(String, String)> = sqlx::query_as(
+        "select table_name, column_name from information_schema.columns where table_schema = database() and data_type in ('varbinary', 'blob', 'mediumblob', 'longblob', 'tinyblob') and table_name <> '_sqlx_migrations'",
+    )
+    .fetch_all(&h.pool)
+    .await
+    .unwrap();
+    assert!(!cols.is_empty());
+    for (table, column) in cols {
+        let sealed = SEALED_COLUMNS
+            .iter()
+            .any(|c| c.table == table && c.column == column);
+        let plain = NOT_SEALED_BINARY_COLUMNS
+            .iter()
+            .any(|(t, c)| *t == table && *c == column);
+        assert!(
+            sealed || plain,
+            "{table}.{column} is binary: add it to SEALED_COLUMNS or NOT_SEALED_BINARY_COLUMNS in src/ops/rotate.rs"
+        );
+    }
+}
+
+struct Seeded {
+    paid: String,
+    unpaid: String,
+    open: String,
+    refunded: String,
+}
+
+async fn seed_payments(h: &Harness, t: &TenantFixture, ln: u64) -> Seeded {
+    let mut ids = vec![];
+    for (i, who) in [
+        "a@example.com",
+        "a@example.com",
+        "b@example.com",
+        "c@example.com",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let mut body = eur(&format!("r{i}"), 1000 + i as u64);
+        body["customer_email"] = json!(who);
+        body["customer_ref"] = json!(format!("cust{}", who.chars().next().unwrap()));
+        body["metadata"] = json!({"name": format!("name{i}")});
+        let p = new_payment(h, t, body).await;
+        let id = p["id"].as_str().unwrap().to_string();
+        let (_, r) = attempt(h, t, &id, json!({"method": "lightning"})).await;
+        let hash = r["attempts"][0]["details"]["payment_hash"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        ids.push((id, hash));
+    }
+    let sink = ProviderSink {
+        service: h.service.clone(),
+        provider_id: ln,
+    };
+    for i in [0usize, 3] {
+        let hash = ids[i].1.clone();
+        sink.event(
+            ProviderEvent::Paid {
+                lookup: hash.clone(),
+                reference: hash.clone(),
+                amount: None,
+                confirmed: true,
+                saved: None,
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    }
+    let (s, r) = call(
+        &h.app,
+        "POST",
+        &format!("/v1/payments/{}/refund", ids[3].0),
+        Some(&t.key),
+        json!({"destination": "lnbc1refund"}),
+    )
+    .await;
+    assert_eq!(s, axum::http::StatusCode::OK, "{r}");
+    sqlx::query("update payment set expires = ? where id = ? or id = ?")
+        .bind(Utc::now() - Duration::days(40))
+        .bind(&pid(&ids[1].0)[..])
+        .bind(&pid(&ids[2].0)[..])
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    h.service.expire_due().await.unwrap();
+    sqlx::query("update payment set expires = ? where id = ?")
+        .bind(Utc::now() + Duration::days(1))
+        .bind(&pid(&ids[2].0)[..])
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    sqlx::query("update payment set status = 'pending' where id = ?")
+        .bind(&pid(&ids[2].0)[..])
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    h.service.deliver_due().await.unwrap();
+    Seeded {
+        paid: ids[0].0.clone(),
+        unpaid: ids[1].0.clone(),
+        open: ids[2].0.clone(),
+        refunded: ids[3].0.clone(),
+    }
+}
+
+async fn count(pool: &MySqlPool, sql: &str) -> i64 {
+    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap()
+}
+
+#[tokio::test]
+async fn retention_purges_old_unpaid_but_never_paid_refunded_or_open() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    let s = seed_payments(&h, &t, ln).await;
+    sqlx::query("update webhook_delivery set created = ?")
+        .bind(Utc::now() - Duration::days(100))
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    let payments_before = count(&h.pool, "select count(*) from payment").await;
+    let refunds_before = count(&h.pool, "select count(*) from refund").await;
+    let paid_attempts = count(
+        &h.pool,
+        "select count(*) from payment_attempt where status = 'paid'",
+    )
+    .await;
+
+    let policy = RetentionPolicy {
+        delivery_body_days: Some(30),
+        unpaid_payment_days: Some(30),
+        session_days: Some(7),
+    };
+    let report = retention::purge(&h.pool, &policy, Utc::now())
+        .await
+        .unwrap();
+    assert_eq!(report.unpaid_payments_deleted, 1);
+    assert!(report.delivery_bodies_cleared >= 2);
+
+    assert_eq!(
+        count(&h.pool, "select count(*) from payment").await,
+        payments_before - 1
+    );
+    assert_eq!(
+        count(&h.pool, "select count(*) from refund").await,
+        refunds_before
+    );
+    assert_eq!(
+        count(
+            &h.pool,
+            "select count(*) from payment_attempt where status = 'paid'"
+        )
+        .await,
+        paid_attempts
+    );
+    for kept in [&s.paid, &s.open, &s.refunded] {
+        let n: i64 = sqlx::query_scalar("select count(*) from payment where id = ?")
+            .bind(&pid(kept)[..])
+            .fetch_one(&h.pool)
+            .await
+            .unwrap();
+        assert_eq!(n, 1);
+    }
+    let gone: i64 = sqlx::query_scalar("select count(*) from payment where id = ?")
+        .bind(&pid(&s.unpaid)[..])
+        .fetch_one(&h.pool)
+        .await
+        .unwrap();
+    assert_eq!(gone, 0);
+    assert_eq!(
+        count(&h.pool, "select count(*) from webhook_delivery where body <> '' and (delivered_at is not null or abandoned_at is not null)").await,
+        0
+    );
+    assert!(integrity::check(&h.pool).await.unwrap().is_empty());
+
+    let again = retention::purge(&h.pool, &policy, Utc::now())
+        .await
+        .unwrap();
+    assert_eq!(again, retention::PurgeReport::default());
+}
+
+#[tokio::test]
+async fn retention_keeps_recent_rows_and_undelivered_bodies() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    let _ = seed_payments(&h, &t, ln).await;
+    sqlx::query("update webhook_delivery set delivered_at = null")
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    sqlx::query("update webhook_delivery set created = ?")
+        .bind(Utc::now() - Duration::days(100))
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    let policy = RetentionPolicy {
+        delivery_body_days: Some(30),
+        unpaid_payment_days: Some(3650),
+        session_days: None,
+    };
+    let report = retention::purge(&h.pool, &policy, Utc::now())
+        .await
+        .unwrap();
+    assert_eq!(report, retention::PurgeReport::default());
+}
+
+#[tokio::test]
+async fn retention_deletes_only_long_expired_sessions() {
+    let h = harness().await;
+    let id = payment_gateway::accounts::insert_account(&h.pool, "x@example.com", "hash", false)
+        .await
+        .unwrap();
+    for (token, expires) in [("old", -40), ("recent", -1), ("live", 5)] {
+        sqlx::query("insert into account_session (account_id, token_hash, csrf, created, expires) values (?, ?, 'c', ?, ?)")
+            .bind(id)
+            .bind(token)
+            .bind(Utc::now() - Duration::days(50))
+            .bind(Utc::now() + Duration::days(expires))
+            .execute(&h.pool)
+            .await
+            .unwrap();
+    }
+    let policy = RetentionPolicy {
+        session_days: Some(7),
+        ..Default::default()
+    };
+    let r = retention::purge(&h.pool, &policy, Utc::now())
+        .await
+        .unwrap();
+    assert_eq!(r.sessions_deleted, 1);
+    assert_eq!(
+        count(&h.pool, "select count(*) from account_session").await,
+        2
+    );
+}
+
+#[tokio::test]
+async fn privacy_export_then_delete_anonymises_financial_records() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let other = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    provider(&h, &other, "lightning", json!({}), None).await;
+    let s = seed_payments(&h, &t, ln).await;
+    let mut theirs = eur("other", 500);
+    theirs["customer_email"] = json!("a@example.com");
+    theirs["metadata"] = json!({"keep": true});
+    let theirs = new_payment(&h, &other, theirs).await;
+
+    let subject = Subject::Email("a@example.com".into());
+    let export = privacy::export(&h.pool, t.id, &subject).await.unwrap();
+    assert_eq!(export.payments.len(), 2);
+    assert!(
+        export
+            .payments
+            .iter()
+            .all(|p| p.customer_email.as_deref() == Some("a@example.com"))
+    );
+    assert!(
+        export
+            .payments
+            .iter()
+            .any(|p| p.metadata.as_deref().unwrap().contains("name0"))
+    );
+
+    let before_paid = get_payment(&h, &t, &s.paid).await;
+    let report = privacy::delete(&h.pool, t.id, &subject).await.unwrap();
+    assert_eq!(report.payments_anonymised, 2);
+    assert!(report.delivery_bodies_cleared >= 1);
+
+    let after_paid = get_payment(&h, &t, &s.paid).await;
+    assert_eq!(after_paid["status"], "paid");
+    assert_eq!(after_paid["amount"], before_paid["amount"]);
+    assert_eq!(after_paid["attempts"], before_paid["attempts"]);
+    let row: (Option<String>, Option<String>, Option<String>) =
+        sqlx::query_as("select customer_email, customer_ref, metadata from payment where id = ?")
+            .bind(&pid(&s.paid)[..])
+            .fetch_one(&h.pool)
+            .await
+            .unwrap();
+    assert_eq!(row, (None, None, None));
+
+    let leaked: i64 = count(
+        &h.pool,
+        "select count(*) from webhook_delivery d join payment p on p.id = d.payment_id where d.body like '%a@example.com%' and p.tenant_id = (select min(id) from tenant)",
+    )
+    .await;
+    assert_eq!(leaked, 0);
+
+    let untouched = privacy::export(&h.pool, other.id, &subject).await.unwrap();
+    assert_eq!(untouched.payments.len(), 1);
+    assert_eq!(untouched.payments[0].id, theirs["id"].as_str().unwrap());
+    let b = privacy::export(&h.pool, t.id, &Subject::Email("b@example.com".into()))
+        .await
+        .unwrap();
+    assert_eq!(b.payments.len(), 1);
+    assert!(
+        privacy::export(&h.pool, t.id, &subject)
+            .await
+            .unwrap()
+            .payments
+            .is_empty()
+    );
+    assert!(integrity::check(&h.pool).await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn privacy_delete_by_customer_ref_removes_saved_methods_in_that_project_only() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let other = tenant(&h).await;
+    let pa = provider(&h, &t, "lightning", json!({}), None).await;
+    let pb = provider(&h, &other, "lightning", json!({}), None).await;
+    for (tenant_id, pc) in [(t.id, pa), (other.id, pb)] {
+        sqlx::query("insert into saved_method (tenant_id, customer_ref, provider_config_id, external_customer_id, external_id, created) values (?, 'cust1', ?, 'cus', 'pm', ?)")
+            .bind(tenant_id)
+            .bind(pc)
+            .bind(Utc::now())
+            .execute(&h.pool)
+            .await
+            .unwrap();
+    }
+    let subject = Subject::CustomerRef("cust1".into());
+    assert_eq!(
+        privacy::export(&h.pool, t.id, &subject)
+            .await
+            .unwrap()
+            .saved_methods
+            .len(),
+        1
+    );
+    let r = privacy::delete(&h.pool, t.id, &subject).await.unwrap();
+    assert_eq!(r.saved_methods_deleted, 1);
+    assert_eq!(
+        privacy::export(&h.pool, other.id, &subject)
+            .await
+            .unwrap()
+            .saved_methods
+            .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn privacy_delete_refuses_an_empty_subject() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    assert!(
+        privacy::delete(&h.pool, t.id, &Subject::Email(" ".into()))
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn integrity_check_flags_orphans_and_unreadable_secrets() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    let s = seed_payments(&h, &t, ln).await;
+    assert!(integrity::check(&h.pool).await.unwrap().is_empty());
+
+    sqlx::query("update payment_attempt set status = 'expired' where payment_id = ?")
+        .bind(&pid(&s.paid)[..])
+        .execute(&h.pool)
+        .await
+        .unwrap();
+    let findings = integrity::check(&h.pool).await.unwrap();
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.check == "paid_payment_without_paid_attempt")
+    );
+
+    let wrong = sealer(&[("other", 5)]);
+    assert!(
+        integrity::unreadable_sealed_values(&h.pool, &wrong)
+            .await
+            .unwrap()
+            > 0
+    );
+}
+
+fn db_parts(url: &str) -> (String, String, String, String) {
+    let u = url::Url::parse(url).unwrap();
+    (
+        u.host_str().unwrap().to_string(),
+        u.port().unwrap_or(3306).to_string(),
+        u.username().to_string(),
+        u.password().unwrap_or("").to_string(),
+    )
+}
+
+fn have(bin: &str) -> bool {
+    std::process::Command::new("sh")
+        .args(["-c", &format!("command -v {bin}")])
+        .output()
+        .is_ok_and(|o| o.status.success())
+}
+
+#[tokio::test]
+async fn restore_drill_backs_up_restores_into_a_scratch_database_and_passes_integrity() {
+    if !(have("mariadb-dump") || have("mysqldump")) || !(have("mariadb") || have("mysql")) {
+        eprintln!("skipping restore drill: no mysql client tools");
+        return;
+    }
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    let s = seed_payments(&h, &t, ln).await;
+    let sealer_k = sealer(&[("k1", 1)]);
+    seed_secrets(&h, &sealer_k, 1).await;
+
+    let base = std::env::var("TEST_DATABASE_URL").unwrap();
+    let (host, port, user, pass) = db_parts(&base);
+    let source_db: String = sqlx::query_scalar("select database()")
+        .fetch_one(&h.pool)
+        .await
+        .unwrap();
+    let dir = std::env::temp_dir().join(unique("pgwbackup"));
+    let root = env!("CARGO_MANIFEST_DIR");
+
+    let out = std::process::Command::new(format!("{root}/scripts/backup.sh"))
+        .env("DB_NAME", &source_db)
+        .env("DB_HOST", &host)
+        .env("DB_PORT", &port)
+        .env("DB_USER", &user)
+        .env("DB_PASSWORD", &pass)
+        .env("BACKUP_DIR", &dir)
+        .env("BACKUP_KEEP", "3")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let dump = String::from_utf8(out.stdout).unwrap().trim().to_string();
+    assert!(std::path::Path::new(&dump).exists());
+
+    let scratch = unique("restore_");
+    let run_restore = |overwrite: bool| {
+        let mut c = std::process::Command::new(format!("{root}/scripts/restore.sh"));
+        c.arg(&dump)
+            .arg(&scratch)
+            .env("DB_HOST", &host)
+            .env("DB_PORT", &port)
+            .env("DB_USER", &user)
+            .env("DB_PASSWORD", &pass)
+            .env("GATEWAY_BIN", env!("CARGO_BIN_EXE_payment-gateway"))
+            .env(
+                "GATEWAY_ENCRYPTION_KEYS",
+                format!("k1:{}", hex::encode(key(1))),
+            );
+        if overwrite {
+            c.env("RESTORE_OVERWRITE", "1");
+        }
+        c.output().unwrap()
+    };
+    let out = run_restore(false);
+    assert!(
+        out.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!run_restore(false).status.success());
+    assert!(run_restore(true).status.success());
+
+    let (prefix, _) = base.rsplit_once('/').unwrap();
+    let restored = MySqlPool::connect(&format!("{prefix}/{scratch}"))
+        .await
+        .unwrap();
+    for table in [
+        "tenant",
+        "provider_config",
+        "payment",
+        "payment_attempt",
+        "refund",
+        "webhook_delivery",
+    ] {
+        let sql = format!("select count(*) from {table}");
+        assert_eq!(
+            count(&restored, &sql).await,
+            count(&h.pool, &sql).await,
+            "{table}"
+        );
+    }
+    let id: i64 =
+        sqlx::query_scalar("select count(*) from payment where id = ? and status = 'paid'")
+            .bind(&pid(&s.paid)[..])
+            .fetch_one(&restored)
+            .await
+            .unwrap();
+    assert_eq!(id, 1);
+    assert!(integrity::check(&restored).await.unwrap().is_empty());
+    assert_eq!(
+        integrity::unreadable_sealed_values(&restored, &sealer_k)
+            .await
+            .unwrap(),
+        0
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+    sqlx::query(&format!("drop database {scratch}"))
+        .execute(&h.pool)
+        .await
+        .unwrap();
+}
