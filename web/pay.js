@@ -78,10 +78,31 @@
     });
   }
 
+  function luminance(hex) {
+    var h = hex.replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var rgb = [0, 2, 4].map(function (i) {
+      var v = parseInt(h.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+  }
+
+  function contrast(a, b) {
+    var x = luminance(a), y = luminance(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  }
+
+  function readableOn(hex) {
+    return luminance(hex) > 0.179 ? "#000000" : "#ffffff";
+  }
+
   function applyAccent() {
     var c = state.tenant.accent_color;
-    if (c && /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(c)) {
+    var card = getComputedStyle(document.documentElement).getPropertyValue("--card").trim();
+    if (c && /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(c) && (!/^#[0-9a-fA-F]{6}$/.test(card) || contrast(c, card) >= 4.5)) {
       document.documentElement.style.setProperty("--accent", c);
+      document.documentElement.style.setProperty("--accent-text", readableOn(c));
     }
   }
 
@@ -131,7 +152,6 @@
         text: "Continue to payment"
       });
       link.className = "primary";
-      link.style.cssText = "display:block;padding:12px 14px;border-radius:10px;background:var(--accent);color:#fff;text-align:center;font-weight:600;text-decoration:none";
       kids.push(link);
       kids.push(el("p", { class: "muted", text: "You will be taken to our payment provider to finish." }));
     }
@@ -186,7 +206,7 @@
     var ul = el("ul", { class: "methods" });
     state.methods.forEach(function (m) {
       if (m.options && m.options.length) {
-        var sel = el("select", { "aria-label": "Coin", style: "font:inherit;padding:6px;border-radius:8px" },
+        var sel = el("select", { "aria-label": "Coin" },
           m.options.map(function (o) { return el("option", { value: o, text: o }); }));
         sel.value = chosenOption[m.provider_id] || m.options[0];
         sel.addEventListener("change", function () { chosenOption[m.provider_id] = sel.value; });

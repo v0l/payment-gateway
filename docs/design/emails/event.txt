@@ -1,0 +1,7 @@
+Payment failed
+
+Project Coffee shop: Payment failed.
+
+Payment pay_8f3k2 for 12.50 EUR failed on Stripe.
+
+You get at most one email per event type per project per hour. You can turn these off on your account page.

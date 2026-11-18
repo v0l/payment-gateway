@@ -1,0 +1,46 @@
+.banner { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) var(--space-4); border-radius: var(--radius); border: 1px solid var(--line-strong); background: var(--code); margin: 0 0 var(--space-3); }
+.banner b { display: block; }
+.banner.ok { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+.banner.warn { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
+.banner.bad { border-color: var(--bad); background: var(--bad-bg); color: var(--bad); }
+.banner.info { border-color: var(--info); background: var(--info-bg); color: var(--info); }
+.toast { display: inline-flex; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4); border-radius: var(--radius); background: var(--text); color: var(--bg); box-shadow: var(--shadow-2); }
+.dialog-scrim { background: var(--scrim); padding: var(--space-5); border-radius: var(--radius-lg); display: grid; place-items: center; }
+.dialog { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-3); padding: var(--space-5); max-width: 420px; width: 100%; }
+.dialog h4 { margin: 0 0 var(--space-2); font-size: var(--fs-md); }
+.dialog .row { justify-content: flex-end; }
+.empty { text-align: center; padding: var(--space-6) var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); }
+.empty b { display: block; font-size: var(--fs-md); margin-bottom: var(--space-1); }
+.skeleton { height: 14px; border-radius: var(--radius-sm); background: var(--code); margin: var(--space-2) 0; animation: pulse 1.4s var(--ease) infinite; }
+@keyframes pulse { 50% { opacity: 0.45; } }
+.money { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.money small { color: var(--muted); font-size: var(--fs-sm); margin-left: var(--space-1); }
+.copyable { display: flex; gap: var(--space-2); align-items: stretch; }
+.copyable code { flex: 1; min-width: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--code); font-family: var(--font-mono); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.codes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-2); list-style: none; padding: var(--space-3); margin: var(--space-3) 0; background: var(--code); border: 1px dashed var(--warn); border-radius: var(--radius); font-family: var(--font-mono); font-size: var(--fs-base); }
+.qr-block { width: 192px; max-width: 100%; padding: var(--space-2); background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.qr-block svg { display: block; width: 100%; height: auto; }
+.field.invalid input, .field.invalid select { border-color: var(--bad); }
+.field .hint { color: var(--muted); font-size: var(--fs-sm); margin-top: var(--space-1); }
+.field.invalid .hint { color: var(--bad); }
+.pager { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; margin: var(--space-3) 0; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--space-2); }
+.swatch { border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; font-size: var(--fs-sm); }
+.swatch i { display: block; height: 32px; }
+.swatch span { display: block; padding: var(--space-1) var(--space-2); background: var(--card); }
+.theme-panel { background: var(--bg); color: var(--text); padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-lg); font: var(--fs-base)/var(--lh-base) var(--font-sans); min-width: 0; }
+.theme-panel h2 { margin-top: 0; }
+.sg { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: var(--space-4); padding: var(--space-4); }
+.sg h3 { margin-top: var(--space-5); }
+.sw-bg { background: var(--bg); }
+.sw-card { background: var(--card); }
+.sw-code { background: var(--code); }
+.sw-text { background: var(--text); }
+.sw-muted { background: var(--muted); }
+.sw-line { background: var(--line); }
+.sw-line-strong { background: var(--line-strong); }
+.sw-accent { background: var(--accent); }
+.sw-ok { background: var(--ok); }
+.sw-warn { background: var(--warn); }
+.sw-bad { background: var(--bad); }
+.sw-info { background: var(--info); }
