@@ -191,7 +191,7 @@ pub async fn endpoint_stats(pool: &MySqlPool, tenant_id: u64) -> Result<Vec<Endp
 pub async fn insert_event<'e, E: Executor<'e, Database = MySql>>(
     ex: E,
     tenant_id: u64,
-    payment_id: &PaymentId,
+    payment_id: Option<&PaymentId>,
     event_id: &str,
     event_type: &str,
     body: &str,
@@ -201,7 +201,7 @@ pub async fn insert_event<'e, E: Executor<'e, Database = MySql>>(
         "insert into gateway_event (tenant_id, payment_id, event_id, event_type, body, created) values (?, ?, ?, ?, ?, ?)",
     )
     .bind(tenant_id)
-    .bind(&payment_id[..])
+    .bind(payment_id.map(|p| &p[..]))
     .bind(event_id)
     .bind(event_type)
     .bind(body)

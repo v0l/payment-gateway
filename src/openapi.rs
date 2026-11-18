@@ -185,6 +185,19 @@ fn operation(op: &Op) -> Value {
     Value::Object(o)
 }
 
+pub const EVENT_TYPES: &[&str] = &[
+    "payment.paid",
+    "payment.expired",
+    "payment.cancelled",
+    "payment.late_payment",
+    "attempt.failed",
+    "refund.completed",
+    "refund.failed",
+    "withdrawal.requested",
+    "withdrawal.completed",
+    "withdrawal.failed",
+];
+
 pub fn spec() -> Value {
     let mut paths: Map<String, Value> = Map::new();
     for op in OPS {
@@ -236,6 +249,7 @@ pub fn spec() -> Value {
                     "success_url": {"type": "string"},
                     "cancel_url": {"type": "string"}
                 }},
+                "EventType": {"type": "string", "enum": EVENT_TYPES, "description": "Webhook and /v1/events types. Endpoint filters accept these, a prefix wildcard such as withdrawal.*, or *. withdrawal.* events carry data.withdrawal instead of data.payment."},
                 "CreateAttempt": {"type": "object", "properties": {"method": {"type": "string"}, "option": {"type": "string"}, "save_method": {"type": "boolean"}}},
                 "RefundInput": {"type": "object", "properties": {"amount": {"type": "integer", "description": "Minor units. Omit for the full remaining amount."}, "destination": {"type": "string"}}}
             }

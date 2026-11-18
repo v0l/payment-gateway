@@ -24,17 +24,41 @@ impl Service {
             "created": now.timestamp(),
             "data": { "payment": view, "detail": extra },
         });
-        let body = body.to_string();
-        db::insert_event(&mut **tx, tenant.id, &id, &event_id, event_type, &body, now).await?;
+        self.fan_out(
+            tx,
+            tenant,
+            Some(&id),
+            &event_id,
+            event_type,
+            &body.to_string(),
+            now,
+        )
+        .await
+    }
+
+    pub(super) async fn fan_out(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+        tenant: &Tenant,
+        payment_id: Option<&PaymentId>,
+        event_id: &str,
+        event_type: &str,
+        body: &str,
+        now: DateTime<Utc>,
+    ) -> Result<()> {
+        db::insert_event(
+            &mut **tx, tenant.id, payment_id, event_id, event_type, body, now,
+        )
+        .await?;
         for endpoint in db::list_endpoints(&mut **tx, tenant.id).await? {
             if endpoint.enabled && endpoint_wants(&endpoint, event_type) {
                 db::insert_delivery(
                     &mut **tx,
                     tenant.id,
-                    &id,
-                    &event_id,
+                    payment_id,
+                    event_id,
                     event_type,
-                    &body,
+                    body,
                     Some(endpoint.id),
                     now,
                 )

@@ -464,9 +464,6 @@ impl Service {
         event_type: &str,
         id: u64,
     ) -> Result<()> {
-        if tenant.webhook_url.is_none() {
-            return Ok(());
-        }
         let w = db::lock_withdrawal(&mut **tx, id)
             .await?
             .ok_or(Error::NotFound)?;
@@ -478,9 +475,10 @@ impl Service {
             "created": now.timestamp(),
             "data": { "withdrawal": payouts::WithdrawalView::from(&w) },
         });
-        db::insert_event_delivery(
-            &mut **tx,
-            tenant.id,
+        self.fan_out(
+            tx,
+            tenant,
+            None,
             &event_id,
             event_type,
             &body.to_string(),

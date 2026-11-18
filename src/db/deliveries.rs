@@ -4,7 +4,7 @@ use super::*;
 pub async fn insert_delivery<'e, E: Executor<'e, Database = MySql>>(
     ex: E,
     tenant_id: u64,
-    payment_id: &PaymentId,
+    payment_id: Option<&PaymentId>,
     event_id: &str,
     event_type: &str,
     body: &str,
@@ -15,33 +15,11 @@ pub async fn insert_delivery<'e, E: Executor<'e, Database = MySql>>(
         "insert into webhook_delivery (tenant_id, payment_id, event_id, event_type, body, endpoint_id, created, next_attempt) values (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(tenant_id)
-    .bind(&payment_id[..])
+    .bind(payment_id.map(|p| &p[..]))
     .bind(event_id)
     .bind(event_type)
     .bind(body)
     .bind(endpoint_id)
-    .bind(now)
-    .bind(now)
-    .execute(ex)
-    .await?;
-    Ok(())
-}
-
-pub async fn insert_event_delivery<'e, E: Executor<'e, Database = MySql>>(
-    ex: E,
-    tenant_id: u64,
-    event_id: &str,
-    event_type: &str,
-    body: &str,
-    now: DateTime<Utc>,
-) -> Result<()> {
-    sqlx::query(
-        "insert into webhook_delivery (tenant_id, payment_id, event_id, event_type, body, created, next_attempt) values (?, null, ?, ?, ?, ?, ?)",
-    )
-    .bind(tenant_id)
-    .bind(event_id)
-    .bind(event_type)
-    .bind(body)
     .bind(now)
     .bind(now)
     .execute(ex)

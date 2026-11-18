@@ -59,3 +59,4 @@ CREATE TABLE withdrawal (
 ALTER TABLE webhook_delivery DROP FOREIGN KEY fk_webhook_delivery_payment;
 ALTER TABLE webhook_delivery MODIFY payment_id BINARY(32) NULL;
 ALTER TABLE webhook_delivery ADD CONSTRAINT fk_webhook_delivery_payment FOREIGN KEY (payment_id) REFERENCES payment (id);
+ALTER TABLE gateway_event MODIFY payment_id BINARY(32) NULL;

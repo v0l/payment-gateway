@@ -1185,3 +1185,122 @@ async fn payout_metrics_count_sends_failures_and_oldest_sending_age() {
             .contains("gateway_payout_oldest_sending_age_seconds")
     );
 }
+
+#[tokio::test]
+async fn withdrawal_events_follow_endpoint_filters_and_appear_in_the_event_feed() {
+    let (h, _) = setup().await;
+    let t = tenant(&h).await;
+    fund(&h, t.id, 20_000_000, "f").await;
+    let only_withdrawals = Receiver::start().await;
+    let only_payments = Receiver::start().await;
+    let sealed = h.service.sealer.seal(b"whsec").unwrap();
+    db::insert_endpoint(
+        &h.pool,
+        t.id,
+        &only_withdrawals.url,
+        &sealed,
+        None,
+        Some("withdrawal.*"),
+    )
+    .await
+    .unwrap();
+    db::insert_endpoint(
+        &h.pool,
+        t.id,
+        &only_payments.url,
+        &sealed,
+        None,
+        Some("payment.paid"),
+    )
+    .await
+    .unwrap();
+    let tr = tenant_row(&h, t.id).await;
+    h.service
+        .request_withdrawal(&tr, invoice_req(2_000_000))
+        .await
+        .unwrap();
+    h.service.run_payouts().await.unwrap();
+    h.service.deliver_due().await.unwrap();
+    let types = only_withdrawals.types();
+    assert!(
+        types.contains(&"withdrawal.requested".to_string()),
+        "{types:?}"
+    );
+    assert!(
+        types.contains(&"withdrawal.completed".to_string()),
+        "{types:?}"
+    );
+    assert!(!types.iter().any(|t| t == "payment.paid"));
+    assert!(
+        only_payments.types().is_empty(),
+        "{:?}",
+        only_payments.types()
+    );
+
+    let (s, feed) = call(
+        &h.app,
+        "GET",
+        "/v1/events?type=withdrawal.completed",
+        Some(&t.key),
+        serde_json::Value::Null,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{feed}");
+    assert_eq!(feed.as_array().unwrap().len(), 1);
+    assert_eq!(feed[0]["data"]["withdrawal"]["status"], "completed");
+
+    let payment = new_payment(&h, &t, eur("w-1", 1000)).await;
+    let id = payment["id"].as_str().unwrap();
+    let (s, _) = call(
+        &h.app,
+        "POST",
+        &format!("/v1/payments/{id}/cancel"),
+        Some(&t.key),
+        json!({}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    h.service.deliver_due().await.unwrap();
+    assert!(
+        !only_withdrawals
+            .types()
+            .iter()
+            .any(|t| t.starts_with("payment.")),
+        "{:?}",
+        only_withdrawals.types()
+    );
+    assert!(only_payments.types().is_empty());
+    let (_, all) = call(
+        &h.app,
+        "GET",
+        "/v1/events",
+        Some(&t.key),
+        serde_json::Value::Null,
+    )
+    .await;
+    assert!(
+        all.as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["type"] == "payment.cancelled")
+    );
+    let (s, spec) = call(
+        &h.app,
+        "GET",
+        "/v1/openapi.json",
+        None,
+        serde_json::Value::Null,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let events = spec["components"]["schemas"]["EventType"]["enum"]
+        .as_array()
+        .unwrap();
+    for e in [
+        "withdrawal.requested",
+        "withdrawal.completed",
+        "withdrawal.failed",
+    ] {
+        assert!(events.iter().any(|v| v == e), "{e}");
+    }
+}
