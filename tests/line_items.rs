@@ -502,3 +502,120 @@ async fn card_attempt_passes_the_stored_lines_to_the_provider() {
     let sum: u64 = sent.lines.iter().map(|l| l.quantity * l.unit_amount).sum();
     assert_eq!(sum, p["amount"].as_u64().unwrap());
 }
+
+#[tokio::test]
+async fn validation_errors_name_the_field() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let (_, p) = post(&h, &t, body("fld-0")).await;
+    let mut bad = body("fld-1");
+    bad["amount"] = json!(p["amount"].as_u64().unwrap() + 1);
+    let (s, r) = post(&h, &t, bad).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(r["error_detail"]["field"], "amount");
+    assert_eq!(r["error_detail"]["code"], "invalid_request");
+    let mut bad_tax = body("fld-2");
+    bad_tax["tax"] = json!(1);
+    assert_eq!(
+        post(&h, &t, bad_tax).await.1["error_detail"]["field"],
+        "tax"
+    );
+    let many: Vec<Value> = (0..101)
+        .map(|_| json!({"name": "x", "unit_amount": 1}))
+        .collect();
+    let (_, r) = post(&h, &t, json!({"currency": "EUR", "line_items": many})).await;
+    assert_eq!(r["error_detail"]["field"], "line_items");
+    let (_, r) = post(
+        &h,
+        &t,
+        json!({"currency": "EUR", "line_items": [{"name": "x", "unit_amount": 100}], "discount": {"percent": 150}}),
+    )
+    .await;
+    assert_eq!(r["error_detail"]["field"], "discount");
+    let (_, r) = post(
+        &h,
+        &t,
+        json!({"currency": "EUR", "amount": 5, "discount": {"amount": 1}}),
+    )
+    .await;
+    assert_eq!(r["error_detail"]["field"], "discount");
+}
+
+#[tokio::test]
+async fn endpoint_deliveries_carry_the_lines() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    let extra = Receiver::start().await;
+    let sealed = h.service.sealer.seal(b"whsec_extra").unwrap();
+    payment_gateway::db::insert_endpoint(&h.pool, t.id, &extra.url, &sealed, None, None)
+        .await
+        .unwrap();
+    let (_, p) = post(&h, &t, body("li-ep")).await;
+    let id = p["id"].as_str().unwrap().to_string();
+    let (_, r) = attempt(&h, &t, &id, json!({"method": "lightning"})).await;
+    let hash = r["attempts"][0]["details"]["payment_hash"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    ProviderSink {
+        service: h.service.clone(),
+        provider_id: ln,
+    }
+    .event(
+        ProviderEvent::Paid {
+            lookup: hash.clone(),
+            reference: hash,
+            amount: None,
+            confirmed: true,
+            saved: None,
+        },
+        None,
+    )
+    .await
+    .unwrap();
+    h.service.deliver_due().await.unwrap();
+    for rx in [&t.receiver, &extra] {
+        let events = rx.events();
+        let payment = &events.last().unwrap()["data"]["payment"];
+        assert_eq!(payment["line_items"].as_array().unwrap().len(), 2);
+        assert_eq!(payment["subtotal"], 1499);
+        assert_eq!(payment["discount"]["code"], "SAVE10");
+        assert_eq!(payment["amount"], p["amount"]);
+        assert!(
+            payment["receipt_url"]
+                .as_str()
+                .unwrap()
+                .contains("/receipt/")
+        );
+    }
+}
+
+#[tokio::test]
+async fn openapi_documents_line_items_and_the_payment_view() {
+    let h = harness().await;
+    let r = send(&h.app, "GET", "/v1/openapi.json", None, &[], Value::Null).await;
+    let schemas = &r.json["components"]["schemas"];
+    let create = &schemas["CreatePayment"]["properties"];
+    for k in ["line_items", "discount", "tax", "amount"] {
+        assert!(create[k].is_object(), "CreatePayment.{k}");
+    }
+    assert_eq!(create["line_items"]["maxItems"], 100);
+    assert_eq!(schemas["CreatePayment"]["required"], json!(["currency"]));
+    let view = &schemas["Payment"]["properties"];
+    for k in [
+        "line_items",
+        "subtotal",
+        "discount",
+        "tax",
+        "amount",
+        "receipt_url",
+    ] {
+        assert!(view[k].is_object(), "Payment.{k}");
+    }
+    assert!(r.json["paths"]["/payments"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        .as_str()
+        .unwrap()
+        .ends_with("/Payment"));
+    assert!(r.json["paths"].get("/receipt/{id}").is_none());
+}

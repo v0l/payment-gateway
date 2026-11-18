@@ -166,7 +166,13 @@ fn operation(op: &Op) -> Value {
     if let Some(schema) = op.body {
         o.insert("requestBody".into(), json!({"required": true, "content": {"application/json": {"schema": {"$ref": format!("#/components/schemas/{schema}")}}}}));
     }
-    let mut ok = json!({"description": "Success", "content": {"application/json": {"schema": {"type": if op.list { "array" } else { "object" }}}}});
+    let payment_op = op.path.starts_with("/payments") && !op.path.ends_with("/refund");
+    let item = if payment_op {
+        json!({"$ref": "#/components/schemas/Payment"})
+    } else {
+        json!({"type": "object"})
+    };
+    let mut ok = json!({"description": "Success", "content": {"application/json": {"schema": if op.list { json!({"type": "array", "items": item}) } else { item }}}});
     if op.list {
         ok["headers"] = json!({"X-Next-Cursor": {"description": "Pass as cursor to fetch the next page. Absent on the last page.", "schema": {"type": "string"}}});
     }
@@ -236,11 +242,45 @@ pub fn spec() -> Value {
                         }
                     }
                 },
-                "CreatePayment": {"type": "object", "required": ["amount", "currency"], "properties": {
-                    "reference": {"type": "string", "description": "Optional. Your own identifier."},
+                "LineItemInput": {"type": "object", "required": ["name", "unit_amount"], "properties": {
+                    "name": {"type": "string", "maxLength": 127},
+                    "description": {"type": "string", "maxLength": 255},
+                    "quantity": {"type": "integer", "minimum": 1, "maximum": 1000000, "default": 1},
+                    "unit_amount": {"type": "integer", "description": "Minor units"},
+                    "tax_rate": {"type": "number", "description": "Percent, 0 to 100, at most 2 decimals. Exclusive with tax_amount."},
+                    "tax_amount": {"type": "integer", "description": "Minor units. Exclusive with tax_rate."},
+                    "sku": {"type": "string", "maxLength": 64}
+                }},
+                "DiscountInput": {"type": "object", "description": "Exactly one of amount or percent.", "properties": {
                     "amount": {"type": "integer", "description": "Minor units"},
+                    "percent": {"type": "number", "description": "0 to 100, at most 2 decimals. Rounded half up on the subtotal."},
+                    "code": {"type": "string", "maxLength": 64}
+                }},
+                "LineItem": {"type": "object", "properties": {
+                    "name": {"type": "string"}, "description": {"type": ["string", "null"]}, "sku": {"type": ["string", "null"]},
+                    "quantity": {"type": "integer"}, "unit_amount": {"type": "integer"},
+                    "amount": {"type": "integer", "description": "quantity times unit_amount"},
+                    "discount": {"type": "integer", "description": "This line's share of the discount"},
+                    "tax_rate": {"type": ["number", "null"]}, "tax": {"type": "integer"},
+                    "total": {"type": "integer", "description": "amount minus discount plus tax"}
+                }},
+                "Payment": {"type": "object", "description": "Payment view, also the webhook data.payment object.", "properties": {
+                    "id": {"type": "string"}, "reference": {"type": "string"},
+                    "amount": {"type": "integer", "description": "Total in minor units: subtotal minus discount plus tax"},
+                    "tax": {"type": "integer"}, "currency": {"type": "string"}, "status": {"type": "string"},
+                    "line_items": {"type": "array", "items": {"$ref": "#/components/schemas/LineItem"}},
+                    "subtotal": {"type": ["integer", "null"], "description": "Sum of line amounts, null without line items"},
+                    "discount": {"type": ["object", "null"], "properties": {"amount": {"type": "integer"}, "percent": {"type": ["number", "null"]}, "code": {"type": ["string", "null"]}}},
+                    "receipt_url": {"type": "string", "description": "Public HTML receipt, available once paid"},
+                    "pay_url": {"type": "string"}
+                }},
+                "CreatePayment": {"type": "object", "required": ["currency"], "description": "Send amount, or line_items to have the server compute it. With line_items, amount and tax are optional and must equal the computed values when sent.", "properties": {
+                    "reference": {"type": "string", "description": "Optional. Your own identifier."},
+                    "amount": {"type": "integer", "description": "Minor units. Optional with line_items."},
                     "currency": {"type": "string"},
                     "tax": {"type": "integer"},
+                    "line_items": {"type": "array", "maxItems": 100, "items": {"$ref": "#/components/schemas/LineItemInput"}},
+                    "discount": {"$ref": "#/components/schemas/DiscountInput"},
                     "description": {"type": "string"},
                     "customer_ref": {"type": "string"},
                     "customer_email": {"type": "string"},

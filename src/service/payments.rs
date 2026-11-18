@@ -1,5 +1,13 @@
 use super::*;
 
+fn invoice_field(message: &str) -> &'static str {
+    if message.contains("discount") {
+        "discount"
+    } else {
+        "line_items"
+    }
+}
+
 impl Service {
     pub async fn create_payment(
         &self,
@@ -18,22 +26,28 @@ impl Service {
             return invalid("reference must not contain control characters");
         }
         let breakdown = match (&input.line_items, &input.discount) {
-            (None, Some(_)) => return invalid("discount requires line_items"),
+            (None, Some(_)) => return invalid_field("discount", "discount requires line_items"),
             (None, None) => None,
             (Some(items), discount) => {
-                let b =
-                    crate::invoice::compute(items, discount.as_ref()).map_err(Error::Invalid)?;
+                let b = crate::invoice::compute(items, discount.as_ref())
+                    .map_err(|m| Error::InvalidField(invoice_field(&m), m))?;
                 if input.amount != 0 && input.amount != b.total {
-                    return invalid(format!(
-                        "amount {} does not match the line items total {}",
-                        input.amount, b.total
-                    ));
+                    return invalid_field(
+                        "amount",
+                        format!(
+                            "amount {} does not match the line items total {}",
+                            input.amount, b.total
+                        ),
+                    );
                 }
                 if input.tax != 0 && input.tax != b.tax {
-                    return invalid(format!(
-                        "tax {} does not match the line items tax {}",
-                        input.tax, b.tax
-                    ));
+                    return invalid_field(
+                        "tax",
+                        format!(
+                            "tax {} does not match the line items tax {}",
+                            input.tax, b.tax
+                        ),
+                    );
                 }
                 Some(b)
             }
@@ -157,12 +171,7 @@ impl Service {
                     && let Some(existing) =
                         db::payment_by_idempotency(&self.pool, tenant.id, key).await?
                 {
-                    return self.same_request(
-                        existing,
-                        supplied.as_deref(),
-                        amount,
-                        &currency,
-                    );
+                    return self.same_request(existing, supplied.as_deref(), amount, &currency);
                 }
                 return Err(e);
             }

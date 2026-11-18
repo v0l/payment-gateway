@@ -32,6 +32,7 @@ pub const WEBHOOK_GIVE_UP_SECS: i64 = 3 * 24 * 3600;
 pub enum Error {
     NotFound,
     Invalid(String),
+    InvalidField(&'static str, String),
     Conflict(String),
     LimitExceeded(crate::limits::LimitHit),
     Upstream(String),
@@ -62,6 +63,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 fn invalid<T>(msg: impl Into<String>) -> Result<T> {
     Err(Error::Invalid(msg.into()))
+}
+
+fn invalid_field<T>(field: &'static str, msg: impl Into<String>) -> Result<T> {
+    Err(Error::InvalidField(field, msg.into()))
 }
 
 pub struct Service {
