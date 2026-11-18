@@ -285,8 +285,12 @@ impl Sandbox {
         bail!("timed out waiting for {what}")
     }
 
-    async fn miner_address(&self) -> Result<String> {
+    pub async fn miner_address(&self) -> Result<String> {
         self.btc.new_address().await
+    }
+
+    pub async fn customer_channels(&self) -> Result<Vec<ChannelInfo>> {
+        self.customer.channels().await
     }
 
     pub async fn mine(&self, blocks: u32) -> Result<u64> {
