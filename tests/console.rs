@@ -136,6 +136,29 @@ async fn styleguide_and_design_tokens_are_served_and_csp_safe() {
     assert!(!js.contains("style:") && !js.contains("cssText"));
 }
 
+#[tokio::test]
+async fn console_fonts_are_self_hosted_and_allowed_by_csp() {
+    let h = harness().await;
+    for name in ["bricolage-grotesque", "plex-mono-400", "plex-mono-500"] {
+        let r = send(
+            &h.app,
+            "GET",
+            &format!("/console/fonts/{name}.woff2"),
+            None,
+            &[],
+            Value::Null,
+        )
+        .await;
+        assert_eq!(r.status, StatusCode::OK, "{name}");
+        assert_eq!(r.headers["content-type"], "font/woff2");
+    }
+    let page = send(&h.app, "GET", "/console", None, &[], Value::Null).await;
+    let csp = page.headers["content-security-policy"].to_str().unwrap();
+    assert!(csp.contains("font-src 'self'"));
+    let tokens = include_str!("../web/tokens.css");
+    assert!(!tokens.contains("fonts.googleapis") && !tokens.contains("http"));
+}
+
 #[test]
 fn console_and_pay_css_take_colours_from_tokens() {
     for css in [

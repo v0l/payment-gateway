@@ -102,6 +102,10 @@ const JS_APP: &str = include_str!("../../../web/console/app.js");
 const CSS: &str = include_str!("../../../web/console.css");
 const TOKENS_CSS: &str = include_str!("../../../web/tokens.css");
 const COMPONENTS_CSS: &str = include_str!("../../../web/components.css");
+const FONT_DISPLAY: &[u8] = include_bytes!("../../../web/fonts/bricolage-grotesque.woff2");
+const FONT_MONO_REGULAR: &[u8] = include_bytes!("../../../web/fonts/plex-mono-400.woff2");
+const FONT_MONO_MEDIUM: &[u8] = include_bytes!("../../../web/fonts/plex-mono-500.woff2");
+const JS_CHART: &str = include_str!("../../../web/console/chart.js");
 const STYLEGUIDE_HTML: &str = include_str!("../../../web/styleguide.html");
 const STYLEGUIDE_JS: &str = include_str!("../../../web/styleguide.js");
 
@@ -354,7 +358,7 @@ fn security_headers(h: &mut HeaderMap) {
     h.insert(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(
-            "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+            "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: https:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
         ),
     );
     h.insert(
@@ -407,6 +411,10 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "operator.js" => asset(JS_OPERATOR, "text/javascript"),
         "danger.js" => asset(JS_DANGER, "text/javascript"),
         "app.js" => asset(JS_APP, "text/javascript"),
+        "chart.js" => asset(JS_CHART, "text/javascript"),
+        "fonts/bricolage-grotesque.woff2" => font(FONT_DISPLAY),
+        "fonts/plex-mono-400.woff2" => font(FONT_MONO_REGULAR),
+        "fonts/plex-mono-500.woff2" => font(FONT_MONO_MEDIUM),
         "app.css" => asset(CSS, "text/css"),
         "tokens.css" => asset(TOKENS_CSS, "text/css"),
         "components.css" => asset(COMPONENTS_CSS, "text/css"),
@@ -423,6 +431,21 @@ fn styleguide() -> Response {
         HeaderValue::from_static("text/html; charset=utf-8"),
     );
     security_headers(r.headers_mut());
+    r
+}
+
+fn font(body: &'static [u8]) -> Response {
+    let mut r = (StatusCode::OK, body).into_response();
+    r.headers_mut()
+        .insert(header::CONTENT_TYPE, HeaderValue::from_static("font/woff2"));
+    r.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=31536000, immutable"),
+    );
+    r.headers_mut().insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
     r
 }
 

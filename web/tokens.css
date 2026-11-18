@@ -1,12 +1,16 @@
+@font-face { font-family: "Bricolage Grotesque"; src: url("/console/fonts/bricolage-grotesque.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: "Plex Mono"; src: url("/console/fonts/plex-mono-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Plex Mono"; src: url("/console/fonts/plex-mono-500.woff2") format("woff2"); font-weight: 500 700; font-display: swap; }
+
 :root, [data-theme="light"] {
-  --bg: #f2f5f4;
+  --bg: #eef1f6;
   --card: #ffffff;
-  --text: #121c1b;
-  --muted: #566361;
-  --line: #d5ddda;
-  --line-strong: #7a8884;
-  --code: #e8eeec;
-  --accent: #0b6572;
+  --text: #0f1a2e;
+  --muted: #52607a;
+  --line: #d6ddea;
+  --line-strong: #7384a3;
+  --code: #e4e9f1;
+  --accent: #2440d4;
   --accent-text: #ffffff;
   --ok: #1a6b39;
   --ok-bg: #e3f3e8;
@@ -14,20 +18,31 @@
   --warn-bg: #fbf0d9;
   --bad: #b3261e;
   --bad-bg: #fbe6e4;
-  --info: #1c5ca6;
-  --info-bg: #e3edf9;
-  --focus: #0b6572;
+  --info: #0b6572;
+  --info-bg: #dcf0f2;
+  --focus: #2440d4;
+  --nav-bg: #0c1530;
+  --nav-text: #e6ebfa;
+  --nav-muted: #9fadd0;
+  --nav-line: #26335c;
+  --nav-on: #1b2a5c;
+  --nav-accent: #ffb454;
+  --series-a: #2440d4;
+  --series-b: #0b8f8a;
+  --series-c: #b4640b;
+  --series-d: #7a4fc2;
   --scrim: rgba(18, 28, 27, 0.5);
 
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --fs-xs: 11px;
   --fs-sm: 12px;
   --fs-base: 14px;
   --fs-md: 16px;
   --fs-lg: 20px;
   --fs-xl: 24px;
-  --fs-display: 32px;
+  --fs-display: 40px;
+  --fs-figure: 34px;
   --lh-tight: 1.25;
   --lh-base: 1.5;
 
@@ -39,10 +54,10 @@
   --space-6: 32px;
   --space-7: 48px;
 
-  --radius-sm: 4px;
-  --radius: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
+  --radius-sm: 3px;
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
   --radius-xl: 14px;
   --radius-pill: 999px;
 
@@ -57,24 +72,34 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0c1312;
-    --card: #141d1c;
-    --text: #e4ecea;
-    --muted: #9bacaa;
-    --line: #2a3836;
-    --line-strong: #62736f;
-    --code: #1d2928;
-    --accent: #52c3d1;
-    --accent-text: #052226;
+    --bg: #0a1120;
+    --card: #111b2e;
+    --text: #e5ebf7;
+    --muted: #9aa8c4;
+    --line: #243250;
+    --line-strong: #5f7196;
+    --code: #1a2640;
+    --accent: #8aa0ff;
+    --accent-text: #0a1230;
     --ok: #62c786;
     --ok-bg: #12301e;
     --warn: #e5b45a;
     --warn-bg: #36280c;
     --bad: #f0877f;
     --bad-bg: #3a1714;
-    --info: #7fb1ee;
-    --info-bg: #14273f;
-    --focus: #52c3d1;
+    --info: #52c3d1;
+    --info-bg: #0e2d33;
+    --focus: #8aa0ff;
+    --nav-bg: #060a16;
+    --nav-text: #e5ebf7;
+    --nav-muted: #9aa8c4;
+    --nav-line: #1c2744;
+    --nav-on: #16224a;
+    --nav-accent: #ffb454;
+    --series-a: #8aa0ff;
+    --series-b: #4fd1c5;
+    --series-c: #f0b35a;
+    --series-d: #c3a2f5;
     --scrim: rgba(0, 0, 0, 0.65);
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.5);
@@ -83,24 +108,34 @@
 }
 
 [data-theme="dark"] {
-  --bg: #0c1312;
-  --card: #141d1c;
-  --text: #e4ecea;
-  --muted: #9bacaa;
-  --line: #2a3836;
-  --line-strong: #62736f;
-  --code: #1d2928;
-  --accent: #52c3d1;
-  --accent-text: #052226;
+  --bg: #0a1120;
+  --card: #111b2e;
+  --text: #e5ebf7;
+  --muted: #9aa8c4;
+  --line: #243250;
+  --line-strong: #5f7196;
+  --code: #1a2640;
+  --accent: #8aa0ff;
+  --accent-text: #0a1230;
   --ok: #62c786;
   --ok-bg: #12301e;
   --warn: #e5b45a;
   --warn-bg: #36280c;
   --bad: #f0877f;
   --bad-bg: #3a1714;
-  --info: #7fb1ee;
-  --info-bg: #14273f;
-  --focus: #52c3d1;
+  --info: #52c3d1;
+  --info-bg: #0e2d33;
+  --focus: #8aa0ff;
+  --nav-bg: #060a16;
+  --nav-text: #e5ebf7;
+  --nav-muted: #9aa8c4;
+  --nav-line: #1c2744;
+  --nav-on: #16224a;
+  --nav-accent: #ffb454;
+  --series-a: #8aa0ff;
+  --series-b: #4fd1c5;
+  --series-c: #f0b35a;
+  --series-d: #c3a2f5;
   --scrim: rgba(0, 0, 0, 0.65);
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.5);
