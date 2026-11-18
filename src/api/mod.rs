@@ -119,11 +119,11 @@ impl From<Error> for ApiError {
                 e
             }
             Error::Upstream(m) => {
-                log::warn!("upstream error: {m}");
+                log::warn!("upstream error: {}", crate::logsafe::clean(&m));
                 Self::new(StatusCode::BAD_GATEWAY, m)
             }
             Error::Internal(e) => {
-                log::error!("{e:#}");
+                log::error!("{}", crate::logsafe::clean(&format!("{e:#}")));
                 Self::new(StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
             }
         }

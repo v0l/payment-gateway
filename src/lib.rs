@@ -12,6 +12,7 @@ pub mod limits;
 pub mod logging;
 pub mod mailer;
 pub mod metrics;
+pub mod logsafe;
 pub mod model;
 pub mod ops;
 pub mod providers;

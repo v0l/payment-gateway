@@ -151,6 +151,7 @@ fn security_headers(h: &mut HeaderMap) {
         HeaderValue::from_static("no-referrer"),
     );
     h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    h.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
 }
 
 async fn page() -> Response {

@@ -52,7 +52,10 @@ impl Service {
                 let Some(attempt) =
                     db::find_attempt_by_lookup(&self.pool, provider_id, &lookup).await?
                 else {
-                    log::debug!("provider {provider_id}: payment for unknown lookup {lookup}");
+                    log::debug!(
+                        "provider {provider_id}: payment for unknown lookup {}",
+                        crate::logsafe::clean(&lookup)
+                    );
                     return Ok(());
                 };
                 if let Some(s) = saved {

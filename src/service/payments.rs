@@ -11,12 +11,18 @@ impl Service {
         if reference.is_empty() || reference.len() > 255 {
             return invalid("reference must be 1-255 characters");
         }
+        if reference.chars().any(char::is_control) {
+            return invalid("reference must not contain control characters");
+        }
         if input.amount == 0 {
             return invalid("amount must be positive");
         }
         let currency = input.currency.trim().to_uppercase();
         if rates::unit(&currency).is_err() {
             return invalid(format!("unsupported currency {currency}"));
+        }
+        if input.amount > rates::MAX_AMOUNT {
+            return invalid(format!("amount cannot exceed {}", rates::MAX_AMOUNT));
         }
         if input.tax > input.amount {
             return invalid("tax cannot exceed amount");
@@ -34,6 +40,11 @@ impl Service {
             if !valid_url(u) {
                 return invalid("invalid success_url or cancel_url");
             }
+            if !crate::model::url_in_origins(u, &tenant.origins()) {
+                return invalid(
+                    "success_url and cancel_url must be on one of the project's allowed_origins",
+                );
+            }
         }
         if let Some(methods) = &input.methods
             && (methods.is_empty() || methods.iter().any(|m| !METHODS.contains(&m.as_str())))
@@ -47,6 +58,9 @@ impl Service {
         ] {
             if v.as_ref().is_some_and(|s| s.len() > max) {
                 return invalid(format!("{name} too long"));
+            }
+            if v.as_ref().is_some_and(|s| s.chars().any(char::is_control)) {
+                return invalid(format!("{name} must not contain control characters"));
             }
         }
         let metadata = match &input.metadata {
@@ -229,14 +243,17 @@ impl Service {
 
     pub(super) fn return_urls(&self, tenant: &Tenant, p: &PaymentRow) -> (String, String) {
         let fallback = self.pay_url(&p.pid());
+        let origins = tenant.origins();
+        let allowed = |u: Option<&String>| {
+            u.filter(|u| crate::model::url_in_origins(u, &origins))
+                .cloned()
+        };
         (
-            p.success_url
-                .clone()
-                .or_else(|| tenant.default_success_url.clone())
+            allowed(p.success_url.as_ref())
+                .or_else(|| allowed(tenant.default_success_url.as_ref()))
                 .unwrap_or_else(|| fallback.clone()),
-            p.cancel_url
-                .clone()
-                .or_else(|| tenant.default_cancel_url.clone())
+            allowed(p.cancel_url.as_ref())
+                .or_else(|| allowed(tenant.default_cancel_url.as_ref()))
                 .unwrap_or(fallback),
         )
     }

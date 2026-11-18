@@ -249,6 +249,7 @@ async fn qr_renders_svg_for_lightning_and_refuses_other_payments_attempts() {
 async fn return_url_is_signed_and_only_appears_when_the_payment_is_final() {
     let h = harness().await;
     let t = tenant(&h).await;
+    allow_shop_origin(&h, &t).await;
     let ln = provider(&h, &t, "lightning", json!({}), None).await;
     let p = new_payment(&h, &t, json!({
         "reference": "order 9", "amount": 1000, "currency": "EUR",
@@ -318,6 +319,7 @@ async fn return_url_is_signed_and_only_appears_when_the_payment_is_final() {
 async fn cancelled_payment_returns_to_the_cancel_url() {
     let h = harness().await;
     let t = tenant(&h).await;
+    allow_shop_origin(&h, &t).await;
     provider(&h, &t, "lightning", json!({}), None).await;
     let p = new_payment(
         &h,
@@ -458,4 +460,71 @@ impl OneshotGet for axum::Router {
         .await
         .unwrap()
     }
+}
+
+async fn allow_shop_origin(h: &Harness, t: &TenantFixture) {
+    let (s, r) = call(
+        &h.app,
+        "POST",
+        &format!("/admin/tenants/{}/settings", t.id),
+        Some(ADMIN),
+        json!({"allowed_origins": ["https://shop.example"]}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+}
+
+#[tokio::test]
+async fn return_urls_outside_allowed_origins_are_refused() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    provider(&h, &t, "lightning", json!({}), None).await;
+    let body =
+        |u: &str| json!({"reference": "r", "amount": 100, "currency": "EUR", "success_url": u});
+    let (s, _) = call(
+        &h.app,
+        "POST",
+        "/v1/payments",
+        Some(&t.key),
+        body("https://evil.example/x"),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    allow_shop_origin(&h, &t).await;
+    let (s, _) = call(
+        &h.app,
+        "POST",
+        "/v1/payments",
+        Some(&t.key),
+        body("https://evil.example/x"),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = call(
+        &h.app,
+        "POST",
+        "/v1/payments",
+        Some(&t.key),
+        body("https://shop.example@evil.example/"),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = call(
+        &h.app,
+        "POST",
+        "/v1/payments",
+        Some(&t.key),
+        body("https://shop.example/ok"),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED);
+    let (s, _) = call(
+        &h.app,
+        "POST",
+        &format!("/admin/tenants/{}/settings", t.id),
+        Some(ADMIN),
+        json!({"allowed_origins": ["https://shop.example"], "default_success_url": "https://evil.example/"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
 }

@@ -51,6 +51,7 @@ fn page_headers() -> HeaderMap {
     );
     h.insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
     h.insert(header::REFERRER_POLICY, "no-referrer".parse().unwrap());
+    h.insert(header::X_FRAME_OPTIONS, "DENY".parse().unwrap());
     h
 }
 
