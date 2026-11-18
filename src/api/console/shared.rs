@@ -34,7 +34,7 @@ pub(super) async fn admin_shared_list(
     sess: Session,
     State(s): State<AppState>,
 ) -> ApiResult<Vec<api::SharedProviderView>> {
-    sess.operator()?;
+    sess.operator(&s)?;
     api::list(&s).await
 }
 
@@ -44,7 +44,7 @@ pub(super) async fn admin_shared_create(
     headers: HeaderMap,
     Json(req): Json<api::SharedInput>,
 ) -> ApiResult<Value> {
-    sess.operator()?;
+    sess.operator(&s)?;
     api::create(&s, |a| sess.event(a), &Origin::from_headers(&headers), req).await
 }
 
@@ -55,7 +55,7 @@ pub(super) async fn admin_shared_update(
     Path(id): Path<u64>,
     Json(req): Json<api::SharedPatch>,
 ) -> ApiResult<api::SharedProviderView> {
-    sess.operator()?;
+    sess.operator(&s)?;
     api::update(
         &s,
         |a| sess.event(a),
@@ -73,7 +73,7 @@ pub(super) async fn admin_shared_override(
     Path((id, tenant)): Path<(u64, u64)>,
     Json(req): Json<api::OverrideInput>,
 ) -> ApiResult<Value> {
-    sess.operator()?;
+    sess.operator(&s)?;
     api::set_override(
         &s,
         |a| sess.event(a),
@@ -92,7 +92,7 @@ pub(super) async fn admin_allow_negative(
     Path(id): Path<u64>,
     Json(req): Json<api::AllowNegative>,
 ) -> ApiResult<Value> {
-    sess.operator()?;
+    sess.operator(&s)?;
     api::allow_negative(
         &s,
         |a| sess.event(a),
