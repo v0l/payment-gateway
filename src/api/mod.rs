@@ -1,4 +1,5 @@
 mod admin;
+mod billing;
 mod console;
 mod docs;
 pub mod ledger;
