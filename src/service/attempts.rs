@@ -60,7 +60,8 @@ impl Service {
         {
             return Ok((p, a.clone()));
         }
-        Self::check_attempt_count(tenant, existing.len())?;
+        self.check_attempt_standing(tenant.id).await?;
+        self.check_attempt_count(tenant, existing.len()).await?;
 
         let (fee, charge, charge_cur, rate) = self.charge_numbers(&cfg, &p).await?;
         let receive_cfg = if method == "fixedfloat" {

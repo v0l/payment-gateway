@@ -95,13 +95,13 @@ function layout(active, projectId, content) {
     var open = String(p.id) === String(projectId);
     navs.push(el("div", { class: "sep", text: p.name }));
     if (open) {
-      [["Overview", "overview"], ["Payments", "payments"], ["Providers", "providers"], ["API keys", "keys"], ["Webhooks", "webhooks"], ["Plans", "plans"], ["Subscriptions", "subscriptions"], ["Balance", "balance"], ["Payouts", "payouts"], ["Team", "team"], ["Activity", "activity"], ["Settings", "settings"]].forEach(function (x) {
+      [["Overview", "overview"], ["Payments", "payments"], ["Providers", "providers"], ["API keys", "keys"], ["Webhooks", "webhooks"], ["Plans", "plans"], ["Subscriptions", "subscriptions"], ["Billing", "billing"], ["Balance", "balance"], ["Payouts", "payouts"], ["Team", "team"], ["Activity", "activity"], ["Settings", "settings"]].forEach(function (x) {
         navs.push(link(x[0], "#/p/" + p.id + "/" + x[1], x[1]));
       });
     } else { navs.push(link("Open", "#/p/" + p.id + "/overview", "")); }
   });
   navs.push(link("+ New project", "#/new", "new"));
-  if (me.is_operator) { navs.push(el("div", { class: "sep", text: "Operator" })); navs.push(link("Accounts", "#/admin", "admin")); navs.push(link("Shared providers", "#/shared", "shared")); navs.push(link("Payout queue", "#/payout-queue", "payouts")); navs.push(link("Audit", "#/audit", "audit")); }
+  if (me.is_operator) { navs.push(el("div", { class: "sep", text: "Operator" })); navs.push(link("Accounts", "#/admin", "admin")); navs.push(link("Shared providers", "#/shared", "shared")); navs.push(link("Platform plans", "#/platform-plans", "platform-plans")); navs.push(link("Payout queue", "#/payout-queue", "payouts")); navs.push(link("Audit", "#/audit", "audit")); }
   navs.push(el("div", { class: "foot muted" }, [me.email, el("br"), el("a", { text: "Account", href: "#/account" }), " ", el("a", { text: "Sign out", onclick: function () {
     api("POST", "/logout", {}).then(function () { me = null; csrf = ""; route(); });
   } })]));
@@ -109,7 +109,7 @@ function layout(active, projectId, content) {
 }
 
 function tabs(pid, active) {
-  return el("div", { class: "tabs" }, [["overview", "Overview"], ["payments", "Payments"], ["providers", "Providers"], ["keys", "API keys"], ["webhooks", "Webhooks"], ["plans", "Plans"], ["subscriptions", "Subscriptions"], ["balance", "Balance"], ["payouts", "Payouts"], ["team", "Team"], ["activity", "Activity"], ["settings", "Settings"]].map(function (t) {
+  return el("div", { class: "tabs" }, [["overview", "Overview"], ["payments", "Payments"], ["providers", "Providers"], ["keys", "API keys"], ["webhooks", "Webhooks"], ["plans", "Plans"], ["subscriptions", "Subscriptions"], ["billing", "Billing"], ["balance", "Balance"], ["payouts", "Payouts"], ["team", "Team"], ["activity", "Activity"], ["settings", "Settings"]].map(function (t) {
     return el("a", { href: "#/p/" + pid + "/" + t[0], class: t[0] === active ? "on" : "", text: t[1] });
   }));
 }

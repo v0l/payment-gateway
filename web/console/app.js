@@ -17,6 +17,7 @@ function route() {
   if (parts[0] === "admin" && me.is_operator) return admin();
   if (parts[0] === "shared" && me.is_operator) return sharedAdmin();
   if (parts[0] === "payout-queue" && me.is_operator) return payoutQueue();
+  if (parts[0] === "platform-plans" && me.is_operator) return platformPlans();
   if (parts[0] === "audit" && me.is_operator) return auditLog();
   if (parts[0] === "p" && parts[1]) {
     var pid = parts[1], tab = parts[2] || "overview";
@@ -27,6 +28,7 @@ function route() {
     if (tab === "webhooks") return webhooks(pid);
     if (tab === "plans") return plans(pid);
     if (tab === "subscriptions") { if (parts[3]) return subscriptionDetail(pid, parts[3]); return subscriptions(pid); }
+    if (tab === "billing") return platformBilling(pid);
     if (tab === "balance") return balance(pid);
     if (tab === "payouts") return payouts(pid);
     if (tab === "team") return team(pid);

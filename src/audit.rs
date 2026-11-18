@@ -77,6 +77,12 @@ pub enum Action {
     WithdrawalCompleted,
     WithdrawalFailed,
     PayoutLimitsChanged,
+    PlatformStandingChanged,
+    PlatformPlanChanged,
+    PlatformPlanDefined,
+    PlatformInvoiceWaived,
+    PlatformCredited,
+    PlatformAccountSet,
 }
 
 impl Action {
@@ -153,6 +159,12 @@ impl Action {
             Self::WithdrawalCompleted => "withdrawal.completed",
             Self::WithdrawalFailed => "withdrawal.failed",
             Self::PayoutLimitsChanged => "payout_limits.changed",
+            Self::PlatformStandingChanged => "platform.standing_changed",
+            Self::PlatformPlanChanged => "platform.plan_changed",
+            Self::PlatformPlanDefined => "platform.plan_defined",
+            Self::PlatformInvoiceWaived => "platform.invoice_waived",
+            Self::PlatformCredited => "platform.credited",
+            Self::PlatformAccountSet => "platform.account_set",
         }
     }
 }

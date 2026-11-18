@@ -13,6 +13,26 @@ pub struct LimitOverrides {
     pub limit_attempts_per_payment: Option<u64>,
 }
 
+impl LimitOverrides {
+    pub fn over(&self, base: &LimitOverrides) -> LimitOverrides {
+        LimitOverrides {
+            limit_payments_per_day: self.limit_payments_per_day.or(base.limit_payments_per_day),
+            limit_pending_payments: self.limit_pending_payments.or(base.limit_pending_payments),
+            limit_amount_per_payment: self
+                .limit_amount_per_payment
+                .or(base.limit_amount_per_payment),
+            limit_volume_per_day: self.limit_volume_per_day.or(base.limit_volume_per_day),
+            limit_providers: self.limit_providers.or(base.limit_providers),
+            limit_webhook_endpoints: self
+                .limit_webhook_endpoints
+                .or(base.limit_webhook_endpoints),
+            limit_attempts_per_payment: self
+                .limit_attempts_per_payment
+                .or(base.limit_attempts_per_payment),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Serialize, PartialEq)]
 pub struct Limits {
     pub payments_per_day: u64,
@@ -66,8 +86,12 @@ impl Limits {
     }
 
     pub fn for_tenant(t: &Tenant) -> Limits {
+        Self::layered(t, &LimitOverrides::default())
+    }
+
+    pub fn layered(t: &Tenant, plan: &LimitOverrides) -> Limits {
         let d = Self::defaults(t.trusted);
-        let o = &t.limits;
+        let o = &t.limits.over(plan);
         Limits {
             payments_per_day: o.limit_payments_per_day.unwrap_or(d.payments_per_day),
             pending_payments: o.limit_pending_payments.unwrap_or(d.pending_payments),

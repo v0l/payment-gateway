@@ -36,14 +36,25 @@ impl Service {
         Ok(total)
     }
 
+    pub async fn limits_for(&self, tenant: &Tenant) -> Result<Limits> {
+        let plan = match db::get_platform_account(&self.pool, tenant.id).await? {
+            Some(a) => db::get_platform_plan(&self.pool, a.plan_id)
+                .await?
+                .map(|p| p.limits)
+                .unwrap_or_default(),
+            None => Default::default(),
+        };
+        Ok(Limits::layered(tenant, &plan))
+    }
+
     pub(super) async fn check_new_payment(
         &self,
         tx: &mut sqlx::MySqlConnection,
         tenant: &Tenant,
+        limits: Limits,
         amount: u64,
         currency: &str,
     ) -> Result<()> {
-        let limits = Limits::for_tenant(tenant);
         let converted = rates::convert(self.rates.as_ref(), amount, currency, LIMIT_CURRENCY)
             .await
             .map_err(|e| Error::Upstream(format!("rate lookup failed: {e}")))?;
@@ -85,7 +96,7 @@ impl Service {
     }
 
     pub async fn check_provider_slot(&self, tenant: &Tenant) -> Result<()> {
-        let limits = Limits::for_tenant(tenant);
+        let limits = self.limits_for(tenant).await?;
         let count = db::list_provider_configs(&self.pool, tenant.id, false)
             .await?
             .len() as u64;
@@ -112,7 +123,7 @@ impl Service {
     }
 
     pub async fn check_new_endpoint(&self, tenant: &Tenant) -> Result<()> {
-        let max = Limits::for_tenant(tenant).webhook_endpoints;
+        let max = self.limits_for(tenant).await?.webhook_endpoints;
         let current = self.usage(tenant).await?.webhook_endpoints;
         if current >= max {
             return Err(Error::LimitExceeded(LimitHit::new(
@@ -124,8 +135,8 @@ impl Service {
         Ok(())
     }
 
-    pub(super) fn check_attempt_count(tenant: &Tenant, existing: usize) -> Result<()> {
-        let max = Limits::for_tenant(tenant).attempts_per_payment;
+    pub(super) async fn check_attempt_count(&self, tenant: &Tenant, existing: usize) -> Result<()> {
+        let max = self.limits_for(tenant).await?.attempts_per_payment;
         if existing as u64 >= max {
             return Err(Error::LimitExceeded(LimitHit::new(
                 "attempts_per_payment",

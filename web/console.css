@@ -60,3 +60,7 @@ details summary { cursor: pointer; color: var(--muted); }
 pre { background: var(--code); padding: 10px; border-radius: var(--radius); overflow: auto; font-size: 12px; margin: 6px 0; }
 dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
 dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; overflow-wrap: anywhere; }
+
+.plan-editor { overflow-x: auto; }
+.plan-editor input:not([type=checkbox]) { width: 7.5rem; min-width: 0; }
+.plan-editor td:nth-child(2) input { width: 9rem; }

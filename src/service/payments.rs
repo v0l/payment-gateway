@@ -155,8 +155,10 @@ impl Service {
             cancel_url: input.cancel_url.as_deref(),
             line_items: line_items.as_deref(),
         };
+        self.check_standing(tenant.id).await?;
+        let limits = self.limits_for(tenant).await?;
         let mut tx = self.pool.begin().await?;
-        self.check_new_payment(&mut tx, tenant, amount, &currency)
+        self.check_new_payment(&mut tx, tenant, limits, amount, &currency)
             .await?;
         let inserted = db::insert_payment(&mut *tx, &new).await;
         let inserted = match inserted {
