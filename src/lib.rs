@@ -22,6 +22,8 @@ pub mod model;
 pub mod openapi;
 pub mod ops;
 pub mod payouts;
+pub mod platform;
+pub mod platform_views;
 pub mod providers;
 pub mod ratelimit;
 pub mod rates;

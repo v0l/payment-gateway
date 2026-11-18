@@ -279,6 +279,9 @@ impl Service {
         if let Err(e) = self.after_payment_paid(&pid).await {
             log::warn!("subscription update after payment failed: {e:?}");
         }
+        if let Err(e) = self.platform_payment_paid(&pid).await {
+            log::warn!("platform invoice update after payment failed: {e:?}");
+        }
         Ok(())
     }
 

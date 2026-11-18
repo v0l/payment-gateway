@@ -126,6 +126,12 @@ pub(super) async fn admin_trusted(
     if !db::set_tenant_trusted(s.pool(), id, t.trusted).await? {
         return Err(ApiError::not_found());
     }
+    if let Ok(Some(plan)) = db::default_platform_plan(s.pool(), t.trusted).await {
+        let _ = s
+            .service
+            .change_platform_plan(id, plan.id, "trust changed")
+            .await;
+    }
     sess.event(Action::ProjectTrustChanged)
         .tenant(id)
         .target("project", id)

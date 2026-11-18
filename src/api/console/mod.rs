@@ -25,6 +25,7 @@ mod keys;
 mod operator;
 mod payments;
 mod payouts;
+mod platform_billing;
 mod projects;
 mod providers;
 mod recovery;
@@ -42,6 +43,7 @@ use keys::*;
 use operator::*;
 use payments::*;
 use payouts::*;
+use platform_billing::*;
 pub(crate) use projects::settings_diff;
 use projects::*;
 use providers::*;
@@ -67,6 +69,7 @@ const JS_ACCOUNT: &str = include_str!("../../../web/console/account.js");
 const JS_ADMIN: &str = include_str!("../../../web/console/admin.js");
 const JS_ACTIVITY: &str = include_str!("../../../web/console/activity.js");
 const JS_BILLING: &str = include_str!("../../../web/console/billing.js");
+const JS_PLATFORM_BILLING: &str = include_str!("../../../web/console/platform-billing.js");
 const JS_BALANCE: &str = include_str!("../../../web/console/balance.js");
 const JS_SHARED: &str = include_str!("../../../web/console/shared.js");
 const JS_PAYOUTS: &str = include_str!("../../../web/console/payouts.js");
@@ -233,7 +236,32 @@ pub fn router() -> Router<AppState> {
         .route("/admin/providers", get(admin_providers))
         .route("/admin/accounts/{id}/disabled", post(admin_disable))
         .route("/admin/invites", post(admin_invite))
-        .route("/admin/projects/{id}/trusted", post(admin_trusted));
+        .route("/admin/projects/{id}/trusted", post(admin_trusted))
+        .route(
+            "/projects/{id}/platform-billing",
+            get(project_platform_billing),
+        )
+        .route(
+            "/admin/platform/plans",
+            get(list_platform_plans).post(admin_create_platform_plan),
+        )
+        .route(
+            "/admin/platform/plans/{id}",
+            post(admin_define_platform_plan),
+        )
+        .route("/admin/platform/tenant", post(admin_set_platform_tenant))
+        .route(
+            "/admin/projects/{id}/platform/plan",
+            post(admin_change_platform_plan),
+        )
+        .route(
+            "/admin/projects/{id}/platform/credit",
+            post(admin_credit_platform),
+        )
+        .route(
+            "/admin/projects/{id}/platform/invoices/{invoice}/waive",
+            post(admin_waive_platform_invoice),
+        );
     Router::new()
         .route("/console", get(page))
         .route("/console/{*rest}", get(page_or_asset))
@@ -283,6 +311,7 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "settings.js" => asset(JS_SETTINGS, "text/javascript"),
         "account.js" => asset(JS_ACCOUNT, "text/javascript"),
         "admin.js" => asset(JS_ADMIN, "text/javascript"),
+        "platform-billing.js" => asset(JS_PLATFORM_BILLING, "text/javascript"),
         "balance.js" => asset(JS_BALANCE, "text/javascript"),
         "shared.js" => asset(JS_SHARED, "text/javascript"),
         "billing.js" => asset(JS_BILLING, "text/javascript"),

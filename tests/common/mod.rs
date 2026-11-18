@@ -157,6 +157,10 @@ pub async fn harness_with_clock(clock: Arc<ManualClock>) -> Harness {
     build_harness_with(false, Some(clock)).await
 }
 
+pub async fn harness_with_clock_and_mail(clock: Arc<ManualClock>) -> Harness {
+    build_harness_with(true, Some(clock)).await
+}
+
 async fn build_harness(mail: bool) -> Harness {
     build_harness_with(mail, None).await
 }

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platform billing | Payment Gateway</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<a class="brand" href="/">Payment Gateway</a>
+<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/operator/">Operators</a> <a href="/docs">API reference</a> <a href="/legal/">Legal</a> <a class="button" href="/console">Sign in</a></nav>
+</header>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/platform-billing" aria-current="page">Platform billing</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article>
+<h1 id="platform-billing">Platform billing</h1>
+<p>The gateway bills each project for using it, through its own payment and provider code.</p>
+<h2 id="plans">Plans</h2>
+<p>Two plans exist after the migration: <code>Test</code> (free, for untrusted projects) and <code>Live</code> (for trusted projects). Every price is zero until you set one, so nothing is invoiced by default. Edit a plan with <code>POST /console/api/admin/platform/plans/{id}</code> or create one with <code>POST /console/api/admin/platform/plans</code>. A plan has a monthly price, an included volume, a percent fee in basis points, a base fee per settled payment and optional limits that layer under the per project overrides.</p>
+<h2 id="who-gets-paid">Who gets paid</h2>
+<p>Pick the platform owned project with <code>POST /console/api/admin/platform/tenant</code> (<code>{&quot;tenant_id&quot;: 1}</code>). Its providers collect the invoices. Until it is set, invoices are created but no payment is attached.</p>
+<h2 id="metering-and-invoices">Metering and invoices</h2>
+<p>Usage is the count and volume of payments settled in each monthly period. The period invoice carries the transaction fee, the volume fee above the included volume and next month's plan fee. Upgrades are prorated and charged at once. Downgrades become credit applied to the next invoice. Projects see invoices on the Billing tab, with the pay link, the receipt and the method used (card or Lightning).</p>
+<h2 id="past-due">Past due</h2>
+<p>An unpaid invoice is due after 3 days. A project is warned when overdue, restricted from 7 days overdue (new payments are refused, refunds and withdrawals work), and disabled from 21 days (new attempts are refused as well). Withdrawals, refunds and settlement of payments created earlier are never blocked. Each change is audit logged as <code>platform.standing_changed</code> and mailed to the project owners. Paying or waiving restores service.</p>
+<h2 id="overrides">Overrides</h2>
+<p>Operators can change a project's plan, grant credit and waive an invoice, each with a required reason: <code>POST /console/api/admin/projects/{id}/platform/plan</code>, <code>.../platform/credit</code>, <code>.../platform/invoices/{invoice}/waive</code>. All are audit logged.</p>
+</article>
+</main>
+</div>
+</body>
+</html>

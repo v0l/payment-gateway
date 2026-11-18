@@ -29,6 +29,7 @@
         {"slug": "providers", "title": "Stripe, Revolut and PayPal"},
         {"slug": "shared-providers", "title": "Shared platform providers"},
         {"slug": "backups", "title": "Backups and key rotation"},
+        {"slug": "platform-billing", "title": "Platform billing"},
         {"slug": "monitoring", "title": "Monitoring and alerts"},
         {"slug": "runbooks", "title": "Runbooks"}
       ]
