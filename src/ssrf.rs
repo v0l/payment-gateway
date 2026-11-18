@@ -91,6 +91,10 @@ pub async fn resolve_public(url: &str) -> Result<Target> {
 }
 
 pub async fn resolve_public_with(resolver: &dyn Resolver, url: &str) -> Result<Target> {
+    resolve_checked(resolver, url, &[]).await
+}
+
+async fn resolve_checked(resolver: &dyn Resolver, url: &str, allow: &[IpAddr]) -> Result<Target> {
     let parsed = url::Url::parse(url)?;
     if !matches!(parsed.scheme(), "http" | "https") {
         bail!("only http and https urls are allowed");
@@ -105,12 +109,31 @@ pub async fn resolve_public_with(resolver: &dyn Resolver, url: &str) -> Result<T
         Some(url::Host::Ipv6(ip)) => (ip.to_string(), vec![SocketAddr::new(ip.into(), port)]),
         Some(url::Host::Domain(d)) => (d.to_string(), resolver.lookup(d, port).await?),
     };
+    let addrs_to_check: Vec<SocketAddr> = addrs
+        .iter()
+        .filter(|a| !allow.contains(&a.ip()))
+        .copied()
+        .collect();
+    if !addrs.is_empty() && addrs_to_check.is_empty() {
+        return Ok(Target {
+            host,
+            addr: addrs[0],
+        });
+    }
     let addr = pick_public(&host, &addrs)?;
     Ok(Target { host, addr })
 }
 
 pub async fn pin_url(resolver: &dyn Resolver, url: &str) -> Result<String> {
-    let target = resolve_public_with(resolver, url).await?;
+    pin_url_allowing(resolver, url, &[]).await
+}
+
+pub async fn pin_url_allowing(
+    resolver: &dyn Resolver,
+    url: &str,
+    allow: &[IpAddr],
+) -> Result<String> {
+    let target = resolve_checked(resolver, url, allow).await?;
     let mut parsed = url::Url::parse(url)?;
     let set = match target.addr.ip() {
         IpAddr::V4(ip) => parsed.set_ip_host(IpAddr::V4(ip)),
