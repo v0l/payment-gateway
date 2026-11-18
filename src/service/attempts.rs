@@ -8,7 +8,7 @@ impl Service {
         input: CreateAttempt,
     ) -> Result<(PaymentRow, AttemptRow)> {
         let p = self.payment_for_tenant(tenant, payment_id).await?;
-        let now = Utc::now();
+        let now = self.clock.now();
         if p.status != "pending" || p.expires <= now {
             return Err(Error::Conflict(format!("payment is {}", p.status)));
         }

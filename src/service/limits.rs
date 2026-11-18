@@ -3,7 +3,7 @@ use crate::limits::{LIMIT_CURRENCY, LimitHit, Limits, Usage};
 
 impl Service {
     pub async fn usage(&self, tenant: &Tenant) -> Result<Usage> {
-        let now = Utc::now();
+        let now = self.clock.now();
         let since = now - Duration::hours(24);
         let payments_per_day = db::created_since_count(&self.pool, tenant.id, since).await?;
         let pending_payments = db::live_pending_count(&self.pool, tenant.id, now).await?;
@@ -55,7 +55,7 @@ impl Service {
             )));
         }
         db::lock_tenant(&mut *tx, tenant.id).await?;
-        let now = Utc::now();
+        let now = self.clock.now();
         let since = now - Duration::hours(24);
         let today = db::created_since_count(&mut *tx, tenant.id, since).await?;
         if today >= limits.payments_per_day {

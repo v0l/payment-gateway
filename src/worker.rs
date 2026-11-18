@@ -82,6 +82,9 @@ pub fn spawn(service: Arc<Service>, tick: Duration) -> Workers {
             if let Err(e) = s.run_payouts().await {
                 log::error!("payout run failed: {e:?}");
             }
+            if let Err(e) = s.bill_due().await {
+                log::error!("billing run failed: {e:?}");
+            }
             if pause(&mut rx, tick).await {
                 break;
             }
@@ -123,7 +126,7 @@ pub fn spawn(service: Arc<Service>, tick: Duration) -> Workers {
     Workers {
         handles,
         stop,
-        loops: 3,
+        loops: 4,
     }
 }
 

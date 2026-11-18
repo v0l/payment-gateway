@@ -402,14 +402,12 @@ pub async fn saved_method_for_attempt(
     ex: &mut sqlx::MySqlConnection,
     tenant_id: u64,
     customer_ref: &str,
-    provider_config_id: u64,
 ) -> Result<Option<u64>> {
     let row: Option<(u64,)> = sqlx::query_as(
-        "select id from saved_method where tenant_id = ? and customer_ref = ? and provider_config_id = ? and enabled = 1 order by id desc limit 1",
+        "select id from saved_method where tenant_id = ? and customer_ref = ? and enabled = 1 order by id desc limit 1",
     )
     .bind(tenant_id)
     .bind(customer_ref)
-    .bind(provider_config_id)
     .fetch_optional(ex)
     .await?;
     Ok(row.map(|r| r.0))
@@ -447,4 +445,47 @@ pub async fn is_setup_payment(pool: &MySqlPool, payment_id: &PaymentId) -> Resul
             .fetch_optional(pool)
             .await?;
     Ok(row.is_some())
+}
+
+pub async fn set_setup_payment(
+    pool: &MySqlPool,
+    id: u64,
+    payment_id: &PaymentId,
+    next_charge: DateTime<Utc>,
+) -> Result<()> {
+    sqlx::query("update subscription set setup_payment_id = ?, next_charge = ? where id = ?")
+        .bind(&payment_id[..])
+        .bind(next_charge)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn delete_subscription(pool: &MySqlPool, id: u64) -> Result<()> {
+    sqlx::query("delete from subscription where id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn release_subscription_claim(pool: &MySqlPool, id: u64) -> Result<()> {
+    sqlx::query("update subscription set claimed_until = null where id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn add_adjustment(pool: &MySqlPool, tenant_id: u64, id: u64, delta: i64) -> Result<()> {
+    sqlx::query(
+        "update subscription set adjustment = adjustment + ? where tenant_id = ? and id = ?",
+    )
+    .bind(delta)
+    .bind(tenant_id)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
 }

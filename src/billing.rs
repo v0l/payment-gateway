@@ -6,6 +6,8 @@ pub const MAX_GRACE_DAYS: u32 = 30;
 pub const MAX_INTERVAL_COUNT: u32 = 365;
 pub const MAX_TRIAL_DAYS: u32 = 365;
 pub const CLAIM_SECS: i64 = 600;
+pub const PAST_DUE_CANCEL_DAYS: i64 = 7;
+pub const SETUP_EXPIRY_SECS: i64 = 86_400;
 pub const IN_FLIGHT_RECHECK_SECS: i64 = 300;
 
 pub const STATUS_INCOMPLETE: &str = "incomplete";
@@ -48,12 +50,7 @@ impl Unit {
     }
 }
 
-pub fn add_intervals(
-    anchor: DateTime<Utc>,
-    unit: Unit,
-    count: u32,
-    steps: i64,
-) -> DateTime<Utc> {
+pub fn add_intervals(anchor: DateTime<Utc>, unit: Unit, count: u32, steps: i64) -> DateTime<Utc> {
     let total = count as i64 * steps;
     match unit {
         Unit::Day => anchor + Duration::days(total),
@@ -139,12 +136,12 @@ mod tests {
     #[test]
     fn leap_day_anchors_clamp_on_non_leap_years() {
         let anchor = at(2028, 2, 29);
-        assert_eq!(
-            add_intervals(anchor, Unit::Year, 1, 1),
-            at(2029, 2, 28)
-        );
+        assert_eq!(add_intervals(anchor, Unit::Year, 1, 1), at(2029, 2, 28));
         assert_eq!(add_intervals(anchor, Unit::Year, 1, 4), at(2032, 2, 29));
-        assert_eq!(add_intervals(at(2028, 1, 31), Unit::Month, 1, 1), at(2028, 2, 29));
+        assert_eq!(
+            add_intervals(at(2028, 1, 31), Unit::Month, 1, 1),
+            at(2028, 2, 29)
+        );
     }
 
     #[test]
@@ -178,8 +175,14 @@ mod tests {
         let start = at(2027, 1, 1);
         let end = at(2027, 1, 31);
         assert_eq!(prorated_difference(1000, 4000, start, end, start), 3000);
-        assert_eq!(prorated_difference(1000, 4000, start, end, at(2027, 1, 16)), 1500);
-        assert_eq!(prorated_difference(4000, 1000, start, end, at(2027, 1, 16)), -1500);
+        assert_eq!(
+            prorated_difference(1000, 4000, start, end, at(2027, 1, 16)),
+            1500
+        );
+        assert_eq!(
+            prorated_difference(4000, 1000, start, end, at(2027, 1, 16)),
+            -1500
+        );
         assert_eq!(prorated_difference(1000, 4000, start, end, end), 0);
         assert_eq!(prorated_difference(1000, 1000, start, end, start), 0);
     }
