@@ -199,9 +199,20 @@ pub const EVENT_TYPES: &[&str] = &[
     "attempt.failed",
     "refund.completed",
     "refund.failed",
+    "payment.disputed",
+    "payment.dispute_closed",
     "withdrawal.requested",
     "withdrawal.completed",
     "withdrawal.failed",
+];
+
+pub const PROVIDER_TYPES: &[&str] = &[
+    "lightning/lnd",
+    "onchain/lnd",
+    "stripe/stripe",
+    "revolut/revolut",
+    "paypal/paypal",
+    "fixedfloat/fixedfloat",
 ];
 
 pub fn spec() -> Value {
@@ -227,6 +238,7 @@ pub fn spec() -> Value {
         },
         "servers": [{"url": "/v1"}],
         "paths": Value::Object(paths),
+        "x-console": {"POST /console/api/projects/{id}/providers/{pid}/test": {"summary": "Test a provider's credentials without creating a payment", "auth": "console session, project admin", "response": {"$ref": "#/components/schemas/ProviderTestResult"}}},
         "components": {
             "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "description": "Project API key. Keys carry scopes: payments:write, payments:read, refunds:write, saved:write, admin."}},
             "schemas": {
@@ -271,6 +283,8 @@ pub fn spec() -> Value {
                     "line_items": {"type": "array", "items": {"$ref": "#/components/schemas/LineItem"}},
                     "subtotal": {"type": ["integer", "null"], "description": "Sum of line amounts, null without line items"},
                     "discount": {"type": ["object", "null"], "properties": {"amount": {"type": "integer"}, "percent": {"type": ["number", "null"]}, "code": {"type": ["string", "null"]}}},
+                    "disputed": {"type": "boolean", "default": false, "description": "True while a chargeback or dispute is open. The status itself does not change."},
+                    "dispute_status": {"type": ["string", "null"], "enum": ["open", "won", "lost", null], "description": "Latest dispute state, null when the payment was never disputed."},
                     "receipt_url": {"type": "string", "description": "Public HTML receipt, available once paid"},
                     "pay_url": {"type": "string"}
                 }},
@@ -289,6 +303,8 @@ pub fn spec() -> Value {
                     "success_url": {"type": "string"},
                     "cancel_url": {"type": "string"}
                 }},
+                "ProviderType": {"type": "string", "enum": PROVIDER_TYPES, "description": "method/provider_type pairs a project can configure in the console. Config fields per type are in the README."},
+                "ProviderTestResult": {"type": "object", "required": ["ok", "message"], "properties": {"ok": {"type": "boolean"}, "message": {"type": "string", "description": "Fixed success text or a sanitized error. Never contains credentials."}}},
                 "EventType": {"type": "string", "enum": EVENT_TYPES, "description": "Webhook and /v1/events types. Endpoint filters accept these, a prefix wildcard such as withdrawal.*, or *. withdrawal.* events carry data.withdrawal instead of data.payment."},
                 "CreateAttempt": {"type": "object", "properties": {"method": {"type": "string"}, "option": {"type": "string"}, "save_method": {"type": "boolean"}}},
                 "RefundInput": {"type": "object", "properties": {"amount": {"type": "integer", "description": "Minor units. Omit for the full remaining amount."}, "destination": {"type": "string"}}}
