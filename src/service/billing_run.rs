@@ -545,7 +545,7 @@ impl Service {
                 sub.current_period_start = period.period_start;
                 sub.current_period_end = period.period_end;
                 if let Some(id) =
-                    db::saved_method_for_attempt(&mut *tx, tenant_id, &sub.customer_ref).await?
+                    db::saved_method_for_attempt(&mut tx, tenant_id, &sub.customer_ref).await?
                 {
                     sub.saved_method_id = Some(id);
                 }

@@ -22,7 +22,7 @@ pub(super) async fn create_plan(
     let plan = s.service.create_plan(&t, input).await?;
     sess.event(Action::PlanCreated)
         .tenant(id)
-        .target("plan", &plan.id.to_string())
+        .target("plan", plan.id.to_string())
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(PlanView::from(&plan)))
@@ -38,7 +38,7 @@ pub(super) async fn archive_plan(
     let row = s.service.archive_plan(&t, plan).await?;
     sess.event(Action::PlanArchived)
         .tenant(id)
-        .target("plan", &plan.to_string())
+        .target("plan", plan.to_string())
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(PlanView::from(&row)))
@@ -89,7 +89,7 @@ pub(super) async fn create_subscription(
     let row = s.service.create_subscription(&t, input).await?;
     sess.event(Action::SubscriptionCreated)
         .tenant(id)
-        .target("subscription", &row.id.to_string())
+        .target("subscription", row.id.to_string())
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(s.service.subscription_view(&t, &row).await?))
@@ -126,7 +126,7 @@ pub(super) async fn subscription_action(
     };
     sess.event(Action::SubscriptionChanged)
         .tenant(id)
-        .target("subscription", &sub.to_string())
+        .target("subscription", sub.to_string())
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(s.service.subscription_view(&t, &row).await?))

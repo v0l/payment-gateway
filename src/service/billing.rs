@@ -258,6 +258,8 @@ impl Service {
                     methods: None,
                     success_url: None,
                     cancel_url: None,
+                    line_items: None,
+                    discount: None,
                 },
                 Some(&key),
             )
@@ -497,6 +499,8 @@ impl Service {
                     methods: None,
                     success_url: None,
                     cancel_url: None,
+                    line_items: None,
+                    discount: None,
                 },
                 Some(key),
             )
