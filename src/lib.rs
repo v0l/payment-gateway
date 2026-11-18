@@ -1,6 +1,7 @@
 pub mod account_tokens;
 pub mod accounts;
 pub mod api;
+pub mod api_keys;
 pub mod audit;
 pub mod config;
 pub mod crypto;
@@ -15,6 +16,7 @@ pub mod mailer;
 pub mod metrics;
 pub mod model;
 pub mod ops;
+pub mod openapi;
 pub mod providers;
 pub mod ratelimit;
 pub mod rates;

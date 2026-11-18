@@ -16,7 +16,8 @@ impl Service {
             pending_payments,
             volume_per_day,
             providers,
-            webhook_endpoints: tenant.webhook_url.is_some() as u64,
+            webhook_endpoints: tenant.webhook_url.is_some() as u64
+                + db::count_endpoints(&self.pool, tenant.id).await?,
         })
     }
 
@@ -106,6 +107,19 @@ impl Service {
                 "webhook_endpoints",
                 1,
                 limits.webhook_endpoints,
+            )));
+        }
+        Ok(())
+    }
+
+    pub async fn check_new_endpoint(&self, tenant: &Tenant) -> Result<()> {
+        let max = Limits::for_tenant(tenant).webhook_endpoints;
+        let current = self.usage(tenant).await?.webhook_endpoints;
+        if current >= max {
+            return Err(Error::LimitExceeded(LimitHit::new(
+                "webhook_endpoints",
+                current + 1,
+                max,
             )));
         }
         Ok(())

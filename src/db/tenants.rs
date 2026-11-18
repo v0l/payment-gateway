@@ -16,6 +16,7 @@ pub async fn insert_tenant(
     .bind(sealed_webhook_secret)
     .execute(pool)
     .await?;
+    set_default_key(pool, r.last_insert_id(), api_key_hash).await?;
     Ok(r.last_insert_id())
 }
 
@@ -60,6 +61,9 @@ pub async fn rotate_tenant_key(pool: &MySqlPool, id: u64, api_key_hash: &str) ->
         .bind(id)
         .execute(pool)
         .await?;
+    if r.rows_affected() > 0 {
+        set_default_key(pool, id, api_key_hash).await?;
+    }
     Ok(r.rows_affected() > 0)
 }
 

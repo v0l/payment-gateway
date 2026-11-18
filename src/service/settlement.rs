@@ -9,9 +9,6 @@ impl Service {
         event_type: &str,
         extra: Value,
     ) -> Result<()> {
-        if tenant.webhook_url.is_none() {
-            return Ok(());
-        }
         let id = p.pid();
         let attempts = db::attempts_for_payment(&mut **tx, &id).await?;
         let refunds = db::refunds_for_payment(&mut **tx, &id).await?;
@@ -27,16 +24,29 @@ impl Service {
             "created": now.timestamp(),
             "data": { "payment": view, "detail": extra },
         });
-        db::insert_delivery(
-            &mut **tx,
-            tenant.id,
-            &id,
-            &event_id,
-            event_type,
-            &body.to_string(),
-            now,
-        )
-        .await?;
+        let body = body.to_string();
+        db::insert_event(&mut **tx, tenant.id, &id, &event_id, event_type, &body, now).await?;
+        if tenant.webhook_url.is_some() {
+            db::insert_delivery(
+                &mut **tx, tenant.id, &id, &event_id, event_type, &body, None, now,
+            )
+            .await?;
+        }
+        for endpoint in db::list_endpoints(&mut **tx, tenant.id).await? {
+            if endpoint.enabled && endpoint_wants(&endpoint, event_type) {
+                db::insert_delivery(
+                    &mut **tx,
+                    tenant.id,
+                    &id,
+                    &event_id,
+                    event_type,
+                    &body,
+                    Some(endpoint.id),
+                    now,
+                )
+                .await?;
+            }
+        }
         Ok(())
     }
 

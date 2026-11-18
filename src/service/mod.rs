@@ -1,7 +1,7 @@
 use crate::crypto::Sealer;
 use crate::db::{
-    self, AttemptRow, NewAttempt, NewPayment, NewSavedMethod, PaymentId, PaymentRow,
-    ProviderConfigRow, Tenant,
+    self, AttemptRow, DueDelivery, EndpointRow, NewAttempt, NewPayment, NewSavedMethod, PaymentId,
+    PaymentRow, ProviderConfigRow, Tenant,
 };
 use crate::mailer::{DisabledMailer, Mailer};
 use crate::model::{
@@ -256,5 +256,5 @@ mod refunds;
 mod retry;
 mod saved;
 mod settlement;
-pub use deliveries::{backoff_secs, webhook_signature};
+pub use deliveries::{backoff_secs, endpoint_wants, webhook_signature};
 pub use retry::{is_deadlock, retry_deadlock};

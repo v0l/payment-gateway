@@ -1,5 +1,6 @@
 use super::*;
 
+#[allow(clippy::too_many_arguments)]
 pub async fn insert_delivery<'e, E: Executor<'e, Database = MySql>>(
     ex: E,
     tenant_id: u64,
@@ -7,16 +8,18 @@ pub async fn insert_delivery<'e, E: Executor<'e, Database = MySql>>(
     event_id: &str,
     event_type: &str,
     body: &str,
+    endpoint_id: Option<u64>,
     now: DateTime<Utc>,
 ) -> Result<()> {
     sqlx::query(
-        "insert into webhook_delivery (tenant_id, payment_id, event_id, event_type, body, created, next_attempt) values (?, ?, ?, ?, ?, ?, ?)",
+        "insert into webhook_delivery (tenant_id, payment_id, event_id, event_type, body, endpoint_id, created, next_attempt) values (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(tenant_id)
     .bind(&payment_id[..])
     .bind(event_id)
     .bind(event_type)
     .bind(body)
+    .bind(endpoint_id)
     .bind(now)
     .bind(now)
     .execute(ex)
@@ -26,7 +29,7 @@ pub async fn insert_delivery<'e, E: Executor<'e, Database = MySql>>(
 
 pub async fn due_deliveries(pool: &MySqlPool, now: DateTime<Utc>) -> Result<Vec<DueDelivery>> {
     Ok(sqlx::query_as(
-        "select id, tenant_id, event_id, body, attempts, created from webhook_delivery where delivered_at is null and abandoned_at is null and next_attempt <= ? order by next_attempt limit 50",
+        "select id, tenant_id, event_id, body, attempts, created, endpoint_id from webhook_delivery where delivered_at is null and abandoned_at is null and next_attempt <= ? order by next_attempt limit 50",
     )
     .bind(now)
     .fetch_all(pool)

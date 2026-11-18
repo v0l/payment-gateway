@@ -142,6 +142,15 @@ The tenant's `allowed_origins` must include the embedding site. Card checkouts c
 
 `POST` to the tenant `webhook_url`, JSON `{id, type, created, data:{payment, detail}}`, with headers `X-Gateway-Event-Id` and `X-Gateway-Signature: t=<unix>,v1=<hex>` where `v1 = HMAC-SHA256(webhook_secret, "{t}.{body}")`. Reject old timestamps and dedupe on the event id. Failed deliveries retry with backoff for 3 days. Events: `payment.paid`, `payment.expired`, `payment.cancelled`, `payment.late_payment`, `attempt.failed`, `refund.completed`, `refund.failed`.
 
+Besides the legacy `webhook_url`, a project can have several endpoints (console, Webhooks tab), each with its own event filter (`*`, exact types or prefixes such as `payment.*`), signing secret (shown once), enable switch, `Send test event` button (a signed `webhook.test` event) and delivery stats. The same events can be pulled with `GET /v1/events?type=&cursor=`.
+
+## API contract
+
+- OpenAPI 3.1 at `GET /v1/openapi.json` (no auth), rendered at `/docs`. Versioning rule and history in `docs/CHANGELOG.md`: `/v1` only changes additively.
+- Errors: `{"error": "message", "error_detail": {"code": "invalid_request", "message": "...", "field": "limit"}}`. `error` stays a string for existing clients.
+- Lists return bare arrays. Pass `limit` (1 to 100, default 50) and `cursor`; when more rows exist the response carries `X-Next-Cursor`. Lists: `/v1/payments` (filters `status`, `reference`, `customer_ref`, `created_from`, `created_to`), `/v1/refunds`, `/v1/events`, `/v1/saved-methods`, `/v1/methods`.
+- API keys are created in the console (API keys tab) with a name, scopes (`payments:read`, `payments:write`, `refunds:write`, `saved:write`, `admin`) and optional expiry. The secret is shown once and stored as a hash. Keys are `pgw_test_...` for projects under test limits and `pgw_live_...` for trusted ones. A key without the needed scope gets 403 `insufficient_scope`. Expired and revoked keys get 401. The original project key is the `default` key with every scope.
+
 ## Other endpoints
 
 ```

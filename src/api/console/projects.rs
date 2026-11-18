@@ -93,6 +93,7 @@ pub(super) async fn create_project(
     let sealed = s.service.sealer.seal(secret.as_bytes())?;
     let mut tx = s.pool().begin().await?;
     let id = accounts::insert_project(&mut *tx, &name, &hash_api_key(&key), &sealed).await?;
+    db::set_default_key(&mut *tx, id, &hash_api_key(&key)).await?;
     accounts::add_member(&mut *tx, id, sess.account.id, Role::Owner).await?;
     tx.commit().await?;
     sess.event(Action::ProjectCreated)

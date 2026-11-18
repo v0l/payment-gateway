@@ -173,6 +173,7 @@ pub struct DueDelivery {
     pub body: String,
     pub attempts: u32,
     pub created: DateTime<Utc>,
+    pub endpoint_id: Option<u64>,
 }
 
 pub async fn migrate(pool: &MySqlPool) -> Result<()> {
@@ -212,6 +213,8 @@ const REFUND_COLS: &str = "id, payment_id, attempt_id, amount, charge_amount, cu
 
 mod attempts;
 mod deliveries;
+mod endpoints;
+mod keys;
 mod notify;
 mod payments;
 mod providers;
@@ -222,6 +225,8 @@ mod tenants;
 
 pub use attempts::*;
 pub use deliveries::*;
+pub use endpoints::*;
+pub use keys::*;
 pub use notify::*;
 pub use payments::*;
 pub use providers::*;

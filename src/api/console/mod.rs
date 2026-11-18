@@ -18,6 +18,8 @@ use std::collections::HashMap;
 
 mod activity;
 mod balance;
+mod endpoints;
+mod keys;
 mod operator;
 mod payments;
 mod projects;
@@ -29,6 +31,8 @@ mod twofactor;
 
 use activity::*;
 use balance::*;
+use endpoints::*;
+use keys::*;
 use operator::*;
 use payments::*;
 pub(crate) use projects::settings_diff;
@@ -47,6 +51,7 @@ const JS_PROJECTS: &str = include_str!("../../../web/console/projects.js");
 const JS_PAYMENTS: &str = include_str!("../../../web/console/payments.js");
 const JS_PROVIDERS: &str = include_str!("../../../web/console/providers.js");
 const JS_WEBHOOKS: &str = include_str!("../../../web/console/webhooks.js");
+const JS_KEYS: &str = include_str!("../../../web/console/keys.js");
 const JS_TEAM: &str = include_str!("../../../web/console/team.js");
 const JS_SETTINGS: &str = include_str!("../../../web/console/settings.js");
 const JS_ACCOUNT: &str = include_str!("../../../web/console/account.js");
@@ -119,6 +124,24 @@ pub fn router() -> Router<AppState> {
             "/projects/{id}/payments/{payment}/refund",
             post(refund_payment),
         )
+        .route("/projects/{id}/keys", get(list_keys).post(create_key))
+        .route("/projects/{id}/keys/{key}/revoke", post(revoke_key))
+        .route(
+            "/projects/{id}/webhook-endpoints",
+            get(list_endpoints).post(create_endpoint),
+        )
+        .route(
+            "/projects/{id}/webhook-endpoints/{endpoint}",
+            post(update_endpoint).delete(delete_endpoint),
+        )
+        .route(
+            "/projects/{id}/webhook-endpoints/{endpoint}/rotate-secret",
+            post(rotate_endpoint_secret),
+        )
+        .route(
+            "/projects/{id}/webhook-endpoints/{endpoint}/test",
+            post(test_endpoint),
+        )
         .route("/projects/{id}/stats", get(stats))
         .route("/projects/{id}/deliveries", get(deliveries))
         .route("/projects/{id}/deliveries/{delivery}/replay", post(replay))
@@ -176,6 +199,7 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "payments.js" => asset(JS_PAYMENTS, "text/javascript"),
         "providers.js" => asset(JS_PROVIDERS, "text/javascript"),
         "webhooks.js" => asset(JS_WEBHOOKS, "text/javascript"),
+        "keys.js" => asset(JS_KEYS, "text/javascript"),
         "team.js" => asset(JS_TEAM, "text/javascript"),
         "settings.js" => asset(JS_SETTINGS, "text/javascript"),
         "account.js" => asset(JS_ACCOUNT, "text/javascript"),

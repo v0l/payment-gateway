@@ -52,7 +52,7 @@ pub fn options_from_config(method: &str, config: &Value) -> Vec<String> {
 
 #[derive(Debug, Deserialize)]
 pub struct CreatePayment {
-    pub reference: String,
+    pub reference: Option<String>,
     pub amount: u64,
     pub currency: String,
     #[serde(default)]
