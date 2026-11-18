@@ -218,7 +218,13 @@ async fn concurrent_duplicate_settlements_pay_once() {
         task.await.unwrap().unwrap();
     }
     assert_eq!(get_payment(&h, &t, &id).await["status"], "paid");
-    h.service.deliver_due().await.unwrap();
+    for _ in 0..60 {
+        h.service.deliver_due().await.unwrap();
+        if !t.receiver.types().is_empty() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
     assert_eq!(t.receiver.types(), vec!["payment.paid"]);
 }
 
@@ -534,6 +540,12 @@ async fn invoice_settled_while_no_watcher_was_running_is_still_paid() {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
     assert_eq!(get_payment(&h, &t, &id).await["status"], "paid");
-    h.service.deliver_due().await.unwrap();
+    for _ in 0..60 {
+        h.service.deliver_due().await.unwrap();
+        if !t.receiver.types().is_empty() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
     assert_eq!(t.receiver.types(), vec!["payment.paid"]);
 }
