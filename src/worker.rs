@@ -76,6 +76,19 @@ pub fn spawn(service: Arc<Service>, tick: Duration) -> Workers {
     }));
 
     let s = service.clone();
+    let mut rx = stop_rx.clone();
+    handles.lock().unwrap().push(tokio::spawn(async move {
+        loop {
+            if let Err(e) = s.run_payouts().await {
+                log::error!("payout run failed: {e:?}");
+            }
+            if pause(&mut rx, tick).await {
+                break;
+            }
+        }
+    }));
+
+    let s = service.clone();
     let watcher_handles = handles.clone();
     let mut rx = stop_rx;
     handles.lock().unwrap().push(tokio::spawn(async move {

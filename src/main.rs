@@ -181,6 +181,18 @@ async fn serve() -> Result<()> {
         config.public_url.clone(),
         mailer.unwrap_or_else(|| Arc::new(payment_gateway::mailer::DisabledMailer)),
     );
+    let sat_per_vbyte = config.payout_policy.onchain_sat_per_vbyte;
+    service.payouts.set_policy(config.payout_policy.clone());
+    if let Some(lnd) = &config.payout_lnd {
+        let node = payment_gateway::payouts::LndPayoutNode::connect(
+            &lnd.url,
+            std::path::Path::new(&lnd.cert_path),
+            std::path::Path::new(&lnd.macaroon_path),
+            sat_per_vbyte,
+        )
+        .await?;
+        service.payouts.set_node(Some(Arc::new(node)));
+    }
     let sandbox = match payment_gateway::sandbox::SandboxConfig::from_env()? {
         Some(cfg) => Some(payment_gateway::sandbox::Sandbox::from_config(
             cfg,

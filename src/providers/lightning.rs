@@ -64,6 +64,10 @@ impl LightningProvider {
     }
 }
 
+pub fn parse_invoice(invoice: &str) -> Result<AddInvoiceResponse> {
+    AddInvoiceResponse::from_invoice(invoice, None)
+}
+
 pub fn invoice_amount_msat(invoice: &str) -> Result<Option<u64>> {
     let parsed = AddInvoiceResponse::from_invoice(invoice, None)?;
     Ok(parsed.parsed_invoice.amount_milli_satoshis())

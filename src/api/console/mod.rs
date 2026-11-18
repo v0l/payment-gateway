@@ -22,6 +22,7 @@ mod endpoints;
 mod keys;
 mod operator;
 mod payments;
+mod payouts;
 mod projects;
 mod providers;
 mod recovery;
@@ -35,6 +36,7 @@ use endpoints::*;
 use keys::*;
 use operator::*;
 use payments::*;
+use payouts::*;
 pub(crate) use projects::settings_diff;
 use projects::*;
 use providers::*;
@@ -58,6 +60,7 @@ const JS_ACCOUNT: &str = include_str!("../../../web/console/account.js");
 const JS_ADMIN: &str = include_str!("../../../web/console/admin.js");
 const JS_ACTIVITY: &str = include_str!("../../../web/console/activity.js");
 const JS_BALANCE: &str = include_str!("../../../web/console/balance.js");
+const JS_PAYOUTS: &str = include_str!("../../../web/console/payouts.js");
 const JS_APP: &str = include_str!("../../../web/console/app.js");
 const CSS: &str = include_str!("../../../web/console.css");
 const TOKENS_CSS: &str = include_str!("../../../web/tokens.css");
@@ -151,6 +154,37 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{id}/activity", get(project_activity))
         .route("/projects/{id}/balance", get(project_balance))
         .route("/projects/{id}/ledger", get(project_ledger))
+        .route("/projects/{id}/payouts", get(project_payouts))
+        .route(
+            "/projects/{id}/payout-destinations",
+            post(add_payout_destination),
+        )
+        .route(
+            "/projects/{id}/payout-destinations/{did}",
+            delete(remove_payout_destination),
+        )
+        .route(
+            "/projects/{id}/payout-destinations/{did}/verify",
+            post(verify_payout_destination),
+        )
+        .route("/projects/{id}/withdrawals", post(request_withdrawal))
+        .route(
+            "/projects/{id}/withdrawals/{wid}/cancel",
+            post(cancel_withdrawal),
+        )
+        .route("/admin/withdrawals", get(admin_withdrawals))
+        .route(
+            "/admin/withdrawals/{wid}/approve",
+            post(admin_approve_withdrawal),
+        )
+        .route(
+            "/admin/withdrawals/{wid}/reject",
+            post(admin_reject_withdrawal),
+        )
+        .route(
+            "/admin/projects/{id}/payout-limits",
+            post(admin_set_payout_limits),
+        )
         .route("/admin/audit", get(admin_audit))
         .route("/admin/accounts", get(admin_accounts))
         .route("/admin/accounts/{id}/disabled", post(admin_disable))
@@ -206,6 +240,7 @@ async fn page_or_asset(Path(rest): Path<String>) -> Response {
         "admin.js" => asset(JS_ADMIN, "text/javascript"),
         "balance.js" => asset(JS_BALANCE, "text/javascript"),
         "activity.js" => asset(JS_ACTIVITY, "text/javascript"),
+        "payouts.js" => asset(JS_PAYOUTS, "text/javascript"),
         "app.js" => asset(JS_APP, "text/javascript"),
         "app.css" => asset(CSS, "text/css"),
         "tokens.css" => asset(TOKENS_CSS, "text/css"),

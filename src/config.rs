@@ -23,6 +23,15 @@ pub struct Config {
     pub lease_ttl: Duration,
     pub worker_tick: Duration,
     pub instance_id: String,
+    pub payout_lnd: Option<PayoutLnd>,
+    pub payout_policy: crate::payouts::PayoutPolicy,
+}
+
+#[derive(Clone)]
+pub struct PayoutLnd {
+    pub url: String,
+    pub cert_path: String,
+    pub macaroon_path: String,
 }
 
 pub struct Env<'a> {
@@ -136,6 +145,17 @@ impl Config {
         Self::from_lookup(&|k| std::env::var(k).ok())
     }
 
+    fn payout_lnd(env: &mut Env) -> Option<PayoutLnd> {
+        let url = env.optional("GATEWAY_PAYOUT_LND_URL")?;
+        let cert_path = env.required("GATEWAY_PAYOUT_LND_CERT");
+        let macaroon_path = env.required("GATEWAY_PAYOUT_LND_MACAROON");
+        Some(PayoutLnd {
+            url,
+            cert_path,
+            macaroon_path,
+        })
+    }
+
     fn keys(env: &mut Env) -> Vec<(String, [u8; 32])> {
         if let Some(list) = env.optional("GATEWAY_ENCRYPTION_KEYS") {
             return match crypto::parse_key_list(&list) {
@@ -232,6 +252,8 @@ impl Config {
             let host = get("HOSTNAME").unwrap_or_else(|| "gateway".into());
             format!("{host}-{}", std::process::id())
         });
+        let payout_lnd = Self::payout_lnd(&mut env);
+        let payout_policy = crate::payouts::PayoutPolicy::from_env(&mut env);
         env.finish()?;
         Ok(Self {
             database_url,
@@ -252,6 +274,8 @@ impl Config {
             lease_ttl: Duration::from_secs(lease_ttl),
             worker_tick: Duration::from_secs(worker_tick),
             instance_id,
+            payout_lnd,
+            payout_policy,
         })
     }
 }

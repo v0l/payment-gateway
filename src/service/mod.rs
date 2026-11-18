@@ -75,6 +75,7 @@ pub struct Service {
     pub mailer: Arc<dyn Mailer>,
     pub provider_failures: std::sync::Mutex<std::collections::HashMap<u64, u32>>,
     pub metrics: Arc<crate::metrics::Metrics>,
+    pub payouts: crate::payouts::Runtime,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -159,6 +160,7 @@ impl Service {
             mailer,
             provider_failures: Default::default(),
             metrics,
+            payouts: Default::default(),
         })
     }
 
@@ -252,9 +254,12 @@ mod expiry;
 mod limits;
 mod notify;
 mod payments;
+mod payout_send;
 mod refunds;
 mod retry;
 mod saved;
 mod settlement;
+mod withdrawals;
 pub use deliveries::{backoff_secs, endpoint_wants, webhook_signature};
 pub use retry::{is_deadlock, retry_deadlock};
+pub use withdrawals::{PayoutLimits, WithdrawalRequest, verify_challenge};

@@ -222,6 +222,7 @@ mod refunds;
 mod saved;
 mod stats;
 mod tenants;
+mod withdrawals;
 
 pub use attempts::*;
 pub use deliveries::*;
@@ -234,3 +235,4 @@ pub use refunds::*;
 pub use saved::*;
 pub use stats::*;
 pub use tenants::*;
+pub use withdrawals::*;

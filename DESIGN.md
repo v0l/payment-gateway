@@ -129,6 +129,14 @@ Invariants:
 
 Read APIs: `GET /admin/tenants/{id}/balance`, `/admin/tenants/{id}/ledger?before=&limit=`, `/admin/ledger/reconcile`, and for members (viewer) `GET /console/api/projects/{id}/balance` and `/ledger`. The console project page has a Balance tab.
 
+## Withdrawals and payouts
+
+Tenants withdraw from `tenant_balance` (BTC, msats) through the console (`/console/api/projects/{id}/payouts`, `/withdrawals`, owner role). Destinations are sealed: an on-chain address, a Lightning address or an LNURL-pay. A bolt11 invoice can instead be given per request. A destination needs verification (a small test payout that completes, or a signed message for a legacy P2PKH address) and waits `GATEWAY_PAYOUT_DESTINATION_DELAY_HOURS` (default 24) before use.
+
+Requesting a withdrawal locks the project row, checks the daily maximum and posts `tenant_balance` to `pending_payout` for amount plus a fee reserve (`max_fee`) in the same transaction, so parallel requests cannot overdraw. Trusted projects at or under the auto threshold go straight to `approved`; others wait in `requested` for an operator (`/console/api/admin/withdrawals`). Reject and cancel release the reserve. Completion posts `pending_payout` to `platform_wallet` and returns the unused fee reserve.
+
+The payout worker (`Service::run_payouts`) claims `approved` rows by moving them to `sending` before any node call. Lightning invoices are stored sealed with their payment hash before paying, and on-chain sends carry the label `pgw-withdrawal-<id>`. After every call, and for any `sending` row older than the lease, the worker looks the payment up in LND (`TrackPaymentV2`, `GetTransactions`) and only retries when LND does not know it. Unknown outcomes stay `sending` and keep reserving the funds. Enable it with `GATEWAY_PAYOUT_LND_URL`, `GATEWAY_PAYOUT_LND_CERT`, `GATEWAY_PAYOUT_LND_MACAROON`, and `GATEWAY_PAYOUT_NETWORK` (`bitcoin`, `regtest`). Limits: `GATEWAY_PAYOUT_MIN_SATS`, `GATEWAY_PAYOUT_DAILY_MAX_SATS`, `GATEWAY_PAYOUT_DAILY_MAX_UNTRUSTED_SATS`, `GATEWAY_PAYOUT_AUTO_SATS`; operators can override the daily maximum and auto threshold per project. Webhook events: `withdrawal.requested`, `withdrawal.completed`, `withdrawal.failed` (data under `data.withdrawal`, no destination). On-chain batching is not implemented.
+
 ## Self-service console (SaaS)
 
 The gateway is a multi-tenant service. Operators sign in at `/console`, which is a dependency-free single page served from the binary.

@@ -31,6 +31,21 @@ pub const SEALED_COLUMNS: &[SealedColumn] = &[
         key: "id",
         column: "secret",
     },
+    SealedColumn {
+        table: "payout_destination",
+        key: "id",
+        column: "value",
+    },
+    SealedColumn {
+        table: "withdrawal",
+        key: "id",
+        column: "destination",
+    },
+    SealedColumn {
+        table: "withdrawal",
+        key: "id",
+        column: "invoice",
+    },
 ];
 
 pub const NOT_SEALED_BINARY_COLUMNS: &[(&str, &str)] = &[

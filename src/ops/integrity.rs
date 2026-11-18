@@ -45,7 +45,7 @@ const CHECKS: &[(&str, &str)] = &[
     ),
     (
         "delivery_without_payment",
-        "select count(*) from webhook_delivery d left join payment p on p.id = d.payment_id where p.id is null",
+        "select count(*) from webhook_delivery d left join payment p on p.id = d.payment_id where d.payment_id is not null and p.id is null",
     ),
     (
         "payment_without_tenant",
