@@ -202,3 +202,16 @@ pub async fn pending_delivery_count(pool: &MySqlPool, tenant_id: u64) -> Result<
     .fetch_one(pool)
     .await?)
 }
+
+pub async fn pending_delivery_stats(
+    pool: &MySqlPool,
+    now: DateTime<Utc>,
+) -> Result<Option<(i64, i64)>> {
+    let row: (i64, Option<DateTime<Utc>>) = sqlx::query_as(
+        "select count(*), min(created) from webhook_delivery where delivered_at is null and abandoned_at is null",
+    )
+    .fetch_one(pool)
+    .await?;
+    let age = row.1.map(|c| (now - c).num_seconds().max(0)).unwrap_or(0);
+    Ok(Some((row.0, age)))
+}

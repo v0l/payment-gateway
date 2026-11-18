@@ -46,7 +46,11 @@ pub struct HttpRates {
 impl HttpRates {
     pub fn new(url: impl Into<String>, ttl: Duration) -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .timeout(Duration::from_secs(15))
+                .connect_timeout(Duration::from_secs(5))
+                .build()
+                .expect("http client"),
             url: url.into(),
             ttl,
             cache: Mutex::new(None),

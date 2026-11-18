@@ -28,6 +28,7 @@ impl FromRequestParts<AppState> for TenantAuth {
             .api_key
             .check(&format!("tenant:{}", tenant.id))
             .map_err(ApiError::rate_limited)?;
+        crate::logging::set_tenant(tenant.id);
         Ok(TenantAuth(tenant))
     }
 }

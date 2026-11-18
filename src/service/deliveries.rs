@@ -12,6 +12,17 @@ impl Service {
             let tenant = self.tenant(d.tenant_id).await?;
             let outcome = self.post_webhook(&tenant, &d.event_id, &d.body).await;
             let now = Utc::now();
+            self.metrics.inc(
+                "gateway_webhook_deliveries_total",
+                &[(
+                    "outcome",
+                    if outcome.is_ok() {
+                        "success"
+                    } else {
+                        "failure"
+                    },
+                )],
+            );
             match outcome {
                 Ok(()) => {
                     db::delivery_succeeded(&self.pool, d.id, now).await?;
@@ -22,6 +33,17 @@ impl Service {
                     let delay = backoff_secs(d.attempts + 1);
                     let next = (now + Duration::seconds(delay)).min(give_up + Duration::seconds(1));
                     let next = if now >= give_up { None } else { Some(next) };
+                    if next.is_none() {
+                        self.metrics.inc(
+                            "gateway_webhook_deliveries_total",
+                            &[("outcome", "abandoned")],
+                        );
+                    }
+                    log::warn!(
+                        "webhook {} for tenant {} failed: {e}",
+                        d.event_id,
+                        d.tenant_id
+                    );
                     db::delivery_failed(&self.pool, d.id, next, now, &e.to_string()).await?;
                     if next.is_none() {
                         self.notify_webhook_abandoned(d.tenant_id, &e.to_string())

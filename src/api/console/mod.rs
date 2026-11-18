@@ -260,6 +260,7 @@ impl Session {
                 format!("needs {} access", min.as_str()),
             ));
         }
+        crate::logging::set_tenant(tenant.id);
         Ok((tenant, role))
     }
 
