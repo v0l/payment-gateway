@@ -342,6 +342,18 @@ async fn admin_endpoints_show_balance_and_history() {
     .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(r, json!([]));
+    let events = payment_gateway::audit::list(
+        &h.pool,
+        &payment_gateway::audit::Filter {
+            action: Some("ledger.reconciled".into()),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].details["mismatches"], 0);
+    assert_eq!(events[0].actor_kind, "admin_token");
 }
 
 #[tokio::test]

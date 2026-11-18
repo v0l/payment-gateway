@@ -460,6 +460,12 @@ async fn tenant_ledger(
 async fn ledger_reconcile(
     _: AdminAuth,
     State(s): State<AppState>,
+    headers: HeaderMap,
 ) -> ApiResult<Vec<crate::ledger::Mismatch>> {
-    super::ledger::reconcile_view(&s).await
+    let found = crate::ledger::reconcile(s.pool()).await?;
+    Event::new(Action::LedgerReconciled, Actor::AdminToken)
+        .details(json!({"mismatches": found.len()}))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
+    Ok(Json(found))
 }

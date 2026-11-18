@@ -42,6 +42,7 @@ pub enum Action {
     RetentionPurged,
     PrivacyExported,
     PrivacyDeleted,
+    LedgerReconciled,
 }
 
 impl Action {
@@ -83,6 +84,7 @@ impl Action {
             Self::RetentionPurged => "retention.purged",
             Self::PrivacyExported => "privacy.exported",
             Self::PrivacyDeleted => "privacy.deleted",
+            Self::LedgerReconciled => "ledger.reconciled",
         }
     }
 }

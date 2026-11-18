@@ -1,5 +1,5 @@
 use super::{ApiResult, AppState};
-use crate::ledger::{self, AccountBalance, EntryView, Mismatch};
+use crate::ledger::{self, AccountBalance, EntryView};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -24,8 +24,4 @@ pub async fn entries_view(
     Ok(axum::Json(
         ledger::history(s.pool(), tenant_id, before, limit).await?,
     ))
-}
-
-pub async fn reconcile_view(s: &AppState) -> ApiResult<Vec<Mismatch>> {
-    Ok(axum::Json(ledger::reconcile(s.pool()).await?))
 }
