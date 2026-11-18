@@ -1,0 +1,1 @@
+{"id":"cs_test_a1B2c3D4e5F6","object":"checkout.session","amount_total":2500,"currency":"eur","payment_status":"paid","status":"complete","payment_intent":"pi_3Qtest1234567890abcd","customer":"cus_Rtest123456"}
