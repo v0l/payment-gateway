@@ -191,20 +191,20 @@ const ATTEMPT_COLS: &str = "id, payment_id, provider_config_id, watch_provider_i
 const SAVED_COLS: &str = "id, tenant_id, customer_ref, provider_config_id, external_customer_id, external_id, brand, last4, exp_month, exp_year, enabled, created";
 const REFUND_COLS: &str = "id, payment_id, attempt_id, amount, charge_amount, currency, destination, status, external_id, error, created";
 
-mod tenants;
-mod providers;
-mod payments;
 mod attempts;
-mod saved;
-mod refunds;
 mod deliveries;
+mod payments;
+mod providers;
+mod refunds;
+mod saved;
 mod stats;
+mod tenants;
 
-pub use tenants::*;
-pub use providers::*;
-pub use payments::*;
 pub use attempts::*;
-pub use saved::*;
-pub use refunds::*;
 pub use deliveries::*;
+pub use payments::*;
+pub use providers::*;
+pub use refunds::*;
+pub use saved::*;
 pub use stats::*;
+pub use tenants::*;

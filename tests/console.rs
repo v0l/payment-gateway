@@ -1197,7 +1197,33 @@ async fn providers_with_history_cannot_be_deleted_but_unused_ones_can() {
 
 #[test]
 fn signup_leaves_the_invite_url_so_the_used_invite_is_not_rechecked() {
-    let js = include_str!("../web/console.js");
-    assert!(js.contains(r#"location.replace("/console#/")"#));
-    assert!(js.contains("if (m && !me)"));
+    let auth = include_str!("../web/console/auth.js");
+    let app = include_str!("../web/console/app.js");
+    assert!(auth.contains(r#"location.replace("/console#/")"#));
+    assert!(app.contains("if (m && !me)"));
+}
+
+#[tokio::test]
+async fn every_console_script_is_served_and_loaded_by_the_shell() {
+    let h = harness().await;
+    let shell = send(&h.app, "GET", "/console", None, &[], Value::Null).await;
+    for name in [
+        "core",
+        "auth",
+        "projects",
+        "payments",
+        "providers",
+        "webhooks",
+        "team",
+        "settings",
+        "account",
+        "admin",
+        "app",
+    ] {
+        let path = format!("/console/{name}.js");
+        assert!(shell.text.contains(&path), "{path}");
+        let r = send(&h.app, "GET", &path, None, &[], Value::Null).await;
+        assert_eq!(r.headers["content-type"], "text/javascript", "{path}");
+        assert!(!r.text.is_empty(), "{path}");
+    }
 }
