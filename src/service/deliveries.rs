@@ -75,7 +75,7 @@ impl Service {
                     Err(anyhow!("webhook endpoint was deleted")),
                 );
             }
-            Err(e) => return (db::DeliveryCapture::default(), Err(e.into())),
+            Err(e) => return (db::DeliveryCapture::default(), Err(e)),
         };
         self.post_webhook_captured(
             tenant,
