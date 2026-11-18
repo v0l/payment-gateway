@@ -101,7 +101,7 @@ function layout(active, projectId, content) {
     } else { navs.push(link("Open", "#/p/" + p.id + "/overview", "")); }
   });
   navs.push(link("+ New project", "#/new", "new"));
-  if (me.is_operator) { navs.push(el("div", { class: "sep", text: "Operator" })); navs.push(link("Accounts", "#/admin", "admin")); navs.push(link("Shared providers", "#/shared", "shared")); navs.push(link("Payout queue", "#/payout-queue", "payouts")); navs.push(link("Audit", "#/audit", "audit")); }
+  if (me.is_operator) { navs.push(el("div", { class: "sep", text: "Operator" })); navs.push(link("Accounts", "#/admin", "admin")); navs.push(link("Shared providers", "#/shared", "shared")); navs.push(link("Platform plans", "#/platform-plans", "platform-plans")); navs.push(link("Payout queue", "#/payout-queue", "payouts")); navs.push(link("Audit", "#/audit", "audit")); }
   navs.push(el("div", { class: "foot muted" }, [me.email, el("br"), el("a", { text: "Account", href: "#/account" }), " ", el("a", { text: "Sign out", onclick: function () {
     api("POST", "/logout", {}).then(function () { me = null; csrf = ""; route(); });
   } })]));

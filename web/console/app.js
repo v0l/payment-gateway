@@ -17,6 +17,7 @@ function route() {
   if (parts[0] === "admin" && me.is_operator) return admin();
   if (parts[0] === "shared" && me.is_operator) return sharedAdmin();
   if (parts[0] === "payout-queue" && me.is_operator) return payoutQueue();
+  if (parts[0] === "platform-plans" && me.is_operator) return platformPlans();
   if (parts[0] === "audit" && me.is_operator) return auditLog();
   if (parts[0] === "p" && parts[1]) {
     var pid = parts[1], tab = parts[2] || "overview";

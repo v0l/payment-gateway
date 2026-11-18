@@ -27,3 +27,31 @@ function platformBilling(pid) {
     }).catch(function (e) { body.appendChild(el("div", { class: "err", text: e.message })); });
   });
 }
+
+function platformPlans() {
+  var list = el("div"); var out = el("div");
+  function load() {
+    api("GET", "/admin/platform/plans").then(function (rows) {
+      var head = ["Id", "Name", "Mode", "Monthly price", "Included volume", "Fee bps", "Base fee", "Active", ""];
+      list.replaceChildren(el("div", { class: "plan-editor" }, [el("table", {}, [el("tr", {}, head.map(function (h) { return el("th", { text: h }); }))].concat(rows.map(function (r) {
+        var inputs = {
+          name: el("input", { value: r.name }),
+          monthly_price: el("input", { type: "number", value: String(r.monthly_price) }),
+          included_volume: el("input", { type: "number", value: String(r.included_volume) }),
+          fee_bps: el("input", { type: "number", value: String(r.fee_bps) }),
+          fee_base: el("input", { type: "number", value: String(r.fee_base) })
+        };
+        var active = el("input", { type: "checkbox" }); active.checked = r.active;
+        var save = el("button", { class: "primary", text: "Save" });
+        save.addEventListener("click", function () {
+          busy(save, function () {
+            return api("POST", "/admin/platform/plans/" + r.id, { name: inputs.name.value, live: r.live, currency: r.currency, monthly_price: Number(inputs.monthly_price.value), included_volume: Number(inputs.included_volume.value), fee_bps: Number(inputs.fee_bps.value), fee_base: Number(inputs.fee_base.value), limits: r.limits, active: active.checked });
+          }).then(function () { msg(out, "Plan saved", false); load(); }).catch(function (e) { msg(out, e.message, true); });
+        });
+        return el("tr", {}, [el("td", { class: "mono", text: String(r.id) }), el("td", {}, [inputs.name]), el("td", { text: r.live ? "live" : "test" }), el("td", {}, [inputs.monthly_price]), el("td", {}, [inputs.included_volume]), el("td", {}, [inputs.fee_bps]), el("td", {}, [inputs.fee_base]), el("td", {}, [active]), el("td", {}, [save])]);
+      })))]));
+    }).catch(function (e) { msg(list, e.message, true); });
+  }
+  layout("platform-plans", null, el("div", {}, [el("h2", { text: "Platform plans" }), el("p", { class: "sub", text: "Prices are in minor units of the plan currency. Zero means free." }), out, list]));
+  load();
+}
