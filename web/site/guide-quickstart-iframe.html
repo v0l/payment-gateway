@@ -32,6 +32,18 @@
   onPaid: function () { window.location = &quot;/thanks&quot;; }
 });</code></pre>
 <p>The frame posts <code>pgw:ready</code>, <code>pgw:resize</code>, <code>pgw:paid</code>, <code>pgw:expired</code> and <code>pgw:cancelled</code>. <code>gateway.js</code> turns them into the <code>onReady</code>, <code>onPaid</code> and similar callbacks and resizes the frame. Card checkouts from Stripe and Revolut refuse to be framed, so for those methods the embed redirects the top window.</p>
+<h2 id="modal">Modal</h2>
+<p>Pass <code>mode: &quot;modal&quot;</code> to open the pay page as an overlay instead of inside a container. It has a close button, Escape closes it, focus returns to the element that opened it, and no <code>container</code> is needed.</p>
+<pre><code class="language-js">PaymentGateway.open({
+  gateway: &quot;https://pay.example.com&quot;,
+  paymentId: &quot;PAYMENT_ID&quot;,
+  mode: &quot;modal&quot;,
+  onClosed: function () { console.log(&quot;closed&quot;); }
+});</code></pre>
+<p>Other options are <code>onReady</code>, <code>onPaid</code>, <code>onExpired</code>, <code>onCancelled</code>, <code>onError({code, message})</code>, <code>title</code> and <code>closeLabel</code>. <code>open</code> returns <code>{frame, close()}</code>. The script only accepts messages from the gateway origin, from its own frame and for the matching payment id.</p>
+<h2 id="content-security-policy">Content Security Policy</h2>
+<p>If your page sends a CSP, allow the gateway as a script and frame source. The frame and modal sizing is applied from script, so you do not need to relax <code>style-src</code>:</p>
+<pre><code class="language-text">Content-Security-Policy: script-src 'self' https://pay.example.com; frame-src https://pay.example.com</code></pre>
 <p>As with every integration mode, confirm payment on your server from the webhook.</p>
 </article>
 </main>

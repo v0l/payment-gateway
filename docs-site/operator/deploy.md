@@ -48,3 +48,11 @@ curl -X POST "$GW/admin/invites" \
 ```
 
 Open the returned `invite_url`, choose a password and enrol two factor authentication. Set `GATEWAY_OPERATOR_2FA_GRACE=1` only while bootstrapping.
+
+## Pay page checks
+
+`scripts/e2e/` holds a Playwright and axe-core run for the pay page. It starts a gateway on a fresh database with the mock provider and scans the page in light, dark and 360 px layouts for serious accessibility problems, horizontal scroll and small tap targets. Run `npm ci` in that directory, build the binary, then:
+
+```sh
+TEST_DATABASE_URL=mysql://root:test@127.0.0.1:33907/ CHROME=/usr/bin/google-chrome node run.mjs
+```
