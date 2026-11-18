@@ -1,8 +1,8 @@
 mod admin;
 mod console;
+mod docs;
 pub mod ledger;
 pub mod ops;
-mod docs;
 mod page;
 mod public;
 mod sandbox;
