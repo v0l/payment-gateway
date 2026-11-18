@@ -7,7 +7,7 @@ Rust service (axum, sqlx on MySQL/MariaDB). Read `DESIGN.md` for the model and `
 - `src/api/`: `admin.rs` (admin token API), `tenant.rs` (`/v1`, API key auth), `public.rs` (pay page, embed, SSE, provider webhooks), `console.rs` (`/console/api`, session auth), `sandbox.rs` (regtest tools, only when `SANDBOX_*` env is set)
 - `src/service.rs`: payments, attempts, settlement, expiry, refunds, webhook delivery. All money state changes go through here, inside one DB transaction with the payment row locked.
 - `src/providers/`: one file per provider behind the `Provider` trait (`mod.rs`). Mock provider is `mock.rs`, used by almost every test.
-- `src/db.rs`, `migrations/`: queries and schema. Migrations are forward only. Never edit an applied migration, add a new one.
+- `src/db.rs`, `migrations/`: queries and schema. Migrations are forward only. Never edit an applied migration. Add a new file named `<UTC timestamp YYYYMMDDHHMMSS>_<name>.sql` (for example `20261118093000_audit_log.sql`), never the next small number: several branches add migrations in parallel and numbered ones collide. Existing `0001`-`0004` stay as they are and sort first.
 - `src/validate.rs`, `src/ssrf.rs`: customer supplied config and URL checks. Anything a customer can type that makes the server open a connection or read a file must go through these.
 - `src/accounts.rs`, `src/limiter.rs`, `src/crypto.rs`: accounts and sessions, login limiter, sealing of secrets at rest.
 - `web/`: dependency free front end (`pay.*`, `console.*`, `sandbox.*`, `gateway.js`). No build step. CSP is `script-src 'self'`, so no inline scripts or styles.
@@ -41,6 +41,7 @@ node --check web/console.js   # and every other web js file you touch
 - Secrets are sealed at rest and never returned by any endpoint or written to logs. Add a test that a new secret field is not echoed.
 - Customer facing features must work for an untrusted project (see `validate.rs`). Operator only behaviour is gated on `trusted` or `is_operator`.
 - Every tenant scoped query takes the tenant id. Add a test where tenant B cannot read or change tenant A's data.
+- Several agents work at once in separate worktrees. Keep your change set focused, rebase on the default branch before you finish, and resolve conflicts yourself. Prefer adding a new module over growing a shared file.
 - Keep files under about 600 lines. Split by concern instead of growing `service.rs`, `db.rs` and `console.js`.
 
 ## Definition of done
