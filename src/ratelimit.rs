@@ -70,6 +70,9 @@ pub struct RateLimits {
     pub signup_ip: TokenBuckets,
     pub login_ip: TokenBuckets,
     pub hook_ip: TokenBuckets,
+    pub reset_ip: TokenBuckets,
+    pub reset_email: TokenBuckets,
+    pub token_confirm_ip: TokenBuckets,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -81,6 +84,9 @@ pub struct RateConfig {
     pub signup_ip: Rule,
     pub login_ip: Rule,
     pub hook_ip: Rule,
+    pub reset_ip: Rule,
+    pub reset_email: Rule,
+    pub token_confirm_ip: Rule,
 }
 
 impl Default for RateConfig {
@@ -93,6 +99,9 @@ impl Default for RateConfig {
             signup_ip: Rule::new(5, 5.0 / 3600.0),
             login_ip: Rule::new(20, 20.0 / 60.0),
             hook_ip: Rule::new(300, 50.0),
+            reset_ip: Rule::new(5, 5.0 / 900.0),
+            reset_email: Rule::new(5, 5.0 / 900.0),
+            token_confirm_ip: Rule::new(10, 10.0 / 900.0),
         }
     }
 }
@@ -107,6 +116,9 @@ impl RateLimits {
             signup_ip: TokenBuckets::new(c.signup_ip),
             login_ip: TokenBuckets::new(c.login_ip),
             hook_ip: TokenBuckets::new(c.hook_ip),
+            reset_ip: TokenBuckets::new(c.reset_ip),
+            reset_email: TokenBuckets::new(c.reset_email),
+            token_confirm_ip: TokenBuckets::new(c.token_confirm_ip),
         }
     }
 
@@ -124,6 +136,10 @@ impl RateLimits {
         match path {
             "/console/api/signup" => self.signup_ip.check(ip),
             "/console/api/login" => self.login_ip.check(ip),
+            "/console/api/reset" => self.reset_ip.check(ip),
+            "/console/api/reset/confirm" | "/console/api/email/confirm" => {
+                self.token_confirm_ip.check(ip)
+            }
             _ if path.starts_with("/hook/") => self.hook_ip.check(ip),
             _ => Ok(()),
         }

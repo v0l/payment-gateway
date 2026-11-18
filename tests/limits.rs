@@ -56,6 +56,9 @@ fn generous() -> RateConfig {
         signup_ip: big,
         login_ip: big,
         hook_ip: big,
+        reset_ip: big,
+        reset_email: big,
+        token_confirm_ip: big,
     }
 }
 

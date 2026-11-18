@@ -9,7 +9,7 @@ pub(super) struct ResetRequest {
 }
 
 fn too_many() -> ApiError {
-    ApiError(
+    ApiError::new(
         StatusCode::TOO_MANY_REQUESTS,
         "too many attempts, try again later".into(),
     )
@@ -45,13 +45,9 @@ pub(super) async fn request_reset(
     Json(r): Json<ResetRequest>,
 ) -> ApiResult<Value> {
     let email = accounts::normalize_email(&r.email).unwrap_or_default();
-    let ip = format!("reset-ip:{}", client_ip(&headers));
-    let ek = format!("reset-email:{email}");
-    if s.reset_limiter.blocked(&ip) || s.reset_limiter.blocked(&ek) {
-        return Err(too_many());
+    if let Err(secs) = s.rate_limits.reset_email.check(&email) {
+        return Err(ApiError::rate_limited(secs));
     }
-    s.reset_limiter.failure(&ip);
-    s.reset_limiter.failure(&ek);
     if s.service.mailer.enabled() && !email.is_empty() {
         tokio::spawn(send_reset(s.clone(), email, Origin::from_headers(&headers)));
     }
@@ -69,18 +65,12 @@ pub(super) async fn confirm_reset(
     headers: HeaderMap,
     Json(c): Json<ResetConfirm>,
 ) -> ApiResult<Value> {
-    let ip = format!("reset-confirm:{}", client_ip(&headers));
-    if s.login_limiter.blocked(&ip) {
-        return Err(too_many());
-    }
     accounts::check_password(&c.password).map_err(|e| ApiError::bad_request(e.to_string()))?;
     let invalid = || ApiError::bad_request("this reset link is not valid or has expired");
     let Some(token) = account_tokens::find_valid(s.pool(), RESET, &c.token).await? else {
-        s.login_limiter.failure(&ip);
         return Err(invalid());
     };
     if !account_tokens::consume(s.pool(), token.id).await? {
-        s.login_limiter.failure(&ip);
         return Err(invalid());
     }
     let hash = accounts::hash_password(&c.password)?;
@@ -107,7 +97,7 @@ pub(super) async fn request_email_change(
     Json(c): Json<EmailChange>,
 ) -> ApiResult<Value> {
     if !s.service.mailer.enabled() {
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::CONFLICT,
             "email is not configured on this gateway".into(),
         ));
@@ -118,7 +108,7 @@ pub(super) async fn request_email_change(
     }
     if !accounts::verify_password(&sess.account.password_hash, &c.password) {
         s.login_limiter.failure(&key);
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::FORBIDDEN,
             "current password is wrong".into(),
         ));
@@ -129,7 +119,7 @@ pub(super) async fn request_email_change(
         .await?
         .is_some()
     {
-        return Err(ApiError(
+        return Err(ApiError::new(
             StatusCode::CONFLICT,
             "an account with this email already exists".into(),
         ));
@@ -157,13 +147,8 @@ pub(super) async fn confirm_email_change(
     headers: HeaderMap,
     Json(c): Json<EmailConfirm>,
 ) -> ApiResult<Value> {
-    let ip = format!("reset-confirm:{}", client_ip(&headers));
-    if s.login_limiter.blocked(&ip) {
-        return Err(too_many());
-    }
     let invalid = || ApiError::bad_request("this confirmation link is not valid or has expired");
     let Some(token) = account_tokens::find_valid(s.pool(), EMAIL_CHANGE, &c.token).await? else {
-        s.login_limiter.failure(&ip);
         return Err(invalid());
     };
     let new_email = token.new_email.clone().ok_or_else(invalid)?;
@@ -171,7 +156,6 @@ pub(super) async fn confirm_email_change(
         .await?
         .ok_or_else(invalid)?;
     if !account_tokens::consume(s.pool(), token.id).await? {
-        s.login_limiter.failure(&ip);
         return Err(invalid());
     }
     accounts::set_email(s.pool(), account.id, &new_email).await?;

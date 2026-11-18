@@ -20,7 +20,6 @@ pub struct AppState {
     pub allow_mock: bool,
     pub sandbox: Option<Arc<crate::sandbox::Sandbox>>,
     pub login_limiter: Arc<crate::limiter::Limiter>,
-    pub reset_limiter: Arc<crate::limiter::Limiter>,
     pub max_projects: usize,
     pub rate_limits: Arc<crate::ratelimit::RateLimits>,
 }
@@ -39,10 +38,6 @@ impl AppState {
             sandbox,
             login_limiter: Arc::new(crate::limiter::Limiter::new(
                 8,
-                std::time::Duration::from_secs(900),
-            )),
-            reset_limiter: Arc::new(crate::limiter::Limiter::new(
-                5,
                 std::time::Duration::from_secs(900),
             )),
             max_projects: 5,

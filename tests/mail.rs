@@ -287,7 +287,17 @@ async fn reset_requests_are_rate_limited() {
         statuses.push(r.status);
     }
     assert_eq!(statuses[0], StatusCode::OK);
+    assert_eq!(statuses[5], StatusCode::TOO_MANY_REQUESTS);
     assert_eq!(statuses[6], StatusCode::TOO_MANY_REQUESTS);
+    let blocked = post_from(
+        &h.app,
+        "/reset",
+        "9.9.9.200",
+        json!({"email": "a@example.com"}),
+    )
+    .await;
+    assert!(blocked.headers.contains_key("retry-after"));
+    assert_eq!(blocked.json["code"], "rate_limited");
     let unknown: Vec<_> = {
         let mut v = vec![];
         for _ in 0..7 {
