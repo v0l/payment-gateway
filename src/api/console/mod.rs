@@ -184,6 +184,10 @@ pub fn router() -> Router<AppState> {
             get(list_notes).post(add_note),
         )
         .route(
+            "/projects/{id}/payments/{payment}/refund-preview",
+            get(refund_preview),
+        )
+        .route(
             "/projects/{id}/payments/{payment}/mark-paid",
             post(mark_paid),
         )

@@ -204,3 +204,25 @@ pub(super) async fn delete_view(
         .await;
     Ok(Json(json!({"deleted": true})))
 }
+
+#[derive(Deserialize)]
+pub(super) struct PreviewQuery {
+    amount: Option<u64>,
+    attempt_id: Option<u64>,
+    destination: Option<String>,
+}
+
+pub(super) async fn refund_preview(
+    sess: Session,
+    State(s): State<AppState>,
+    Path((id, payment)): Path<(u64, String)>,
+    Query(q): Query<PreviewQuery>,
+) -> ApiResult<crate::service::RefundPreview> {
+    let (t, _) = sess.project(&s, id, Role::Viewer).await?;
+    let pid = parse_payment_id(&payment).ok_or_else(ApiError::not_found)?;
+    Ok(Json(
+        s.service
+            .refund_preview(&t, &pid, q.amount, q.attempt_id, q.destination.as_deref())
+            .await?,
+    ))
+}

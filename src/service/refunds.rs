@@ -42,25 +42,7 @@ impl Service {
             .filter(|r| r.attempt_id == attempt.id && r.status != "failed")
             .map(|r| r.charge_amount)
             .sum();
-        let gross = (attempt.base_amount + attempt.processing_fee).max(1) as u128;
-        let mut charge = (attempt.charge_amount as u128 * amount as u128 / gross) as u64;
-        if amount == remaining {
-            charge = charge
-                .max(
-                    ((attempt.charge_amount as u128 * attempt.base_amount as u128 / gross) as u64)
-                        .saturating_sub(charge_committed),
-                )
-                .min(attempt.charge_amount.saturating_sub(charge_committed));
-        }
-        if charge == 0 {
-            return Err(Error::Invalid("refund is too small".into()));
-        }
-        if attempt.charge_currency == "BTC" {
-            charge = (charge / 1000) * 1000;
-            if charge == 0 {
-                return Err(Error::Invalid("refund is below 1 sat".into()));
-            }
-        }
+        let charge = super::refund_preview::refund_charge(&attempt, amount, remaining, charge_committed)?;
         let refund_id = db::insert_refund(
             &mut *tx,
             id,

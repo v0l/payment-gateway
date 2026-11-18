@@ -290,6 +290,8 @@ mod expiry;
 mod health;
 mod limits;
 mod manual;
+mod refund_preview;
+pub use refund_preview::{RefundPreview, validate_destination};
 mod notify;
 mod payments;
 mod payout_send;
