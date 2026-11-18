@@ -135,7 +135,8 @@ async fn serve() -> Result<()> {
         None => None,
     };
     let _workers = worker::spawn(service.clone(), Duration::from_secs(5));
-    let state = AppState::new(service, config.admin_token, config.allow_mock, sandbox);
+    let mut state = AppState::new(service, config.admin_token, config.allow_mock, sandbox);
+    state.operator_2fa_grace = std::env::var("GATEWAY_OPERATOR_2FA_GRACE").is_ok_and(|v| v == "1");
     let listener = tokio::net::TcpListener::bind(&config.listen).await?;
     log::info!("listening on {}", config.listen);
     axum::serve(listener, api::router(state))

@@ -23,6 +23,7 @@ pub struct AppState {
     pub login_limiter: Arc<crate::limiter::Limiter>,
     pub max_projects: usize,
     pub rate_limits: Arc<crate::ratelimit::RateLimits>,
+    pub operator_2fa_grace: bool,
 }
 
 impl AppState {
@@ -43,6 +44,7 @@ impl AppState {
             )),
             max_projects: 5,
             rate_limits: Arc::new(crate::ratelimit::RateLimits::new(Default::default())),
+            operator_2fa_grace: true,
         }
     }
 

@@ -43,6 +43,12 @@ pub enum Action {
     PrivacyExported,
     PrivacyDeleted,
     LedgerReconciled,
+    TwoFactorEnabled,
+    TwoFactorDisabled,
+    TwoFactorRecoveryRegenerated,
+    TwoFactorRecoveryUsed,
+    TwoFactorLoginFailed,
+    ProjectRequire2faChanged,
 }
 
 impl Action {
@@ -85,6 +91,12 @@ impl Action {
             Self::PrivacyExported => "privacy.exported",
             Self::PrivacyDeleted => "privacy.deleted",
             Self::LedgerReconciled => "ledger.reconciled",
+            Self::TwoFactorEnabled => "2fa.enabled",
+            Self::TwoFactorDisabled => "2fa.disabled",
+            Self::TwoFactorRecoveryRegenerated => "2fa.recovery_regenerated",
+            Self::TwoFactorRecoveryUsed => "2fa.recovery_used",
+            Self::TwoFactorLoginFailed => "login.2fa_failed",
+            Self::ProjectRequire2faChanged => "project.require_2fa_changed",
         }
     }
 }

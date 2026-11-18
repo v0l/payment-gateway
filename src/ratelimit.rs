@@ -135,7 +135,7 @@ impl RateLimits {
         }
         match path {
             "/console/api/signup" => self.signup_ip.check(ip),
-            "/console/api/login" => self.login_ip.check(ip),
+            "/console/api/login" | "/console/api/login/2fa" => self.login_ip.check(ip),
             "/console/api/reset" => self.reset_ip.check(ip),
             "/console/api/reset/confirm" | "/console/api/email/confirm" => {
                 self.token_confirm_ip.check(ip)

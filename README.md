@@ -35,6 +35,8 @@ curl -X POST $GW/admin/invites -H "Authorization: Bearer $ADMIN" -H 'content-typ
 
 Open the returned `invite_url`, choose a password, then create projects, add providers (credentials are write-only), watch payments and webhooks, refund, and invite teammates. Customer projects start in test mode until an operator lifts the limits from the project's Settings page.
 
+Two factor: each account can enrol a TOTP authenticator in Account settings (RFC 6238, SHA1, 6 digits, 30 s, one step of drift). Activation needs a valid code and returns 10 single use recovery codes, shown once and stored hashed. With 2FA on, `POST /console/api/login` returns `{"two_factor": true, "challenge": ...}` and no session; `POST /console/api/login/2fa` with `challenge` plus `code` or `recovery_code` creates it. A TOTP step cannot be used twice, and failed codes count against the login limiter. Disabling and regenerating recovery codes need the password and a current code. Owners can set `require_2fa` on a project (`POST /console/api/projects/{id}/require-2fa`), which blocks console access to it for members without 2FA. Operators must have 2FA once `GATEWAY_OPERATOR_2FA_GRACE` is not `1`; set it to `1` while bootstrapping.
+
 ## Set up a tenant with the admin API
 
 ```
