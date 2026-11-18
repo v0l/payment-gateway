@@ -203,6 +203,7 @@ pub(super) async fn get_limits(
 pub(super) async fn set_limits(
     sess: Session,
     State(s): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<u64>,
     Json(input): Json<crate::limits::LimitsInput>,
 ) -> ApiResult<LimitsView> {
@@ -212,8 +213,17 @@ pub(super) async fn set_limits(
         .ok_or_else(ApiError::not_found)?;
     let updated = input.apply(t.limits);
     db::set_tenant_limits(s.pool(), id, &updated).await?;
-    let t = db::get_tenant(s.pool(), id)
+    let after = db::get_tenant(s.pool(), id)
         .await?
         .ok_or_else(ApiError::not_found)?;
-    Ok(Json(limits_view(&s, &t).await?))
+    sess.event(Action::LimitsChanged)
+        .tenant(id)
+        .target("project", id)
+        .details(audit::changed(&crate::limits::diff(
+            &t.limits,
+            &after.limits,
+        )))
+        .record(s.pool(), &Origin::from_headers(&headers))
+        .await;
+    Ok(Json(limits_view(&s, &after).await?))
 }

@@ -151,6 +151,36 @@ impl LimitsInput {
     }
 }
 
+pub fn diff(before: &LimitOverrides, after: &LimitOverrides) -> [(&'static str, bool); 7] {
+    [
+        (
+            "payments_per_day",
+            before.limit_payments_per_day != after.limit_payments_per_day,
+        ),
+        (
+            "pending_payments",
+            before.limit_pending_payments != after.limit_pending_payments,
+        ),
+        (
+            "amount_per_payment",
+            before.limit_amount_per_payment != after.limit_amount_per_payment,
+        ),
+        (
+            "volume_per_day",
+            before.limit_volume_per_day != after.limit_volume_per_day,
+        ),
+        ("providers", before.limit_providers != after.limit_providers),
+        (
+            "webhook_endpoints",
+            before.limit_webhook_endpoints != after.limit_webhook_endpoints,
+        ),
+        (
+            "attempts_per_payment",
+            before.limit_attempts_per_payment != after.limit_attempts_per_payment,
+        ),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

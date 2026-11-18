@@ -1292,6 +1292,18 @@ async fn project_limits_show_usage_and_only_operators_can_edit_them() {
         )
         .await;
     assert_eq!(v["limits"]["pending_payments"], 50);
+
+    let rows: Vec<(String, Option<u64>, Option<String>)> = sqlx::query_as(
+        "select action, tenant_id, details from audit_event where action = 'limits.changed' order by id",
+    )
+    .fetch_all(&h.pool)
+    .await
+    .unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].1, Some(pid));
+    let details: Value = serde_json::from_str(rows[0].2.as_deref().unwrap()).unwrap();
+    assert_eq!(details, json!({"changed": ["pending_payments"]}));
+    assert!(!rows[0].2.as_deref().unwrap().contains("1000"));
 }
 
 #[tokio::test]

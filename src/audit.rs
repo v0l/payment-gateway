@@ -32,6 +32,7 @@ pub enum Action {
     AccountDisabled,
     AccountEnabled,
     DeliveryReplayed,
+    LimitsChanged,
 }
 
 impl Action {
@@ -63,6 +64,7 @@ impl Action {
             Self::AccountDisabled => "account.disabled",
             Self::AccountEnabled => "account.enabled",
             Self::DeliveryReplayed => "delivery.replayed",
+            Self::LimitsChanged => "limits.changed",
         }
     }
 }
