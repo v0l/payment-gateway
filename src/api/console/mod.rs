@@ -21,10 +21,12 @@ mod balance;
 mod billing;
 mod branding;
 mod customers;
+mod dashboard;
 mod endpoints;
 mod export;
 mod keys;
 mod operator;
+mod operator_tools;
 mod payment_filters;
 mod payment_tools;
 mod payments;
@@ -45,10 +47,12 @@ use balance::*;
 use billing::*;
 use branding::*;
 use customers::*;
+use dashboard::*;
 use endpoints::*;
 use export::*;
 use keys::*;
 use operator::*;
+use operator_tools::*;
 use payment_filters::*;
 use payment_tools::*;
 use payments::*;
@@ -176,6 +180,11 @@ pub fn router() -> Router<AppState> {
             post(test_endpoint),
         )
         .route("/projects/{id}/stats", get(stats))
+        .route("/projects/{id}/dashboard", get(dashboard))
+        .route("/operator/tenants", get(tenant_overview))
+        .route("/operator/tenants/{id}/support", get(support_view))
+        .route("/operator/search", get(global_search))
+        .route("/operator/health", get(platform_health))
         .route("/projects/{id}/customers", get(list_customers))
         .route("/projects/{id}/customers/{customer}", get(get_customer))
         .route(
