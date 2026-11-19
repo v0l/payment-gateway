@@ -107,11 +107,22 @@ async fn console_shell_is_served_without_a_session_and_with_a_strict_csp() {
                 && !csp.contains("unsafe"),
             "{csp}"
         );
-        assert!(r.text.contains("/console/app.js"));
+        assert!(r.text.contains("/static/assets/console-"), "{path}");
+        assert!(!r.text.contains("<script>"), "{path}");
     }
-    let js = send(&h.app, "GET", "/console/app.js", None, &[], Value::Null).await;
+    let shell = send(&h.app, "GET", "/console", None, &[], Value::Null).await;
+    let js = send(&h.app, "GET", &console_asset(&shell.text, ".js"), None, &[], Value::Null).await;
     assert_eq!(js.headers["content-type"], "text/javascript");
-    assert_eq!(js.headers["cache-control"], "no-cache");
+    assert_eq!(js.headers["cache-control"], "public, max-age=31536000, immutable");
+    assert_eq!(shell.headers["cache-control"], "no-store");
+}
+
+fn console_asset(shell: &str, ext: &str) -> String {
+    shell
+        .split('"')
+        .find(|s| s.starts_with("/static/assets/console-") && s.ends_with(ext))
+        .unwrap()
+        .to_string()
 }
 
 #[tokio::test]
@@ -180,10 +191,10 @@ async fn console_fonts_are_self_hosted_and_allowed_by_csp() {
 #[test]
 fn console_and_pay_css_take_colours_from_tokens() {
     for css in [
-        include_str!("../web/console.css"),
+        include_str!("../web/src/console/console.css"),
         include_str!("../web/src/pay/pay.css"),
         include_str!("../web/src/receipt/receipt.css"),
-        include_str!("../web/components.css"),
+        include_str!("../web/src/components.css"),
     ] {
         let loose = css.lines().filter(|l| {
             let l = l.trim_start();
@@ -194,32 +205,8 @@ fn console_and_pay_css_take_colours_from_tokens() {
 }
 
 #[test]
-fn console_never_hands_null_to_replace_children_which_renders_the_text_null() {
-    let nullable = ["tabBar(", ": null)", "change,"];
-    for (name, js) in console_scripts() {
-        for line in js.lines().filter(|l| l.contains("replaceChildren(")) {
-            let filtered = line.contains(".filter(Boolean)");
-            for n in nullable {
-                assert!(filtered || !line.contains(n), "{name}: {line}");
-            }
-        }
-    }
-}
-
-#[test]
-fn console_defines_confirm_dialog_once_so_later_scripts_cannot_override_it() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/console");
-    let mut definitions = 0;
-    for entry in std::fs::read_dir(dir).unwrap() {
-        let js = std::fs::read_to_string(entry.unwrap().path()).unwrap();
-        definitions += js.matches("function confirmDialog(").count();
-    }
-    assert_eq!(definitions, 1);
-}
-
-#[test]
 fn mobile_tabs_scroll_sideways_instead_of_wrapping_and_there_is_no_sidebar() {
-    let css = include_str!("../web/console.css");
+    let css = include_str!("../web/src/console/console.css");
     let tabs = css
         .lines()
         .find(|l| l.starts_with(".tabs, .subtabs {"))
@@ -228,131 +215,23 @@ fn mobile_tabs_scroll_sideways_instead_of_wrapping_and_there_is_no_sidebar() {
     assert!(!css.contains("--nav-bg") && !css.contains(".shell {"));
 }
 
-fn console_scripts() -> Vec<(String, String)> {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/console");
-    let mut out: Vec<(String, String)> = std::fs::read_dir(dir)
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|x| x == "js"))
-        .map(|p| {
-            (
-                p.file_name().unwrap().to_string_lossy().into_owned(),
-                std::fs::read_to_string(&p).unwrap(),
-            )
-        })
-        .collect();
-    out.sort();
-    out
-}
-
-fn called_helpers(js: &str) -> Vec<String> {
-    let bytes = js.as_bytes();
-    let mut names = vec![];
-    let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c.is_ascii_lowercase()
-            && (i == 0
-                || !(bytes[i - 1].is_ascii_alphanumeric()
-                    || bytes[i - 1] == b'.'
-                    || bytes[i - 1] == b'_'
-                    || bytes[i - 1] == b'$'))
-        {
-            let start = i;
-            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
-                i += 1;
-            }
-            let name = &js[start..i];
-            let camel = name.chars().any(|c| c.is_ascii_uppercase());
-            if camel && bytes.get(i) == Some(&b'(') {
-                names.push(name.to_string());
-            }
-            continue;
-        }
-        i += 1;
-    }
-    names
-}
-
-fn declared_names(js: &str) -> Vec<String> {
-    let ident = |s: &str| -> String {
-        s.trim_start()
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect()
-    };
-    let mut out = vec![];
-    for (i, _) in js.match_indices("function") {
-        let rest = &js[i + 8..];
-        out.push(ident(rest));
-        if let (Some(open), Some(close)) = (rest.find('('), rest.find(')'))
-            && open < close
-        {
-            out.extend(rest[open + 1..close].split(',').map(ident));
-        }
-    }
-    for (i, _) in js.match_indices("var ") {
-        out.push(ident(&js[i + 4..]));
-    }
-    out.into_iter().filter(|n| !n.is_empty()).collect()
-}
-
-#[test]
-fn every_helper_the_console_calls_is_defined_in_a_console_script() {
-    let scripts = console_scripts();
-    let defined: std::collections::HashSet<String> = scripts
-        .iter()
-        .flat_map(|(_, js)| declared_names(js))
-        .collect();
-    let builtins = [
-        "addEventListener",
-        "removeEventListener",
-        "setTimeout",
-        "clearTimeout",
-        "setInterval",
-        "clearInterval",
-        "encodeURIComponent",
-        "decodeURIComponent",
-        "parseInt",
-        "parseFloat",
-        "isNaN",
-        "isFinite",
-        "requestAnimationFrame",
-        "structuredClone",
-    ];
-    for (name, js) in &scripts {
-        for called in called_helpers(js) {
-            assert!(
-                defined.contains(&called) || builtins.contains(&called.as_str()),
-                "{name} calls {called}() but no console script defines it"
-            );
-        }
-    }
-}
-
-#[test]
-fn payment_detail_without_line_items_renders_no_null_text() {
-    let js = include_str!("../web/console/paydetail.js");
-    assert!(!js.contains("box.replaceChildren(\n"));
-    assert!(js.contains("].filter(Boolean)"));
-}
-
 #[test]
 fn expired_and_cancelled_pills_are_neutral_and_failures_stay_red() {
-    let css = include_str!("../web/console.css");
+    let css = include_str!("../web/src/console/console.css");
     let red = css
         .lines()
         .find(|l| l.contains("var(--bad)") && l.starts_with(".pill"))
         .unwrap();
     assert!(red.contains(".pill.failed") && red.contains(".pill.disputed"));
     assert!(!red.contains("expired") && !red.contains("cancelled"));
-    let core = include_str!("../web/console/core.js");
-    let tones = core
+    let format = include_str!("../web/src/console/format.ts");
+    let tones = format
         .lines()
-        .find(|l| l.starts_with("var STATUS_TONE"))
-        .unwrap();
-    assert!(tones.contains("expired: \"neutral\"") && tones.contains("cancelled: \"neutral\""));
-    assert!(tones.contains("failed: \"bad\"") && tones.contains("disputed: \"bad\""));
+        .skip_while(|l| !l.contains("STATUS_TONE"))
+        .take_while(|l| !l.starts_with("};"))
+        .collect::<String>();
+    assert!(tones.contains("expired: 'neutral'") && tones.contains("cancelled: 'neutral'"));
+    assert!(tones.contains("failed: 'bad'") && tones.contains("disputed: 'bad'"));
 }
 
 #[tokio::test]
@@ -1441,40 +1320,18 @@ async fn providers_with_history_cannot_be_deleted_but_unused_ones_can() {
 
 #[test]
 fn signup_leaves_the_invite_url_so_the_used_invite_is_not_rechecked() {
-    let auth = include_str!("../web/console/auth.js");
-    let app = include_str!("../web/console/app.js");
-    assert!(auth.contains(r#"location.replace("/console#/")"#));
-    assert!(app.contains("if (m && !me)"));
+    let auth = include_str!("../web/src/console/auth.tsx");
+    assert!(auth.contains("location.replace('/console/')"));
 }
 
 #[tokio::test]
-async fn every_console_script_is_served_and_loaded_by_the_shell() {
+async fn console_shell_loads_the_built_bundle_and_its_styles() {
     let h = harness().await;
     let shell = send(&h.app, "GET", "/console", None, &[], Value::Null).await;
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/console");
-    let mut on_disk: Vec<String> = std::fs::read_dir(dir)
-        .unwrap()
-        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-        .filter(|n| n.ends_with(".js"))
-        .collect();
-    on_disk.sort();
-    let mut tagged: Vec<String> = shell
-        .text
-        .split("<script src=\"/console/")
-        .skip(1)
-        .map(|rest| rest.split('"').next().unwrap().to_string())
-        .collect();
-    assert_eq!(tagged.last().map(String::as_str), Some("app.js"));
-    assert_eq!(tagged.first().map(String::as_str), Some("core.js"));
-    tagged.sort();
-    assert_eq!(
-        tagged, on_disk,
-        "console.html and web/console must list the same scripts"
-    );
-    for name in &on_disk {
-        let path = format!("/console/{name}");
+    for ext in [".js", ".css"] {
+        let path = console_asset(&shell.text, ext);
         let r = send(&h.app, "GET", &path, None, &[], Value::Null).await;
-        assert_eq!(r.headers["content-type"], "text/javascript", "{path}");
+        assert_eq!(r.status, StatusCode::OK, "{path}");
         assert!(!r.text.is_empty(), "{path}");
     }
 }

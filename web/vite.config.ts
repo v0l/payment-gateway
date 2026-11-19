@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import preact from '@preact/preset-vite';
 
-const pages = ['pay', 'receipt'];
+const pages = ['pay', 'receipt', 'console'];
 
 const gateway = process.env.GATEWAY_URL ?? 'http://127.0.0.1:8080';
 

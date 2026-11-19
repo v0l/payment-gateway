@@ -1,13 +1,33 @@
 {
+  "_hooks.module-CajNU6eg.js": {
+    "file": "assets/hooks.module-CajNU6eg.js",
+    "name": "hooks.module"
+  },
   "_tokens-BoNFgtfW.css": {
     "file": "assets/tokens-BoNFgtfW.css",
     "src": "_tokens-BoNFgtfW.css"
   },
+  "console.html": {
+    "file": "assets/console-B2TDMLfg.js",
+    "name": "console",
+    "src": "console.html",
+    "isEntry": true,
+    "imports": [
+      "_hooks.module-CajNU6eg.js"
+    ],
+    "css": [
+      "assets/console-DtI-LzF1.css",
+      "assets/tokens-BoNFgtfW.css"
+    ]
+  },
   "pay.html": {
-    "file": "assets/pay-Q1E-Mk3S.js",
+    "file": "assets/pay-Dk0_t5hG.js",
     "name": "pay",
     "src": "pay.html",
     "isEntry": true,
+    "imports": [
+      "_hooks.module-CajNU6eg.js"
+    ],
     "css": [
       "assets/pay-9lViy5g_.css",
       "assets/tokens-BoNFgtfW.css"

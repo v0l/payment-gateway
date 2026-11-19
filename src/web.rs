@@ -104,3 +104,8 @@ pub fn gateway_script() -> Response {
 pub fn favicon() -> Response {
     respond("favicon.svg", "no-cache")
 }
+
+pub fn font(path: &str) -> Option<Response> {
+    Dist::get(path)?;
+    Some(respond(path, IMMUTABLE))
+}
