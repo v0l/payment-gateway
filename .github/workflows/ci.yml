@@ -12,6 +12,18 @@ jobs:
       - run: cd web && bun run gen:api
       - name: generated api types and dist are up to date
         run: git diff --exit-code web/dist web/src/api
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: payment-gateway:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
   pages:
     runs-on: ubuntu-latest
     services:
