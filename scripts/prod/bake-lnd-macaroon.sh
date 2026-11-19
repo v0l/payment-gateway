@@ -9,7 +9,7 @@ ssh_key="${BITCOIN_SSH_KEY:-$HOME/.ssh/agents}"
 lnd_container="${LND_CONTAINER:-bitcoin-lnd-1}"
 root_key_id="${MACAROON_ROOT_KEY_ID:-853}"
 source_ns="${LND_CERT_NAMESPACE:-yalr}"
-permissions=(invoices:read invoices:write offchain:read offchain:write)
+permissions=(invoices:read invoices:write offchain:read offchain:write address:read address:write onchain:read)
 
 apply=false
 apply_enabled "${1:-}" && apply=true
