@@ -1334,10 +1334,30 @@ async fn providers_with_history_cannot_be_deleted_but_unused_ones_can() {
     assert_eq!(s, StatusCode::OK);
 }
 
-#[test]
-fn signup_leaves_the_invite_url_so_the_used_invite_is_not_rechecked() {
+#[tokio::test]
+async fn every_console_redirect_target_serves_the_shell() {
+    let h = harness().await;
     let auth = include_str!("../web/src/console/auth.tsx");
-    assert!(auth.contains("location.replace('/console/')"));
+    let mut targets = Vec::new();
+    for line in auth.lines() {
+        for marker in ["location.replace('", "href=\"/console"] {
+            if let Some(i) = line.find(marker) {
+                let rest = &line[i + marker.len()..];
+                let target = if marker.starts_with("href") {
+                    format!("/console{}", rest.split('"').next().unwrap())
+                } else {
+                    rest.split('\'').next().unwrap().to_string()
+                };
+                targets.push(target);
+            }
+        }
+    }
+    assert!(targets.len() >= 3, "{targets:?}");
+    for t in targets {
+        let r = send(&h.app, "GET", &t, None, &[], Value::Null).await;
+        assert_eq!(r.status, StatusCode::OK, "{t} must serve the console shell");
+        assert!(r.text.contains("/static/assets/console-"), "{t}");
+    }
 }
 
 #[tokio::test]
@@ -1550,4 +1570,19 @@ async fn operators_can_manage_shared_providers_and_projects_see_fees() {
     let text = activity.to_string();
     assert!(text.contains("shared_provider.created") && text.contains("shared_fee.overridden"));
     assert!(!text.contains("\"m\""));
+}
+
+#[test]
+fn landing_decides_once_so_the_new_project_secrets_are_not_redirected_away() {
+    let app = include_str!("../web/src/console/App.tsx");
+    let landing = app
+        .lines()
+        .skip_while(|l| !l.starts_with("function Landing()"))
+        .take_while(|l| !l.starts_with('}'))
+        .collect::<String>();
+    assert!(landing.contains("useState(() =>"), "{landing}");
+    assert!(
+        !landing.contains("getSession().me!.projects.length"),
+        "{landing}"
+    );
 }

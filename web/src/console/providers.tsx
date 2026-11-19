@@ -8,11 +8,20 @@ import { Empty, Msg, Pill, Section, Skeleton, Table, TextField, SelectField, Are
 
 type Field = [string, string, string?];
 
-const PROVIDER_TEMPLATES: Record<string, { fields: Field[]; note: string }> = {
+const PROVIDER_TEMPLATES: Record<string, { label?: string; fields: Field[]; note: string }> = {
   'lightning/lnd': { fields: [['url', 'LND gRPC url (https://host:10009)'], ['cert', 'tls.cert (PEM)', 'area'], ['macaroon', 'Macaroon (hex)', 'area']], note: 'Use a macaroon limited to invoices and offchain payments.' },
   'onchain/lnd': {
     fields: [['url', 'LND gRPC url (https://host:10009)'], ['cert', 'tls.cert (PEM)', 'area'], ['macaroon', 'Macaroon (hex)', 'area'], ['address_type', 'Address type (p2tr, p2wkh, np2wkh)'], ['min_confirmations', 'Confirmations needed (1-100)']],
     note: '',
+  },
+  'onchain/xpub': {
+    label: 'Bitcoin on-chain (your xpub)',
+    fields: [
+      ['xpub', 'Extended public key (xpub, ypub, zpub) or output descriptor', 'area'],
+      ['min_confirmations', 'Confirmations needed (0-100, default 1)'],
+      ['esplora_url', 'Esplora url (optional, leave blank for the gateway default)'],
+    ],
+    note: 'The gateway only sees public keys. Payments go straight to your wallet, and refunds are done by hand from it.',
   },
   'stripe/stripe': { fields: [['secret_key', 'Secret key (sk_live_...)'], ['webhook_secret', 'Webhook signing secret (whsec_...)']], note: 'Add the webhook URL shown after saving to Stripe, for checkout.session events.' },
   'revolut/revolut': { fields: [['token', 'Merchant API key'], ['api_version', 'API version (2024-09-01)']], note: 'The webhook is registered for you.' },
@@ -198,6 +207,77 @@ export function Providers(props: { pid: string }) {
   );
 }
 
+interface XpubStatus {
+  script: string;
+  network: string;
+  next_index: number;
+  next_address: string;
+  source: string;
+  chain: { ok: boolean; message: string };
+  preview: string[];
+  issued: { index: number; address: string }[];
+}
+
+function XpubPanel(props: { pid: string; row: ProviderRow; canWrite: boolean }) {
+  const { pid, row, canWrite } = props;
+  const { data: x, error } = useLoad(() => api<XpubStatus>('GET', `/projects/${pid}/providers/${row.id}/xpub`), [pid, row.id]);
+  const [from, setFrom] = useState('0');
+  const [count, setCount] = useState('20');
+  const [busy, setBusy] = useState(false);
+  const [note, out] = useNote();
+  if (error) return <div class="card"><Msg text={error} bad /></div>;
+  if (!x) {
+    return (
+      <div class="card">
+        <h3>Derivation and chain source</h3>
+        <Skeleton />
+      </div>
+    );
+  }
+  return (
+    <div class="card">
+      <h3>Derivation and chain source</h3>
+      <p class="muted">{`${x.script} on ${x.network}, receive chain /0/*. Next index ${x.next_index}, next address ${x.next_address}.`}</p>
+      <p class="muted">{`Chain source: ${x.source}. ${x.chain.message}${x.chain.ok ? '' : ' (not reachable)'}`}</p>
+      <h3>First addresses, check them against your wallet</h3>
+      <ul class="mono">
+        {x.preview.map((a, i) => (
+          <li key={i}>{`${i}  ${a}`}</li>
+        ))}
+      </ul>
+      {x.issued.length ? <h3>Latest addresses handed to customers</h3> : null}
+      {x.issued.length ? (
+        <ul class="mono">
+          {x.issued.map(a => (
+            <li key={a.index}>{`${a.index}  ${a.address}`}</li>
+          ))}
+        </ul>
+      ) : null}
+      <h3>Rescan a range</h3>
+      <div class="row">
+        <TextField label="First index" type="number" min="0" value={from} onInput={setFrom} />
+        <TextField label="Addresses" type="number" min="1" value={count} onInput={setCount} />
+        <button
+          disabled={!canWrite || busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const r = await api<{ message: string }>('POST', `/projects/${pid}/providers/${row.id}/rescan`, { from: Number(from), count: Number(count) });
+              out(r.message);
+            } catch (e) {
+              out(errText(e), true);
+            }
+            setBusy(false);
+          }}
+        >
+          Rescan
+        </button>
+      </div>
+      {note}
+    </div>
+  );
+}
+
 function ProviderFormBody(props: { pid: string; row: ProviderRow | null }) {
   const { pid, row } = props;
   const keys = Object.keys(PROVIDER_TEMPLATES);
@@ -217,6 +297,7 @@ function ProviderFormBody(props: { pid: string; row: ProviderRow | null }) {
   const [busy, setBusy] = useState(false);
   const [noteNode, out] = useNote();
   const [hook, setHook] = useState('');
+  const [preview, setPreview] = useState<string[] | null>(null);
   const t = PROVIDER_TEMPLATES[sel];
   const save = async () => {
     const parts = sel.split('/');
@@ -234,10 +315,13 @@ function ProviderFormBody(props: { pid: string; row: ProviderRow | null }) {
     const payload = { method: parts[0], provider_type: parts[1], name, config: cfg, fee_rate: rate === '' ? null : Number(rate), fee_base: base === '' ? null : Number(base), fee_currency: fcur || null };
     setBusy(true);
     try {
-      const r = row ? await api<{ hook_url?: string }>('POST', `/projects/${pid}/providers/${row.id}`, payload) : await api<{ hook_url?: string }>('POST', `/projects/${pid}/providers`, payload);
+      const r = row
+        ? await api<{ hook_url?: string; preview_addresses?: string[] }>('POST', `/projects/${pid}/providers/${row.id}`, payload)
+        : await api<{ hook_url?: string; preview_addresses?: string[] }>('POST', `/projects/${pid}/providers`, payload);
       out('Saved.');
       setHook((r && r.hook_url) || (row && row.hook_url) || '');
-      if (!row) setTimeout(() => go(`/p/${pid}/providers`), 1200);
+      setPreview(r?.preview_addresses ?? null);
+      if (!row && !r?.preview_addresses) setTimeout(() => go(`/p/${pid}/providers`), 1200);
     } catch (e) {
       out(errText(e), true);
     }
@@ -253,7 +337,7 @@ function ProviderFormBody(props: { pid: string; row: ProviderRow | null }) {
           onChange={setSel}
           options={keys.map(k => {
             const x = k.split('/');
-            return [k, `${methodName(x[0])} through ${x[1]}`];
+            return [k, PROVIDER_TEMPLATES[k].label ?? `${methodName(x[0])} through ${x[1]}`];
           })}
         />
         <TextField label="Name" value={name} onInput={setName} />
@@ -322,12 +406,23 @@ function ProviderFormBody(props: { pid: string; row: ProviderRow | null }) {
             <span class="mono">{hook}</span>
           </p>
         ) : null}
+        {preview ? (
+          <div>
+            <p>Check these first addresses against your wallet before you take payments:</p>
+            <ul class="mono">
+              {preview.map((a, i) => (
+                <li key={i}>{`${i}  ${a}`}</li>
+              ))}
+            </ul>
+            <a href={href(`/p/${pid}/providers`)}>Done</a>
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function ProviderFormLoader(props: { pid: string; id: string }) {
+function ProviderFormLoader(props: { pid: string; id: string; canWrite: boolean }) {
   const { pid, id } = props;
   const { data, error } = useLoad(async () => {
     if (id === 'new') return { row: null as ProviderRow | null };
@@ -336,7 +431,12 @@ function ProviderFormLoader(props: { pid: string; id: string }) {
   }, [pid, id]);
   if (error) return <Msg text={error} bad />;
   if (!data) return null;
-  return <ProviderFormBody pid={pid} row={data.row} />;
+  return (
+    <>
+      <ProviderFormBody pid={pid} row={data.row} />
+      {data.row && data.row.provider_type === 'xpub' ? <XpubPanel pid={pid} row={data.row} canWrite={props.canWrite} /> : null}
+    </>
+  );
 }
 
 export function ProviderForm(props: { pid: string; id: string }) {
@@ -353,7 +453,7 @@ export function ProviderForm(props: { pid: string; id: string }) {
   }, [props.pid, props.id]);
   return (
     <ProjectShell pid={props.pid} tab="providers" title={title}>
-      {() => <ProviderFormLoader pid={props.pid} id={props.id} />}
+      {p => <ProviderFormLoader pid={props.pid} id={props.id} canWrite={p.role !== 'viewer'} />}
     </ProjectShell>
   );
 }

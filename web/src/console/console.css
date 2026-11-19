@@ -3,6 +3,7 @@ body { font: var(--fs-base)/var(--lh-base) var(--font-sans); background: var(--b
 .pad { padding: 24px; }
 .muted { color: var(--muted); }
 .mono { font-family: var(--font-mono); font-size: var(--fs-sm); letter-spacing: -.01em; }
+ul.mono { overflow-wrap: anywhere; }
 a { color: var(--accent); text-decoration: none; cursor: pointer; }
 a:hover { text-decoration: underline; text-underline-offset: 3px; }
 h1, h2, h3, h4 { margin: 0; font-weight: 600; }

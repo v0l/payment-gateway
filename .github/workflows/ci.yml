@@ -35,7 +35,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: oven-sh/setup-bun@v2
       - run: cargo build --bin payment-gateway --example test_database
-      - run: cd web && bun install --frozen-lockfile && bun scripts/e2e/pages.ts
+      - run: cd web && bun install --frozen-lockfile && bun scripts/e2e/pages.ts && bun scripts/e2e/xpub.ts
   test:
     runs-on: ubuntu-latest
     services:

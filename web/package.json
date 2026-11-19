@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build && bun scripts/prerender.tsx && bun scripts/budget.ts",
     "check": "tsc --noEmit",
-    "e2e": "bun scripts/e2e/pay.ts && bun scripts/e2e/pages.ts",
+    "e2e": "bun scripts/e2e/pay.ts && bun scripts/e2e/pages.ts && bun scripts/e2e/xpub.ts",
     "contrast": "bun scripts/contrast.ts",
     "gen:api": "bun scripts/gen-api.ts"
   },

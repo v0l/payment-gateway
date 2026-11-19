@@ -1,4 +1,4 @@
-import { useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { LocationProvider, useLocation } from 'preact-iso';
 import { exec } from 'preact-iso/router';
@@ -25,8 +25,8 @@ function Redirect(props: { to: string }) {
 }
 
 function Landing() {
-  const me = getSession().me!;
-  return me.projects.length ? <Redirect to={`/p/${me.projects[0].id}/overview`} /> : <NewProject />;
+  const [first] = useState(() => getSession().me!.projects[0]);
+  return first ? <Redirect to={`/p/${first.id}/overview`} /> : <NewProject />;
 }
 
 type Params = Record<string, string>;

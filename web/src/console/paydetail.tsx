@@ -39,7 +39,7 @@ interface Pay {
   dispute_status?: string | null;
   metadata?: Record<string, unknown> | null;
   attempts: PayAttempt[];
-  refunds?: { amount: number; status: string; created: string }[];
+  refunds?: { amount: number; status: string; created: string; manual?: boolean }[];
   line_items?: { name: string; sku?: string; quantity: number; unit_amount: number; discount?: number; tax?: number; total: number }[];
 }
 
@@ -163,7 +163,7 @@ function WhereMoneyWent(props: { pay: Pay }) {
             ) : null}
             {refunds.map((r, i) => (
               <tr key={i}>
-                <td>{`Refund, ${statusWord(r.status).toLowerCase()}`}</td>
+                <td>{`Refund, ${r.manual ? 'send by hand' : statusWord(r.status).toLowerCase()}`}</td>
                 <td />
                 <td class="num"><SignedMoney amount={-r.amount} currency={pay.currency} /></td>
               </tr>
@@ -209,8 +209,8 @@ async function refundFlow(pid: string, id: string, amountText: string, destinati
       `Left refundable afterwards: ${fmtAmount(pv.remaining_after, pv.currency)}.`;
     const r = await confirmDialog({ title: 'Confirm refund', body: lines, keep: 'Do not refund', confirm: 'Refund', danger: true });
     if (!r) return;
-    const res = await api<{ status: string; error?: string }>('POST', `/projects/${pid}/payments/${id}/refund`, { amount, destination: destination || null, attempt_id: pv.attempt_id });
-    out(`Refund ${res.status}${res.error ? `: ${res.error}` : ''}`, res.status === 'failed');
+    const res = await api<{ status: string; error?: string; manual?: boolean; destination?: string }>('POST', `/projects/${pid}/payments/${id}/refund`, { amount, destination: destination || null, attempt_id: pv.attempt_id });
+    out(res.manual ? `Refund recorded. Send it by hand from your wallet${res.destination ? ` to ${res.destination}` : ''}.` : `Refund ${res.status}${res.error ? `: ${res.error}` : ''}`, res.status === 'failed');
     reload();
   } catch (e) {
     out(errText(e), true);

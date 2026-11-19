@@ -158,7 +158,7 @@ export function ResetConfirmPage(props: { token: string }) {
       label="Set password"
       onSubmit={async () => {
         await api('POST', '/reset/confirm', { token: props.token, password: pw });
-        location.replace('/console/');
+        location.replace('/console');
       }}
     >
       <TextField label="New password (10+ characters)" type="password" autocomplete="new-password" required minLength={10} value={pw} onInput={setPw} />
@@ -193,7 +193,7 @@ export function ConfirmEmailPage(props: { token: string }) {
     <AuthScreen>
       <h1>Email confirmed</h1>
       <p class="muted">{`Your sign in email is now ${state.email}.`}</p>
-      <p><a href="/console/">Continue</a></p>
+      <p><a href="/console">Continue</a></p>
     </AuthScreen>
   );
 }
@@ -221,7 +221,7 @@ export function InvitePage(props: { token: string }) {
       onSubmit={async () => {
         const m = await api<Me>('POST', '/signup', { token: props.token, password: pw });
         setSession(m);
-        location.replace('/console/');
+        location.replace('/console');
       }}
     >
       <TextField label="Password (10+ characters)" type="password" autocomplete="new-password" required minLength={10} value={pw} onInput={setPw} />
