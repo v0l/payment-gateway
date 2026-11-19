@@ -1,8 +1,11 @@
 FROM oven/bun:1 AS web
-WORKDIR /web
-COPY web/package.json web/bun.lock ./
-RUN bun install --frozen-lockfile
-COPY web ./
+WORKDIR /src
+COPY web/package.json web/bun.lock ./web/
+RUN cd web && bun install --frozen-lockfile
+COPY web ./web
+COPY docs-site ./docs-site
+COPY regtest ./regtest
+WORKDIR /src/web
 RUN bun run build
 
 FROM rust:1-bookworm AS build
@@ -12,7 +15,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY migrations ./migrations
 COPY web ./web
-COPY --from=web /web/dist ./web/dist
+COPY --from=web /src/web/dist ./web/dist
 RUN cargo build --release --locked
 
 FROM debian:bookworm-slim
