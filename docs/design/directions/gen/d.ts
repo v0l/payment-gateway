@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
-import { payments, detail, month, eur, sats, today, paidToday, hourlyToday, hourlyLastWeek, monthFigures, activity, money } from "./data2.mjs";
-import { statusWord } from "./data.mjs";
+import { payments, detail, eur, sats, paidToday, hourlyToday, hourlyLastWeek, monthFigures, activity, money } from "./data2";
+import { statusWord } from "./data";
 
 const out = new URL("../round2/d/", import.meta.url).pathname;
 
@@ -141,7 +141,7 @@ main{padding:20px 16px 60px}
 `;
 
 const tabs = ["Overview", "Payments", "Customers", "Subscriptions", "Balance", "Payouts", "Providers", "Developers", "Settings"];
-function shell(title, current, body) {
+function shell(title: string, current: string, body: string): string {
   const t = tabs.map(n => `<a href="${n === "Overview" ? "overview" : n === "Payments" ? "payments" : "#"}.html"${n === current ? ' aria-current="page"' : ""}>${n}</a>`).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="style.css"></head><body>
 <header class="top"><div class="bar"><a class="proj" href="overview.html"><i></i>Northwind Hosting</a><span class="mode">Live</span><div class="search"><span>Search payments, customers, keys</span><kbd>/</kbd></div><span class="me">SK</span></div>
@@ -150,7 +150,7 @@ function shell(title, current, body) {
 
 function chart() {
   const W = 800, H = 150, max = 70000;
-  const pt = (arr) => arr.map((v, i) => `${((i / 23) * W).toFixed(1)},${(H - 4 - (v / max) * (H - 12)).toFixed(1)}`).join(" ");
+  const pt = (arr: number[]) => arr.map((v: number, i: number) => `${((i / 23) * W).toFixed(1)},${(H - 4 - (v / max) * (H - 12)).toFixed(1)}`).join(" ");
   const last = hourlyToday.length - 1;
   const nx = ((last / 23) * W).toFixed(1), ny = (H - 4 - (hourlyToday[last] / max) * (H - 12)).toFixed(1);
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Paid so far today against last Wednesday by hour">
@@ -160,7 +160,7 @@ function chart() {
 <circle cx="${nx}" cy="${ny}" r="3.5" fill="#1f1f24"/></svg>`;
 }
 
-const st = { paid: "paid", pending: "pending", failed: "failed", muted: "" };
+const st: Record<string, string> = { paid: "paid", pending: "pending", failed: "failed", muted: "" };
 
 function overview() {
   const feed = activity.map(a => `<li><time>${a.t}</time><span class="dot ${st[a.kind]}"></span><b>${a.title}</b><span class="meth">${a.method}</span><span class="sub">${a.who}, ${a.what}</span></li>`).join("");

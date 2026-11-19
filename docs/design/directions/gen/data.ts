@@ -2,7 +2,7 @@ export const project = { name: "Northwind Hosting", mode: "Live", role: "Owner" 
 
 export const satsPerEur = 1112;
 
-export const methods = {
+export const methods: Record<string, string> = {
   lightning: "Lightning",
   onchain: "On-chain",
   card: "Card",
@@ -79,7 +79,7 @@ export const attention = [
   { kind: "failed", title: "Card declined for pay_8D3M1C", body: "Issuer returned insufficient funds. The customer has not retried.", cta: "Send new link", cents: 2500 },
 ];
 
-export function eur(cents, { sign = false } = {}) {
+export function eur(cents: number, { sign = false }: { sign?: boolean } = {}): string {
   const abs = Math.abs(cents);
   const whole = Math.floor(abs / 100).toLocaleString("en-IE");
   const frac = String(abs % 100).padStart(2, "0");
@@ -87,15 +87,15 @@ export function eur(cents, { sign = false } = {}) {
   return `${s}\u20ac${whole}.${frac}`;
 }
 
-export function sats(cents) {
+export function sats(cents: number): string {
   return Math.round((cents * satsPerEur) / 100).toLocaleString("en-IE");
 }
 
-export function esc(s) {
+export function esc(s: unknown): string {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-export const statusWord = {
+export const statusWord: Record<string, string> = {
   paid: "Paid",
   pending: "Waiting",
   expired: "Expired",

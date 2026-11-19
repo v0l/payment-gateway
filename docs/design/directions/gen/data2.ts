@@ -1,4 +1,4 @@
-import { payments, detail, month, eur, sats } from "./data.mjs";
+import { payments, detail, month, eur, sats } from "./data";
 
 export const today = payments.filter(p => p.day === "Today");
 export const paidToday = today.filter(p => p.status === "paid").reduce((a, p) => a + p.cents, 0);
@@ -72,7 +72,19 @@ export const availableWhen = {
   paid: { lightning: "Now", onchain: "Now", card: "25 Nov", paypal: "25 Nov", bank: "19 Nov" },
 };
 
-export const queue = [
+export interface QueueRow {
+  id: string;
+  desc: string;
+  who: string;
+  method: string;
+  cents: number | null;
+  reason: string;
+  due: string;
+  dueSoon?: boolean;
+  act: string;
+}
+
+export const queue: { group: string; tone: string; rows: QueueRow[] }[] = [
   { group: "Disputes", tone: "bad", rows: [
     { id: "pay_3E6U2T", desc: "Dedicated host, 1 month", who: "cus_yuki.t", method: "Card", cents: 14900, reason: "Customer says the service was not received", due: "Respond by 24 Nov", dueSoon: true, act: "Respond" },
   ] },
@@ -107,12 +119,12 @@ export const health = [
 
 export { payments, detail, month, eur, sats };
 
-export function money(cents) {
+export function money(cents: number) {
   const s = eur(cents);
   const i = s.lastIndexOf(".");
   return `${s.slice(0, i)}<small>${s.slice(i)}</small>`;
 }
 
-export function signed(cents) {
+export function signed(cents: number) {
   return cents < 0 ? `\u2212${eur(-cents)}` : `+${eur(cents)}`;
 }

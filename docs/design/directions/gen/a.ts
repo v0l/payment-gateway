@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { project, payments, detail, month, attention, methods, eur, sats, esc, statusWord } from "./data.mjs";
+import { project, payments, detail, month, attention, methods, eur, sats, esc, statusWord } from "./data";
 
 const out = new URL("../a/", import.meta.url).pathname;
 
@@ -88,7 +88,7 @@ h1{font-size:30px}.lede{font-size:20px}.big{font-size:44px}
 
 const tabs = ["Overview", "Payments", "Customers", "Subscriptions", "Balance", "Providers", "Keys", "Settings"];
 
-function shell(title, current, body) {
+function shell(title: string, current: string, body: string): string {
   const nav = tabs.map(t => `<a href="${t === "Overview" ? "overview" : t === "Payments" ? "payments" : "#"}.html"${t === current ? " aria-current=\"page\"" : ""}>${t}</a>`).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="style.css"></head><body>
 <div class="bar"><b>${project.name}</b><nav aria-label="Project">${nav}</nav><span class="who">sam@northwind.example</span></div>

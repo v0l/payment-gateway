@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
-import { payments, detail, eur, sats, wallets, available, settling, payouts, ledger, openingToday, money, signed } from "./data2.mjs";
-import { statusWord, methods } from "./data.mjs";
+import { payments, detail, eur, sats, wallets, available, settling, payouts, ledger, openingToday, money, signed } from "./data2";
+import { statusWord, methods } from "./data";
 
 const out = new URL("../round2/e/", import.meta.url).pathname;
 
@@ -111,7 +111,7 @@ main{padding:22px 16px 60px}
 const shades = ["#1f3a8a", "#3b5bb5", "#7d95d6", "#b7c5ea", "#dfe5f6"];
 const nav = [["Home", "overview"], ["Payments", "payments"], ["Customers", "#"], ["Subscriptions", "#"], ["Payouts", "#"], ["Providers", "#"], ["Developers", "#"], ["Settings", "#"]];
 
-function shell(title, current, body) {
+function shell(title: string, current: string, body: string): string {
   const n = nav.map(([l, h]) => `<a href="${h}.html"${l === current ? ' aria-current="page"' : ""}>${l}${l === "Payments" ? "<span>291</span>" : ""}</a>`).join("");
   const wl = wallets.map(w => `<a href="#"><b>${w.name}</b><span>${eur(w.avail)}</span></a>`).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="style.css"></head><body>
@@ -139,9 +139,9 @@ function overview() {
 <h2>When money becomes available</h2><ul class="rules" style="margin-top:8px"><li><b>Lightning</b>Instantly</li><li><b>On-chain</b>After 3 confirmations</li><li><b>Bank transfer</b>Next working day</li><li><b>Card, PayPal</b>After 7 days</li></ul></aside></div>`;
 }
 
-const when = (p) => {
+const when = (p: (typeof payments)[number]): string => {
   if (p.status !== "paid") return p.status === "pending" ? "When paid" : "";
-  const m = { lightning: "Available", onchain: "Available", bank: "Available 19 Nov", card: "Available 25 Nov", paypal: "Available 25 Nov" };
+  const m: Record<string, string> = { lightning: "Available", onchain: "Available", bank: "Available 19 Nov", card: "Available 25 Nov", paypal: "Available 25 Nov" };
   return p.day === "Yesterday" && (p.method === "lightning" || p.method === "onchain" || p.method === "bank") ? "Available" : m[p.method];
 };
 

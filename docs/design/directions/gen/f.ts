@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
-import { payments, detail, eur, sats, queue, fyi, health, wallets, available, settling, paidToday } from "./data2.mjs";
-import { statusWord, methods } from "./data.mjs";
+import { payments, detail, eur, sats, queue, fyi, health, available, settling, paidToday } from "./data2";
+import { statusWord, methods } from "./data";
 
 const out = new URL("../round2/f/", import.meta.url).pathname;
 
@@ -122,7 +122,7 @@ th.menu{background:#fafbfc}
 `;
 
 const nav = [["Home", "overview", 6], ["Payments", "payments"], ["Customers"], ["Subscriptions"], ["Balance"], ["Payouts"], ["Providers"], ["Developers"], ["Settings"]];
-function shell(title, current, body) {
+function shell(title: string, current: string, body: string): string {
   const n = nav.map(([l, h, c]) => `<a href="${h || "#"}.html"${l === current ? ' aria-current="page"' : ""}>${l}${c ? `<i>${c}</i>` : ""}</a>`).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="style.css"></head><body>
 <header class="hdr"><b>Northwind Hosting<span>Live</span></b><nav aria-label="Project">${n}</nav><div class="find">Find a payment, customer or key<kbd>Ctrl K</kbd></div><span class="mb mob">Menu</span></header>${body}</body></html>`;

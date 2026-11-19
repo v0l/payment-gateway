@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { project, payments, detail, month, attention, methods, eur, sats, esc, statusWord } from "./data.mjs";
+import { project, payments, detail, month, attention, methods, eur, sats, esc } from "./data";
 
 const out = new URL("../b/", import.meta.url).pathname;
 
@@ -81,12 +81,12 @@ body{font-size:13px}
 }
 `;
 
-function shell(title, crumbs, body, status) {
-  const c = crumbs.map((x, i) => (i ? `<i>/</i>` : "") + x).join("");
+function shell(title: string, crumbs: string[], body: string, status: string[]): string {
+  const c = crumbs.map((x: string, i: number) => (i ? `<i>/</i>` : "") + x).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="style.css"></head><body>
 <div class="top"><div class="crumb"><b>gw</b><i>/</i>${c}</div><div class="k"><span>go to payments, keys, customer...</span><kbd>ctrl k</kbd></div></div>
 ${body}
-<div class="status"><span class="mode">LIVE</span>${status.map(s => `<span>${s}</span>`).join("")}<span class="sp"></span><span class="dim">sam@northwind.example</span></div></body></html>`;
+<div class="status"><span class="mode">LIVE</span>${status.map((s: string) => `<span>${s}</span>`).join("")}<span class="sp"></span><span class="dim">sam@northwind.example</span></div></body></html>`;
 }
 
 const blocks = "\u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588";
@@ -94,9 +94,10 @@ function spark() {
   const max = Math.max(...month.daily), min = Math.min(...month.daily);
   return month.daily.map(v => blocks[Math.min(7, Math.floor(((v - min) / (max - min)) * 7.99))]).join("");
 }
-const st = s => ({ paid: "ok", pending: "warn", expired: "dim", failed: "bad", refunded: "bad", disputed: "bad" }[s]);
-const sym = s => ({ paid: "\u25cf", pending: "\u25cb", expired: "\u00d7", failed: "\u00d7", refunded: "\u21a9", disputed: "!" }[s]);
-const row = (p, sel) => `<li${sel ? ' class="sel"' : ""}><span class="dim">${p.time}</span><a href="payment.html" class="hide">${p.id}</a><span>${esc(p.desc)}</span><span class="r ${st(p.status)}">${sym(p.status)} ${eur(p.cents)}</span></li>`;
+const st = (s: string): string => ({ paid: "ok", pending: "warn", expired: "dim", failed: "bad", refunded: "bad", disputed: "bad" } as Record<string, string>)[s];
+const symbols: Record<string, string> = { paid: "\u25cf", pending: "\u25cb", expired: "\u00d7", failed: "\u00d7", refunded: "\u21a9", disputed: "!" };
+const sym = (s: string): string => symbols[s];
+const row = (p: (typeof payments)[number], sel?: boolean) => `<li${sel ? ' class="sel"' : ""}><span class="dim">${p.time}</span><a href="payment.html" class="hide">${p.id}</a><span>${esc(p.desc)}</span><span class="r ${st(p.status)}">${sym(p.status)} ${eur(p.cents)}</span></li>`;
 
 function overview() {
   const tail = payments.slice(0, 13).map(p => row(p)).join("");
@@ -138,7 +139,6 @@ function paymentPage() {
 }
 
 writeFileSync(out + "style.css", css);
-const base = ["overview"];
 writeFileSync(out + "overview.html", shell("Terminal overview", [project.name.toLowerCase().replace(" ", "-"), "overview"], overview(), ["291 paid", "3 need you", "rate 1 eur = 1,112 sats", "press ? for keys"]));
 writeFileSync(out + "payments.html", shell("Payments", [project.name.toLowerCase().replace(" ", "-"), "payments"], paymentsPage(), ["j/k move", "enter open", "/ search"]));
 writeFileSync(out + "payment.html", shell("Payment", [project.name.toLowerCase().replace(" ", "-"), "payments", detail.id], paymentPage(), ["esc back", "r refund", "d receipt"]));

@@ -1,6 +1,6 @@
 # Console redesign directions
 
-Static mockups with the same Northwind Hosting data. Regenerate with `node gen/a.mjs` (and b, c), then `sh gen/shoot.sh`. Screenshots are `{a,b,c}-{overview,payments,payment}-{1440,390}.png`. Fonts are self hosted under each direction's `fonts/`.
+Static mockups with the same Northwind Hosting data. Regenerate with `bun gen/a.ts` (and b, c), then `sh gen/shoot.sh`. Screenshots are `{a,b,c}-{overview,payments,payment}-{1440,390}.png`. Fonts are self hosted under each direction's `fonts/`.
 
 ## A: Statement
 

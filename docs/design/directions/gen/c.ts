@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { project, payments, detail, month, attention, methods, eur, sats, esc, statusWord } from "./data.mjs";
+import { project, payments, detail, month, attention, methods, eur, sats, esc, statusWord } from "./data";
 
 const out = new URL("../c/", import.meta.url).pathname;
 
@@ -113,7 +113,7 @@ h2{font-weight:800;font-size:22px;letter-spacing:-.02em;margin:0 0 12px}
 `;
 
 const nav = ["Overview", "Payments", "Customers", "Subscriptions", "Balance", "Providers", "Keys", "Settings"];
-function shell(title, current, body) {
+function shell(title: string, current: string, body: string): string {
   const links = nav.map(n => `<a href="${n === "Overview" ? "overview" : n === "Payments" ? "payments" : "#"}.html"${n === current ? ' aria-current="page"' : ""}>${n}</a>`).join("");
   const tabs = ["Overview", "Payments", "Balance", "More"].map(n => `<a href="${n === "Overview" ? "overview" : n === "Payments" ? "payments" : "#"}.html"${n === current ? ' aria-current="page"' : ""}>${n}</a>`).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="style.css"></head><body>
@@ -121,12 +121,12 @@ function shell(title, current, body) {
 <main class="page">${body}</main><nav class="tabbar" aria-label="Project">${tabs}</nav></body></html>`;
 }
 
-const chip = p => `<a class="chip" href="payment.html"><i class="m-${p.method}"></i><span>${esc(p.desc)}</span><b>${eur(p.cents)}</b></a>`;
-const sum = rows => rows.reduce((a, p) => a + p.cents, 0);
+const chip = (p: (typeof payments)[number]) => `<a class="chip" href="payment.html"><i class="m-${p.method}"></i><span>${esc(p.desc)}</span><b>${eur(p.cents)}</b></a>`;
+const sum = (rows: (typeof payments)[number][]) => rows.reduce((a: number, p) => a + p.cents, 0);
 
 function overview() {
   const today = payments.filter(p => p.day === "Today");
-  const cols = [
+  const cols: [string, string, (typeof payments)[number][]][] = [
     ["Waiting to be paid", "waiting", payments.filter(p => p.status === "pending")],
     ["Paid today", "paid", today.filter(p => p.status === "paid")],
     ["Refunded", "refunded", payments.filter(p => p.status === "refunded")],
