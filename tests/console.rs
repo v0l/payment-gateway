@@ -204,6 +204,108 @@ fn mobile_shell_keeps_the_navigation_row_to_its_content_height() {
     assert!(css.contains("grid-template-columns: 1fr; grid-template-rows: auto 1fr;"));
 }
 
+fn console_scripts() -> Vec<(String, String)> {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/console");
+    let mut out: Vec<(String, String)> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|x| x == "js"))
+        .map(|p| {
+            (
+                p.file_name().unwrap().to_string_lossy().into_owned(),
+                std::fs::read_to_string(&p).unwrap(),
+            )
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+fn called_helpers(js: &str) -> Vec<String> {
+    let bytes = js.as_bytes();
+    let mut names = vec![];
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c.is_ascii_lowercase()
+            && (i == 0
+                || !(bytes[i - 1].is_ascii_alphanumeric()
+                    || bytes[i - 1] == b'.'
+                    || bytes[i - 1] == b'_'
+                    || bytes[i - 1] == b'$'))
+        {
+            let start = i;
+            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+                i += 1;
+            }
+            let name = &js[start..i];
+            let camel = name.chars().any(|c| c.is_ascii_uppercase());
+            if camel && bytes.get(i) == Some(&b'(') {
+                names.push(name.to_string());
+            }
+            continue;
+        }
+        i += 1;
+    }
+    names
+}
+
+fn declared_names(js: &str) -> Vec<String> {
+    let ident = |s: &str| -> String {
+        s.trim_start()
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect()
+    };
+    let mut out = vec![];
+    for (i, _) in js.match_indices("function") {
+        let rest = &js[i + 8..];
+        out.push(ident(rest));
+        if let (Some(open), Some(close)) = (rest.find('('), rest.find(')'))
+            && open < close
+        {
+            out.extend(rest[open + 1..close].split(',').map(ident));
+        }
+    }
+    for (i, _) in js.match_indices("var ") {
+        out.push(ident(&js[i + 4..]));
+    }
+    out.into_iter().filter(|n| !n.is_empty()).collect()
+}
+
+#[test]
+fn every_helper_the_console_calls_is_defined_in_a_console_script() {
+    let scripts = console_scripts();
+    let defined: std::collections::HashSet<String> = scripts
+        .iter()
+        .flat_map(|(_, js)| declared_names(js))
+        .collect();
+    let builtins = [
+        "addEventListener",
+        "removeEventListener",
+        "setTimeout",
+        "clearTimeout",
+        "setInterval",
+        "clearInterval",
+        "encodeURIComponent",
+        "decodeURIComponent",
+        "parseInt",
+        "parseFloat",
+        "isNaN",
+        "isFinite",
+        "requestAnimationFrame",
+        "structuredClone",
+    ];
+    for (name, js) in &scripts {
+        for called in called_helpers(js) {
+            assert!(
+                defined.contains(&called) || builtins.contains(&called.as_str()),
+                "{name} calls {called}() but no console script defines it"
+            );
+        }
+    }
+}
+
 #[test]
 fn payment_detail_without_line_items_renders_no_null_text() {
     let js = include_str!("../web/console/payments.js");

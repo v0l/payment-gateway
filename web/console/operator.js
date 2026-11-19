@@ -34,7 +34,7 @@ function supportView(id) {
     var s = r.stats;
     box.replaceChildren(
       el("div", { class: "banner info" }, [el("div", {}, [el("b", { text: "Read-only support view" }), "This view was recorded in the audit log."])]),
-      el("div", { class: "grid" }, dashboardCards(s)),
+      el("div", { class: "ledger" }, dashboardFigures(s)),
       el("h3", { text: "Recent payments" }),
       r.recent_payments.length ? el("table", {}, r.recent_payments.map(function (p) { return el("tr", {}, [el("td", { class: "mono", text: p.id.slice(0, 8) }), el("td", { text: p.reference }), el("td", { text: fmtAmount(p.amount, p.currency) }), el("td", {}, [pill(p.status)]), el("td", { class: "muted", text: ago(p.created) })]); })) : el("p", { class: "muted", text: "None." }),
       el("h3", { text: "Providers" }),
