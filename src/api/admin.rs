@@ -318,6 +318,15 @@ async fn create_provider(
     )
     .await
     .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    validate::xpub_preview(
+        s.service.registry.xpub_chain(),
+        true,
+        &req.method,
+        &req.provider_type,
+        &req.config,
+    )
+    .await
+    .map_err(|e| ApiError::bad_request(e.to_string()))?;
     if req.fee_rate.is_some_and(|r| !(0.0..=100.0).contains(&r)) {
         return Err(ApiError::bad_request("fee_rate must be 0-100"));
     }

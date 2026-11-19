@@ -137,6 +137,8 @@ pub struct RefundView {
     pub currency: String,
     pub status: String,
     pub error: Option<String>,
+    pub manual: bool,
+    pub destination: Option<String>,
     pub created: DateTime<Utc>,
 }
 
@@ -149,6 +151,8 @@ impl From<&RefundRow> for RefundView {
             currency: r.currency.clone(),
             status: r.status.clone(),
             error: r.error.clone(),
+            manual: r.external_id.as_deref() == Some(crate::providers::xpub::MANUAL_REFUND),
+            destination: r.destination.clone(),
             created: r.created,
         }
     }

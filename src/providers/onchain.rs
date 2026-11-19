@@ -188,7 +188,7 @@ impl Provider for OnChainProviderImpl {
     }
 }
 
-fn sats_to_btc(sats: u64) -> String {
+pub(crate) fn sats_to_btc(sats: u64) -> String {
     let s = format!("{}.{:08}", sats / 100_000_000, sats % 100_000_000);
     s.trim_end_matches('0').trim_end_matches('.').to_string()
 }

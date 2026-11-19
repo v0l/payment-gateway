@@ -9,6 +9,7 @@ pub mod revolut;
 pub mod stripe;
 pub mod wallet;
 pub mod webhook_check;
+pub mod xpub;
 
 pub use wallet::{WalletBalance, WalletSource};
 
@@ -204,16 +205,29 @@ pub trait Provider: Send + Sync {
     async fn wallet_balances(&self) -> Result<Vec<WalletBalance>> {
         Ok(vec![])
     }
+
+    async fn describe(&self) -> Result<Option<Value>> {
+        Ok(None)
+    }
+
+    async fn rescan(&self, _from: u32, _count: u32) -> Result<String> {
+        bail!("{} cannot rescan", self.method())
+    }
 }
 
 #[async_trait]
 pub trait ProviderFactory: Send + Sync {
+    fn xpub_chain(&self) -> Option<xpub::ChainConfig> {
+        None
+    }
+
     async fn build(&self, row: &ProviderConfigRow, config: Value) -> Result<Arc<dyn Provider>>;
 }
 
 pub struct DefaultFactory {
     pub allow_mock: bool,
     pub mocks: Arc<mock::MockFactory>,
+    xpub: Mutex<Option<(MySqlPool, xpub::ChainConfig)>>,
 }
 
 impl DefaultFactory {
@@ -221,17 +235,33 @@ impl DefaultFactory {
         Self {
             allow_mock,
             mocks: Arc::new(mock::MockFactory::default()),
+            xpub: Mutex::new(None),
         }
+    }
+
+    pub fn set_xpub(&self, pool: MySqlPool, chain: xpub::ChainConfig) {
+        *self.xpub.lock().unwrap() = Some((pool, chain));
     }
 }
 
 #[async_trait]
 impl ProviderFactory for DefaultFactory {
+    fn xpub_chain(&self) -> Option<xpub::ChainConfig> {
+        self.xpub.lock().unwrap().as_ref().map(|(_, c)| c.clone())
+    }
+
     async fn build(&self, row: &ProviderConfigRow, config: Value) -> Result<Arc<dyn Provider>> {
         match (row.method.as_str(), row.provider_type.as_str()) {
             (_, "mock") if self.allow_mock => self.mocks.build(row, config).await,
             ("lightning", "lnd") => Ok(Arc::new(lightning::LightningProvider::lnd(&config).await?)),
             ("onchain", "lnd") => Ok(Arc::new(onchain::OnChainProviderImpl::lnd(&config).await?)),
+            ("onchain", "xpub") => {
+                let ctx = self.xpub.lock().unwrap().clone();
+                let (pool, chain) = ctx.context("xpub on-chain is not configured")?;
+                Ok(Arc::new(
+                    xpub::XpubProvider::build(pool, row, &config, &chain).await?,
+                ))
+            }
             ("stripe", "stripe") => Ok(Arc::new(stripe::StripeProvider::new(&config)?)),
             ("revolut", "revolut") => Ok(Arc::new(revolut::RevolutProvider::new(&config)?)),
             ("paypal", "paypal") => Ok(Arc::new(paypal::PayPalProvider::new(&config)?)),
@@ -267,6 +297,10 @@ impl Registry {
             call_timeout: guard::DEFAULT_CALL_TIMEOUT,
             health: Default::default(),
         }
+    }
+
+    pub fn xpub_chain(&self) -> Option<xpub::ChainConfig> {
+        self.factory.xpub_chain()
     }
 
     pub fn invalidate(&self, id: u64) {

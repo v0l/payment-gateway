@@ -145,11 +145,11 @@ async fn serve() -> Result<()> {
     )
     .await?;
     let sealer = Sealer::with_keys(&config.encryption_keys)?;
-    let registry = Registry::new(
-        pool.clone(),
-        sealer.clone(),
-        Arc::new(DefaultFactory::new(config.allow_mock)),
-    );
+    let factory = Arc::new(DefaultFactory::new(config.allow_mock));
+    if let Some(chain) = config.chain.clone() {
+        factory.set_xpub(pool.clone(), chain);
+    }
+    let registry = Registry::new(pool.clone(), sealer.clone(), factory);
     let retention = RetentionPolicy::from_env()?;
     if !retention.is_empty() {
         let pool = pool.clone();

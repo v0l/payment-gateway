@@ -184,6 +184,14 @@ impl Provider for Guarded {
         self.run("wallet_balances", self.inner.wallet_balances())
             .await
     }
+
+    async fn describe(&self) -> Result<Option<Value>> {
+        self.inner.describe().await
+    }
+
+    async fn rescan(&self, from: u32, count: u32) -> Result<String> {
+        self.run("rescan", self.inner.rescan(from, count)).await
+    }
 }
 
 #[cfg(test)]

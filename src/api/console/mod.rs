@@ -39,6 +39,7 @@ mod platform_billing;
 mod project_settings;
 mod projects;
 mod providers;
+mod providers_xpub;
 mod recovery;
 mod session;
 mod shared;
@@ -71,6 +72,7 @@ use project_settings::*;
 pub(crate) use projects::settings_diff;
 use projects::*;
 use providers::*;
+use providers_xpub::*;
 use recovery::*;
 use session::*;
 use shared::*;
@@ -123,6 +125,8 @@ pub fn router() -> Router<AppState> {
             post(update_provider).delete(remove_provider),
         )
         .route("/projects/{id}/providers/{pid}/test", post(test_provider))
+        .route("/projects/{id}/providers/{pid}/xpub", get(xpub_status))
+        .route("/projects/{id}/providers/{pid}/rescan", post(xpub_rescan))
         .route(
             "/projects/{id}/providers/{pid}/enabled",
             post(set_provider_enabled),

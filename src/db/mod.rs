@@ -253,6 +253,7 @@ mod stats;
 mod subscriptions;
 mod tenants;
 mod withdrawals;
+mod xpub;
 
 pub use attempts::*;
 pub use attention::*;
@@ -278,3 +279,4 @@ pub use stats::*;
 pub use subscriptions::*;
 pub use tenants::*;
 pub use withdrawals::*;
+pub use xpub::*;

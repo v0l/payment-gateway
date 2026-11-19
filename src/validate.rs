@@ -46,6 +46,7 @@ pub fn supported(method: &str, provider_type: &str) -> bool {
         (method, provider_type),
         ("lightning", "lnd")
             | ("onchain", "lnd")
+            | ("onchain", "xpub")
             | ("stripe", "stripe")
             | ("revolut", "revolut")
             | ("paypal", "paypal")
@@ -100,6 +101,9 @@ pub async fn provider_config(
                 }
             }
         }
+        ("onchain", "xpub") => {
+            need(config, "xpub")?;
+        }
         ("stripe", _) => {
             need(config, "secret_key")?;
             if !trusted {
@@ -138,6 +142,24 @@ pub async fn provider_config(
         _ => {}
     }
     Ok(())
+}
+
+pub async fn xpub_preview(
+    chain: Option<crate::providers::xpub::ChainConfig>,
+    trusted: bool,
+    method: &str,
+    provider_type: &str,
+    config: &Value,
+) -> Result<Option<Vec<String>>> {
+    if (method, provider_type) != ("onchain", "xpub") {
+        return Ok(None);
+    }
+    let Some(chain) = chain else {
+        bail!("xpub on-chain payments are not enabled on this gateway");
+    };
+    crate::providers::xpub::validate_config(config, &chain, trusted)
+        .await
+        .map(Some)
 }
 
 pub fn redacted(config: &Value) -> Value {

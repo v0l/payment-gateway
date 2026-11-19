@@ -98,6 +98,11 @@ pub async fn create(
             "shared providers are lightning or onchain",
         ));
     }
+    if req.provider_type == "xpub" {
+        return Err(ApiError::bad_request(
+            "xpub providers belong to one merchant and cannot be shared",
+        ));
+    }
     if !NETWORKS.contains(&req.network.as_str()) {
         return Err(ApiError::bad_request(format!(
             "network must be one of {NETWORKS:?}"

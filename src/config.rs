@@ -26,6 +26,7 @@ pub struct Config {
     pub payout_lnd: Option<PayoutLnd>,
     pub payout_policy: crate::payouts::PayoutPolicy,
     pub solvency_tolerance_sats: u64,
+    pub chain: Option<crate::providers::xpub::ChainConfig>,
 }
 
 #[derive(Clone)]
@@ -142,6 +143,34 @@ impl<'a> Env<'a> {
 pub const LOG_LEVELS: [&str; 6] = ["off", "error", "warn", "info", "debug", "trace"];
 
 impl Config {
+    fn chain(env: &mut Env) -> Option<crate::providers::xpub::ChainConfig> {
+        use crate::providers::xpub::{BitcoindAccess, ChainConfig};
+        let name = env.optional("GATEWAY_BITCOIN_NETWORK")?;
+        let network = match crate::xpub::network_from_name(&name) {
+            Ok(n) => n,
+            Err(e) => {
+                env.fail(format!("GATEWAY_BITCOIN_NETWORK: {e}"));
+                return None;
+            }
+        };
+        let mut chain = ChainConfig::for_network(network);
+        if let Some(url) = env.optional("GATEWAY_ESPLORA_URL") {
+            if !url::Url::parse(&url).is_ok_and(|u| matches!(u.scheme(), "http" | "https")) {
+                env.fail("GATEWAY_ESPLORA_URL must be an http(s) URL".into());
+            }
+            chain.esplora_url = Some(url);
+        }
+        if let Some(url) = env.optional("GATEWAY_XPUB_BITCOIND_URL") {
+            let user = env.required("GATEWAY_XPUB_BITCOIND_USER");
+            let pass = env.required("GATEWAY_XPUB_BITCOIND_PASS");
+            chain.bitcoind = Some(BitcoindAccess { url, user, pass });
+        }
+        chain.poll = Duration::from_secs(env.number("GATEWAY_XPUB_POLL_SECS", 20u64, 1, 3600));
+        chain.grace =
+            Duration::from_secs(env.number("GATEWAY_XPUB_GRACE_HOURS", 48u64, 1, 24 * 90) * 3600);
+        Some(chain)
+    }
+
     pub fn from_env() -> Result<Self> {
         Self::from_lookup(&|k| std::env::var(k).ok())
     }
@@ -261,6 +290,7 @@ impl Config {
             0,
             21_000_000u64 * 100_000_000,
         );
+        let chain = Self::chain(&mut env);
         env.finish()?;
         Ok(Self {
             database_url,
@@ -284,6 +314,7 @@ impl Config {
             payout_lnd,
             payout_policy,
             solvency_tolerance_sats,
+            chain,
         })
     }
 }

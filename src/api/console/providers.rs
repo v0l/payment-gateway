@@ -134,6 +134,15 @@ pub(super) async fn create_provider(
     )
     .await
     .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let preview = validate::xpub_preview(
+        s.service.registry.xpub_chain(),
+        t.trusted,
+        &req.method,
+        &req.provider_type,
+        &req.config,
+    )
+    .await
+    .map_err(|e| ApiError::bad_request(e.to_string()))?;
     let sealed = s
         .service
         .sealer
@@ -159,7 +168,7 @@ pub(super) async fn create_provider(
         .record(s.pool(), &Origin::from_headers(&headers))
         .await;
     Ok(Json(
-        json!({"id": pid, "hook_url": s.service.hook_url(id, pid)}),
+        json!({"id": pid, "hook_url": s.service.hook_url(id, pid), "preview_addresses": preview}),
     ))
 }
 
@@ -188,6 +197,15 @@ pub(super) async fn update_provider(
     validate::provider_config(
         t.trusted,
         s.allow_mock,
+        &row.method,
+        &row.provider_type,
+        &merged,
+    )
+    .await
+    .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    validate::xpub_preview(
+        s.service.registry.xpub_chain(),
+        t.trusted,
         &row.method,
         &row.provider_type,
         &merged,
