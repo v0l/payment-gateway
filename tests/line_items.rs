@@ -244,6 +244,21 @@ async fn receipt_shows_the_sale_and_hides_secrets() {
     )
     .await;
     assert_eq!(r.status, StatusCode::OK);
+    let slashed = send(
+        &h.app,
+        "GET",
+        &format!("/receipt/{id}/"),
+        None,
+        &[],
+        Value::Null,
+    )
+    .await;
+    assert_eq!(
+        slashed.status,
+        StatusCode::OK,
+        "/receipt/{id}/ must serve the receipt"
+    );
+    assert_eq!(slashed.text, r.text);
     assert!(
         r.headers["content-type"]
             .to_str()

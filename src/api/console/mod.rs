@@ -334,6 +334,7 @@ pub fn router() -> Router<AppState> {
         );
     Router::new()
         .route("/console", get(page))
+        .route("/console/", get(page))
         .route("/console/{*rest}", get(page_or_asset))
         .nest("/console/api", api)
 }

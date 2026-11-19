@@ -25,9 +25,13 @@ try {
     ['operator', '/operator/', 'h1'],
     ['legal', '/legal/terms', 'article.doc'],
     ['api reference', '/docs', '.op'],
+    ['api reference slash', '/docs/', '.op'],
     ['pay page', `/pay/${payment.id}`, 'button.method'],
+    ['pay page slash', `/pay/${payment.id}/`, 'button.method'],
     ['embed page', `/embed/${payment.id}`, 'button.method'],
+    ['embed page slash', `/embed/${payment.id}/`, 'button.method'],
     ['console login', '/console', 'input[type=email]'],
+    ['console login slash', '/console/', 'input[type=email]'],
     ['console reset', '/console/reset', 'input[type=email]'],
     ['styleguide', '/console/styleguide', '.theme-panel'],
   ];

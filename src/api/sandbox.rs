@@ -15,6 +15,7 @@ use std::sync::Arc;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/sandbox", get(page))
+        .route("/sandbox/", get(page))
         .route("/sandbox/hook", post(hook))
         .route("/sandbox/api/status", get(status))
         .route("/sandbox/api/bootstrap", post(bootstrap))

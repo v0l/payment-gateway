@@ -170,7 +170,7 @@ The stuck report lists payments settled on a shared provider without a ledger cr
 
 ## Self-service console (SaaS)
 
-The gateway is a multi-tenant service. Operators sign in at `/console`, which is a dependency-free single page served from the binary.
+The gateway is a multi-tenant service. Operators sign in at `/console`, which is a dependency-free single page served from the binary. `/console/` serves the same shell, and `/docs/`, `/sandbox/`, `/pay/{id}/`, `/embed/{id}/` and `/receipt/{id}/` are accepted alongside the slash-free forms.
 
 - **Accounts:** email and password (argon2id), cookie sessions with a CSRF token, login lockout, invite-only signup. Operators create invites in the console or with the admin token. TOTP is planned.
 - **Projects:** one account owns many projects, each a tenant with its own API key, providers, webhook and branding. Roles per project: viewer, admin, owner. Teammates join by invite link.

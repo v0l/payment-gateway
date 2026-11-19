@@ -609,6 +609,39 @@ async fn every_docs_and_legal_page_is_served_accessible_and_legal_is_marked_draf
 }
 
 #[tokio::test]
+async fn every_top_level_page_serves_with_and_without_a_trailing_slash() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let p = new_payment(&h, &t, eur("slash", 1500)).await;
+    let id = p["id"].as_str().unwrap();
+    for path in [
+        "/",
+        "/console/",
+        "/guide/",
+        "/guide/webhooks",
+        "/operator/",
+        "/legal/privacy",
+        "/docs",
+        "/docs/",
+        &format!("/pay/{id}"),
+        &format!("/pay/{id}/"),
+        &format!("/embed/{id}"),
+        &format!("/embed/{id}/"),
+    ] {
+        let r = send(&h.app, "GET", path, None, &[], Value::Null).await;
+        assert_eq!(r.status, StatusCode::OK, "{path}");
+    }
+    for path in ["/guide", "/operator", "/legal", "/nothing/"] {
+        let r = send(&h.app, "GET", path, None, &[], Value::Null).await;
+        assert!(
+            r.status.is_redirection() || r.status == StatusCode::NOT_FOUND,
+            "{path}: {}",
+            r.status
+        );
+    }
+}
+
+#[tokio::test]
 async fn error_reference_lists_every_code_the_api_returns() {
     let md = std::fs::read_to_string(root().join("docs-site/guide/errors.md")).unwrap();
     for code in [

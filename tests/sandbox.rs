@@ -195,6 +195,13 @@ async fn sandbox_api_needs_the_admin_token_but_the_page_shell_is_public() {
     let r = rig().await;
     let page = send(&r.app, "GET", "/sandbox", None, &[], Value::Null).await;
     assert_eq!(page.status, StatusCode::OK);
+    let page = send(&r.app, "GET", "/sandbox/", None, &[], Value::Null).await;
+    assert_eq!(
+        page.status,
+        StatusCode::OK,
+        "/sandbox/ must serve the shell too"
+    );
+    assert!(page.text.contains("/static/assets/sandbox-"));
     let csp = page.headers["content-security-policy"].to_str().unwrap();
     assert!(
         csp.contains("frame-ancestors 'none'") && csp.contains("script-src 'self'"),

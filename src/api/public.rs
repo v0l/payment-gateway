@@ -21,7 +21,9 @@ use tokio_stream::wrappers::BroadcastStream;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/pay/{id}", get(pay_page))
+        .route("/pay/{id}/", get(pay_page))
         .route("/embed/{id}", get(embed_page))
+        .route("/embed/{id}/", get(embed_page))
         .route("/pay/{id}/state", get(state))
         .route("/pay/{id}/return", get(provider_return))
         .route("/pay/{id}/attempts", post(create_attempt))

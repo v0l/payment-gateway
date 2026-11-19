@@ -128,6 +128,21 @@ async fn console_shell_is_served_without_a_session_and_with_a_strict_csp() {
     assert_eq!(shell.headers["cache-control"], "no-store");
 }
 
+#[tokio::test]
+async fn console_shell_serves_the_trailing_slash_path_too() {
+    let h = harness().await;
+    for path in ["/console/"] {
+        let r = send(&h.app, "GET", path, None, &[], Value::Null).await;
+        assert_eq!(r.status, StatusCode::OK, "{path}");
+        let csp = r.headers["content-security-policy"].to_str().unwrap();
+        assert!(
+            csp.contains("frame-ancestors 'none'") && csp.contains("script-src 'self'"),
+            "{csp}"
+        );
+        assert!(r.text.contains("/static/assets/console-"), "{path}");
+    }
+}
+
 fn console_asset(shell: &str, ext: &str) -> String {
     shell
         .split('"')

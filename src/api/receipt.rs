@@ -10,7 +10,9 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/receipt/{id}", get(receipt_page))
+    Router::new()
+        .route("/receipt/{id}", get(receipt_page))
+        .route("/receipt/{id}/", get(receipt_page))
 }
 
 pub fn esc(s: &str) -> String {
