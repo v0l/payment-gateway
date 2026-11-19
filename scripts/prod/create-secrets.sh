@@ -18,7 +18,7 @@ generate() {
         umask 077
         mkdir -p "$secrets_dir"
         chmod 700 "$secrets_dir"
-        eval "$cmd" > "$file"
+        eval "$cmd" | tr -d '\n' > "$file"
         chmod 600 "$file"
         echo "created $file"
     else
