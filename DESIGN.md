@@ -106,6 +106,7 @@ Projects can add `webhook_endpoint` rows (url, sealed secret, event filter, enab
 - Overpay is accepted and recorded. Underpay on-chain stays pending until expiry, then is flagged for a manual decision.
 - Lightning settlement is driven by the LND invoice stream with a resume cursor, on-chain by the existing `PaymentCursor` logic. Both must survive restarts without missing or double counting.
 - Settlement is a single DB transaction: attempt paid, payment paid, webhook row inserted. Delivery happens after commit from the webhook table.
+- Xpub on-chain (`onchain/xpub`): watch-only. Addresses come from `XpubSpec` (`src/xpub.rs`) on the external chain, indexes from `xpub_state.next_index` (one atomic `last_insert_id` update per attempt, issued addresses in `xpub_address`). A polling watcher (`providers/xpub`) asks an Esplora source or a bitcoind watch-only wallet for the addresses of pending attempts and of attempts expired within the grace window, and feeds the usual `ProviderEvent::Paid`. Refunds return `manual`.
 - Altcoins go through FixedFloat into the tenant's on-chain wallet. The payment is paid when the swap lands, not when the customer sends.
 
 ## Custody ledger

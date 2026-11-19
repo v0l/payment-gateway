@@ -31,6 +31,11 @@ All variables are validated at start and every problem is reported at once (exit
 | `GATEWAY_PUBLIC_URL` | required | base URL for pay pages and provider webhooks |
 | `GATEWAY_LISTEN` | `0.0.0.0:8080` | listen address |
 | `GATEWAY_ALLOW_MOCK` | off | enable the mock provider, tests only |
+| `GATEWAY_BITCOIN_NETWORK` | unset | `mainnet`, `testnet`, `signet` or `regtest`. Turns on xpub on-chain providers and fixes the network their keys must match |
+| `GATEWAY_ESPLORA_URL` | mempool.space for the network | default Esplora API for xpub providers (required on regtest unless bitcoind is used) |
+| `GATEWAY_XPUB_BITCOIND_URL`, `_USER`, `_PASS` | unset | bitcoind RPC the gateway may use for xpub providers with `source` `bitcoind` (a watch-only wallet per provider is created with `importdescriptors`) |
+| `GATEWAY_XPUB_POLL_SECS` | `20` | chain poll interval |
+| `GATEWAY_XPUB_GRACE_HOURS` | `48` | keep watching an unpaid address this long after its attempt expired |
 | `GATEWAY_OPERATOR_2FA_GRACE` | off | let operator accounts without 2FA sign in during rollout |
 | `LOG_LEVEL` | `info` | error, warn, info, debug, trace (falls back to `RUST_LOG`) |
 | `LOG_FORMAT` | `json` | `json` or `text` |
@@ -135,6 +140,7 @@ curl -X POST $GW/admin/tenants/1/providers -H "Authorization: Bearer $ADMIN" -H 
 | --- | --- | --- |
 | lightning | lnd | `url`, `cert_path`, `macaroon_path` |
 | onchain | lnd | `url`, `cert_path`, `macaroon_path`, `address_type` (p2tr, p2wkh, np2wkh), `min_confirmations` |
+| onchain | xpub | `xpub` (an xpub, ypub, zpub, tpub, upub or vpub, or a descriptor such as `wpkh([fp/84'/0'/0']xpub.../0/*)` or `tr(...)` with an optional checksum), `min_confirmations` (0-100, default 1), `source` (`esplora` or `bitcoind`), `esplora_url` (untrusted projects need a public https url) |
 | stripe | stripe | `secret_key`, `webhook_secret` |
 | revolut | revolut | `url`, `token`, `api_version`, `public_key` (webhook secret is registered and stored automatically) |
 | paypal | paypal | `client_id`, `client_secret`, `mode` (`sandbox` or `live`, default sandbox), `webhook_id`, optional `url` (operator only) |
@@ -259,6 +265,17 @@ GET    /admin/deliveries?undelivered=1       POST /admin/deliveries/{id}/replay
 Platform managed methods (shared Lightning and on-chain wallets, enabled per project in the console) show `platform_managed: true` on `/v1/methods` and on attempts. Paid attempts carry `platform_fee` and `net_credited` (msats), also in the `payment.paid` webhook `detail`. The net is held as the project balance. Refunds of these payments are debited from that balance and refused when it is too low. See DESIGN.md, "Shared platform providers".
 
 Lightning refunds need a bolt11 invoice with an amount, on-chain refunds an address. Card refunds go back to the card.
+
+### On-chain from your own xpub
+
+The gateway holds no keys. Add a payment method "Bitcoin on-chain (your xpub)" in the console (or `onchain` / `xpub` through the API) with an extended public key or output descriptor. The key must match `GATEWAY_BITCOIN_NETWORK`: a mainnet key is refused on regtest and the other way round. SLIP-132 prefixes map to the script type (`xpub` pkh, `ypub` sh(wpkh), `zpub` wpkh); descriptors may be `pkh`, `sh(wpkh)`, `wpkh` or a key only `tr`, and a checksum, when given, must be valid.
+
+- Every attempt gets the next address on the external chain (`/0/i`). The index is stored per provider, incremented atomically and never reused.
+- Creating the provider returns `preview_addresses`, the first three addresses, to compare with your wallet.
+- Payments are detected by polling an Esplora API (the default) or a watch-only bitcoind wallet. Confirmation, underpayment, overpayment and late payment rules are the same as for the LND on-chain method. Unpaid addresses are watched until the attempt expires plus `GATEWAY_XPUB_GRACE_HOURS`; funds sent later still reach your wallet.
+- `GET /console/api/projects/{id}/providers/{pid}/xpub` shows the script, next index, issued addresses and chain source health. `POST .../rescan` with `{from, count}` re-checks a range of issued addresses.
+- Refunds cannot be sent by the gateway. The refund is recorded as completed with `external_id` `manual` and `manual: true` on the refund object; send the money from your wallet to the customer's address.
+- Privacy: the gateway (and the Esplora server it asks) learns every address you receive on through this key, and can link them.
 
 ## Email
 
