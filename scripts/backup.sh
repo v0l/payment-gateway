@@ -17,9 +17,18 @@ dump() {
 }
 
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+restic_host="${RESTIC_HOST:-payment-gateway}"
 
 if [ -n "${RESTIC_REPOSITORY:-}" ]; then
-    dump | restic backup --stdin --stdin-filename "${DB_NAME}.sql" --tag payment-gateway --tag "$stamp"
+    restic cat config >/dev/null 2>&1 || restic init
+    staging="$(mktemp "${TMPDIR:-/tmp}/${DB_NAME}-XXXXXX.sql")"
+    trap 'rm -f "$staging"' EXIT
+    dump > "$staging"
+    restic backup --stdin --stdin-filename "${DB_NAME}.sql" --host "$restic_host" --tag payment-gateway --tag "$stamp" < "$staging"
+    if [ -n "${RESTIC_FORGET_ARGS:-}" ]; then
+        read -ra forget_args <<< "$RESTIC_FORGET_ARGS"
+        restic forget --prune --host "$restic_host" --tag payment-gateway "${forget_args[@]}"
+    fi
     echo "restic:${RESTIC_REPOSITORY}"
     exit 0
 fi
