@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build && bun scripts/budget.ts",
     "check": "tsc --noEmit",
-    "types": "bun scripts/types.ts"
+    "gen:api": "bun scripts/gen-api.ts"
   },
   "dependencies": {
     "preact": "^10.29.8",

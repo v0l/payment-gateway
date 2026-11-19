@@ -25,8 +25,8 @@ export interface AttemptDetails {
 }
 
 export interface Attempt {
-  id: number;
-  status: string;
+  id: NonNullable<Schemas['Attempt']['id']>;
+  status: NonNullable<Schemas['Attempt']['status']>;
   amount: number;
   currency: string;
   details?: AttemptDetails;
@@ -58,11 +58,11 @@ export interface Branding {
   show_powered_by?: boolean;
 }
 
-export interface LineItem {
-  name: string;
-  quantity: number;
-  total: number;
-}
+import type { components } from '../api/schema';
+
+type Schemas = components['schemas'];
+
+export type LineItem = Schemas['LineItem'] & { name: string; quantity: number; total: number };
 
 export interface PayState {
   id: string;
