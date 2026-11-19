@@ -36,6 +36,11 @@
   --wallet-4: #b7c5ea;
   --wallet-5: #dfe5f6;
   --scrim: rgba(18, 22, 34, 0.45);
+  --paper: #ffffff;
+  --on-bad: #ffffff;
+  --print-ink: #000000;
+  --print-muted: #595959;
+  --print-rule: #8c8c8c;
 
   --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -47,6 +52,8 @@
   --fs-xl: 22px;
   --fs-display: 44px;
   --fs-figure: 28px;
+  --fs-hero: 52px;
+  --measure: 44rem;
   --lh-tight: 1.2;
   --lh-base: 1.5;
 

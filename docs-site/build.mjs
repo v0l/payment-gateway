@@ -129,7 +129,43 @@ function render(md) {
   return { html: html.join("\n"), headings };
 }
 
-export function page({ title, body, section, slug, banner }) {
+const topTabs = [
+  ["/guide/", "Guide", "guide"],
+  ["/operator/", "Operators", "operator"],
+  ["/docs", "API reference", "docs"],
+  ["/legal/", "Legal", "legal"],
+];
+
+export function topBar(active) {
+  const tabs = topTabs
+    .map(([href, label, id]) => `<a href="${href}"${id === active ? ' aria-current="page"' : ""}>${label}</a>`)
+    .join("");
+  return `<header class="top">
+<div class="top-in">
+<a class="brand" href="/"><span class="mark"></span><span class="name">Payment Gateway</span></a>
+<nav class="tabs" aria-label="Primary">${tabs}</nav>
+<a class="btn primary" href="/console">Sign in</a>
+</div>
+</header>`;
+}
+
+export function siteFooter() {
+  return `<footer>
+<div class="foot-in">
+<span>Payment Gateway</span>
+<nav aria-label="Legal">
+<ul>
+<li><a href="/legal/terms">Terms</a></li>
+<li><a href="/legal/privacy">Privacy</a></li>
+<li><a href="/legal/acceptable-use">Acceptable use</a></li>
+<li><a href="/legal/custody">Custodial and non-custodial</a></li>
+</ul>
+</nav>
+</div>
+</footer>`;
+}
+
+export function page({ title, body, section, slug, banner, scripts = "", active }) {
   const links = nav.sections
     .map((s) => {
       const items = s.pages
@@ -142,6 +178,15 @@ export function page({ title, body, section, slug, banner }) {
       return `<h2>${esc(s.title)}</h2><ul>${items}</ul>`;
     })
     .join("");
+  const here = nav.sections.find((s) => s.id === section);
+  const subtabs = here
+    ? `<nav class="subtabs" aria-label="${esc(here.title)} pages"><ul>${here.pages
+        .map((p) => {
+          const href = p.slug === "index" ? `/${here.id}/` : `/${here.id}/${p.slug}`;
+          return `<li><a href="${href}"${p.slug === slug ? ' aria-current="page"' : ""}>${esc(p.title)}</a></li>`;
+        })
+        .join("")}</ul></nav>`
+    : "";
   const note = banner ? `<p class="draft" role="note">${esc(banner)}</p>` : "";
   return `<!doctype html>
 <html lang="en">
@@ -149,15 +194,14 @@ export function page({ title, body, section, slug, banner }) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} | Payment Gateway</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/assets/tokens.css">
-<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/site.css">${scripts ? '\n<link rel="stylesheet" href="/docs/docs.css">' : ""}
 </head>
 <body>
 <a class="skip" href="#content">Skip to content</a>
-<header class="top">
-<a class="brand" href="/">Payment Gateway</a>
-<nav aria-label="Primary"><a href="/guide/">Docs</a> <a href="/operator/">Operators</a> <a href="/docs">API reference</a> <a href="/legal/">Legal</a> <a class="button" href="/console">Sign in</a></nav>
-</header>
+${topBar(active || section)}
+${subtabs}
 <div class="layout">
 <nav class="side" aria-label="Documentation">${links}</nav>
 <main id="content">
@@ -165,7 +209,8 @@ ${note}
 ${body}
 </main>
 </div>
-</body>
+${siteFooter()}
+${scripts}</body>
 </html>
 `;
 }
@@ -187,7 +232,7 @@ for (const section of nav.sections) {
     known.add(`${section.id}/${p.slug}.md`);
     const md = p.slug === "reference" && section.id === "guide" ? referenceMarkdown() : readFileSync(join(root, section.id, `${p.slug}.md`), "utf8");
     const { html } = render(md);
-    const body = `<article>\n${html}\n</article>`;
+    const body = `<article class="doc">\n${html}\n</article>`;
     write(
       join(out, `${section.id}-${p.slug}.html`),
       page({ title: p.title, body, section: section.id, slug: p.slug, banner: section.banner }),
@@ -201,6 +246,14 @@ for (const section of nav.sections) {
     if (f.endsWith(".md") && !known.has(`${section.id}/${f}`)) problems.push(`${section.id}/${f} is not in nav.json`);
   }
 }
+
+const referenceBody = `<div class="search"><label class="sr-only" for="ref-search">Search the API reference</label><input id="ref-search" type="search" placeholder="Search endpoints, for example refund or subscription" autocomplete="off"><p class="count" id="ref-count" role="status"></p></div>
+<article class="doc" id="root"><h1>API reference</h1><p>Loading the API description.</p></article>`;
+write(
+  join(out, "..", "docs.html"),
+  page({ title: "API reference", body: referenceBody, section: "guide", slug: "reference", active: "docs", scripts: '<script src="/docs/docs.js"></script>\n' }),
+  problems,
+);
 
 if (problems.length) {
   console.error("stale or unlisted:\n" + problems.join("\n"));

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment methods | Payment Gateway</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<div class="top-in">
+<a class="brand" href="/"><span class="mark"></span><span class="name">Payment Gateway</span></a>
+<nav class="tabs" aria-label="Primary"><a href="/guide/" aria-current="page">Guide</a><a href="/operator/">Operators</a><a href="/docs">API reference</a><a href="/legal/">Legal</a></nav>
+<a class="btn primary" href="/console">Sign in</a>
+</div>
+</header>
+<nav class="subtabs" aria-label="Guide pages"><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/payment-methods" aria-current="page">Payment methods</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/console">Using the console</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul></nav>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/payment-methods" aria-current="page">Payment methods</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/console">Using the console</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/platform-billing">Platform billing</a></li><li><a href="/operator/treasury">Treasury and reconciliation</a></li><li><a href="/operator/console">Console tools</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article class="doc">
+<h1 id="payment-methods">Payment methods</h1>
+<p>A customer sees the methods you have turned on for the project, and nothing else. Turn them on from Developers, Payment methods in the console, or list what is live with <code>GET /v1/methods</code>.</p>
+<table><thead><tr><th scope="col">Method</th><th scope="col">Provider</th><th scope="col">What the customer gets</th><th scope="col">Notes</th></tr></thead><tbody><tr><td><code>lightning</code></td><td>Your LND node, or the platform node</td><td>A bolt11 invoice and a QR code</td><td>Settles instantly.</td></tr><tr><td><code>onchain</code></td><td>Your LND node, or the platform wallet</td><td>A fresh address and a bitcoin: link</td><td>Counts confirmations, shows &quot;0 of N&quot; and keeps the same address if the customer pays short.</td></tr><tr><td><code>stripe</code></td><td>Your Stripe account</td><td>A hosted Stripe checkout</td><td>Refunds and disputes are tracked. Can save a card.</td></tr><tr><td><code>revolut</code></td><td>Your Revolut merchant account</td><td>A hosted card form on the pay page</td><td>Refunds and disputes are tracked. Can save a card.</td></tr><tr><td><code>paypal</code></td><td>Your PayPal account</td><td>PayPal approval, captured when the customer returns</td><td>Disputes are tracked.</td></tr><tr><td><code>fixedfloat</code></td><td>FixedFloat, into your on-chain wallet</td><td>A deposit address for an altcoin such as XMR or LTC</td><td>Needs an on-chain method on the same project.</td></tr></tbody></table>
+<h2 id="your-own-providers-or-the-platform-s">Your own providers or the platform's</h2>
+<p>With your own provider the money goes straight to you and the gateway only watches for it. Without a node, enable a platform managed Lightning or on-chain method instead. The operator receives the money and the gateway keeps a ledger of what it owes you, minus a fee that is shown next to the method. See <a href="/guide/custody">Custody and payouts</a>.</p>
+<h2 id="fees-and-testing-a-method">Fees and testing a method</h2>
+<p>A method can add a processing fee to what the customer pays (a percent, a base amount or both). The pay page shows it before they choose. Use <strong>Test</strong> on a provider to check its credentials without creating a payment. Secrets are write-only and are never shown again.</p>
+<h2 id="failures">Failures</h2>
+<p>The console shows each method's recent success and error count and its last error. After 10 failures in a row a method on a customer project is switched off and the project owners are emailed, so the pay page does not keep offering something that is broken. Turn it back on once the cause is fixed.</p>
+</article>
+</main>
+</div>
+<footer>
+<div class="foot-in">
+<span>Payment Gateway</span>
+<nav aria-label="Legal">
+<ul>
+<li><a href="/legal/terms">Terms</a></li>
+<li><a href="/legal/privacy">Privacy</a></li>
+<li><a href="/legal/acceptable-use">Acceptable use</a></li>
+<li><a href="/legal/custody">Custodial and non-custodial</a></li>
+</ul>
+</nav>
+</div>
+</footer>
+</body>
+</html>

@@ -14,11 +14,13 @@ use std::sync::Arc;
 
 const SANDBOX_HTML: &str = include_str!("../../web/sandbox.html");
 const SANDBOX_JS: &str = include_str!("../../web/sandbox.js");
+const SANDBOX_CSS: &str = include_str!("../../web/sandbox.css");
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/sandbox", get(page))
         .route("/sandbox/app.js", get(script))
+        .route("/sandbox/app.css", get(stylesheet))
         .route("/sandbox/hook", post(hook))
         .route("/sandbox/api/status", get(status))
         .route("/sandbox/api/bootstrap", post(bootstrap))
@@ -41,7 +43,7 @@ fn page_headers() -> HeaderMap {
     let mut h = HeaderMap::new();
     h.insert(
         header::CONTENT_SECURITY_POLICY,
-        "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
             .parse()
             .unwrap(),
     );
@@ -68,6 +70,18 @@ async fn script(State(s): State<AppState>) -> Result<Response, ApiError> {
             (header::CACHE_CONTROL, "no-cache"),
         ],
         SANDBOX_JS,
+    )
+        .into_response())
+}
+
+async fn stylesheet(State(s): State<AppState>) -> Result<Response, ApiError> {
+    sandbox(&s)?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, "text/css"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        SANDBOX_CSS,
     )
         .into_response())
 }

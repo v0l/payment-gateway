@@ -18,7 +18,7 @@
 .copyable { display: flex; gap: var(--space-2); align-items: stretch; }
 .copyable code { flex: 1; min-width: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--code); font-family: var(--font-mono); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .codes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-2); list-style: none; padding: var(--space-3); margin: var(--space-3) 0; background: var(--code); border: 1px dashed var(--warn); border-radius: var(--radius); font-family: var(--font-mono); font-size: var(--fs-base); }
-.qr-block { width: 192px; max-width: 100%; padding: var(--space-2); background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.qr-block { width: 192px; max-width: 100%; padding: var(--space-2); background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--radius); }
 .qr-block svg { display: block; width: 100%; height: auto; }
 .field.invalid input, .field.invalid select { border-color: var(--bad); }
 .field .hint { color: var(--muted); font-size: var(--fs-sm); margin-top: var(--space-1); }

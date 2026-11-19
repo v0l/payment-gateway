@@ -8,8 +8,10 @@ Start with [concepts](/guide/concepts), then pick a quickstart.
 - [Quickstart: hosted page](/guide/quickstart-hosted): you redirect the customer to the gateway pay page.
 - [Quickstart: iframe](/guide/quickstart-iframe): the pay page inside your own page.
 - [Webhooks](/guide/webhooks): events, signatures and verification code in JavaScript, Rust and Python.
+- [Payment methods](/guide/payment-methods): what each method gives the customer.
 - [Going live checklist](/guide/going-live)
 - [Refunds and saved methods](/guide/refunds-saved), [subscriptions](/guide/subscriptions), [custody and payouts](/guide/custody)
+- [Using the console](/guide/console): Home, saved views and the Balance page.
 - [Error reference](/guide/errors), [FAQ](/guide/faq), [API reference](/guide/reference)
 
 Running your own gateway? Read the [operator guide](/operator/).

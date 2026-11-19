@@ -101,6 +101,20 @@ All routes are under `/console/api/projects/{id}` and need a project role (viewe
 - `GET settings`, `POST settings/legal`, `POST settings/notifications`, `POST settings/enabled` (owner), `POST delete-request` (returns a token once), `POST delete-confirm {token}` after 24 hours. Deletion is refused while payments are pending or any ledger balance is non-zero.
 - Operators: `GET /console/api/operator/tenants`, `operator/tenants/{id}/support` (read only, audit logged), `operator/search?q=` (payment id prefix, reference, invoice hash, txid), `operator/health`.
 
+### Console v4
+
+Read APIs behind the Home, Payments and Balance pages. All are under `/console/api/projects/{id}`, viewer level and tenant scoped unless noted.
+
+- `GET home?tz=`: today against the same day last week by hour (`tz` is minutes east of UTC, -840 to 840), this month against the same days last month, funds from the ledger, and payment method health.
+- `GET attention`: disputes, paid late or short, waiting for confirmations, declined, failed refunds, failing webhook endpoints, auto-disabled methods, past due subscriptions, failed payouts, plus what is only waiting for customers and `manual_paid_allowed`.
+- `POST attention/bulk {action, payments, reason}` (admin): `action` is `cancel` or `mark_paid`, 1 to 50 payments. `mark_paid` needs manual payment handling on and a reason of 3 to 500 characters. Replies `{done, failed}`.
+- `GET feed?kind=&before=`: activity, `kind` is `all`, `payments`, `refunds`, `payouts` or `webhooks`.
+- `GET payment-view-counts`: counts for the ready-made payment views (all, pending, paid, refunded, partially refunded, expired, cancelled, disputed, last 7 days).
+- `GET balance`, `GET ledger`, `GET statement?before=&limit=` (1 to 200): the platform balance, ledger entries and the statement with the balance after each line.
+- `GET payouts`, `POST payout-destinations`, `POST payout-destinations/{did}/verify`, `DELETE payout-destinations/{did}`, `POST withdrawals {amount, destination_id | invoice}`, `POST withdrawals/{wid}/cancel`. Operators: `GET /console/api/admin/withdrawals`, `POST admin/withdrawals/{wid}/approve`, `.../reject {reason}`, `POST admin/projects/{id}/payout-limits {daily_max, auto_threshold}`.
+- Treasury (operators): `GET /console/api/admin/treasury`, `POST admin/treasury/run`, `GET admin/treasury/banner`. Also `GET /admin/ledger/reconcile` with the admin token. See DESIGN.md, "Reconciliation, solvency and treasury".
+- Platform billing: `GET platform-billing` for a project's plan, usage and invoices. Operators: `GET/POST /console/api/admin/platform/plans`, `POST admin/platform/plans/{id}`, `POST admin/platform/tenant {tenant_id}`, `POST admin/projects/{id}/platform/plan {plan_id, reason}`, `.../platform/credit {amount, reason}`, `.../platform/invoices/{invoice}/waive {reason}`.
+
 ## Set up a tenant with the admin API
 
 ```

@@ -9,11 +9,13 @@
         {"slug": "quickstart-api", "title": "Quickstart: API only"},
         {"slug": "quickstart-hosted", "title": "Quickstart: hosted page"},
         {"slug": "quickstart-iframe", "title": "Quickstart: iframe"},
+        {"slug": "payment-methods", "title": "Payment methods"},
         {"slug": "webhooks", "title": "Webhooks"},
         {"slug": "going-live", "title": "Going live checklist"},
         {"slug": "refunds-saved", "title": "Refunds and saved methods"},
         {"slug": "subscriptions", "title": "Subscriptions and recurring billing"},
         {"slug": "custody", "title": "Custody and payouts"},
+        {"slug": "console", "title": "Using the console"},
         {"slug": "errors", "title": "Error reference"},
         {"slug": "faq", "title": "FAQ"},
         {"slug": "reference", "title": "API reference"}
@@ -30,6 +32,7 @@
         {"slug": "shared-providers", "title": "Shared platform providers"},
         {"slug": "backups", "title": "Backups and key rotation"},
         {"slug": "platform-billing", "title": "Platform billing"},
+        {"slug": "treasury", "title": "Treasury and reconciliation"},
         {"slug": "console", "title": "Console tools"},
         {"slug": "monitoring", "title": "Monitoring and alerts"},
         {"slug": "runbooks", "title": "Runbooks"}

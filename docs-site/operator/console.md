@@ -1,6 +1,6 @@
 # Console tools
 
-Operators see an extra Operator section in the console sidebar. These pages and endpoints need an operator account with two factor authentication (or `GATEWAY_OPERATOR_2FA_GRACE=1` while bootstrapping).
+Operators see an extra Operator menu in the console top bar. These pages and endpoints need an operator account with two factor authentication (or `GATEWAY_OPERATOR_2FA_GRACE=1` while bootstrapping).
 
 ## Projects
 
@@ -16,7 +16,7 @@ Paste a payment id (or its first characters), a reference, an invoice hash or a 
 
 ## Platform health
 
-`GET /console/api/operator/health` and the cards at the top of the Projects page show the number of projects, disabled projects, pending payments, webhooks waiting, abandoned webhooks in the last 24 hours and uptime. It is a quick check before looking at metrics, see [Monitoring and alerts](monitoring.html).
+`GET /console/api/operator/health` and the cards at the top of the Projects page show the number of projects, disabled projects, pending payments, webhooks waiting, abandoned webhooks in the last 24 hours and uptime. It is a quick check before looking at metrics, see [Monitoring and alerts](/operator/monitoring).
 
 ## Project deletion
 

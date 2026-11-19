@@ -6,6 +6,8 @@ This guide is for the person running a gateway for others, or for themselves.
 - [LND and macaroons](/operator/lnd): a least-privilege macaroon, with the exact `lncli bakemacaroon` command.
 - [Stripe, Revolut and PayPal](/operator/providers): webhook setup.
 - [Backups and key rotation](/operator/backups)
+- [Platform billing](/operator/platform-billing)
+- [Treasury and reconciliation](/operator/treasury)
 - [Monitoring and alerts](/operator/monitoring)
 - [Runbooks](/operator/runbooks)
 

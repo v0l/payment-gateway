@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Using the console | Payment Gateway</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<div class="top-in">
+<a class="brand" href="/"><span class="mark"></span><span class="name">Payment Gateway</span></a>
+<nav class="tabs" aria-label="Primary"><a href="/guide/" aria-current="page">Guide</a><a href="/operator/">Operators</a><a href="/docs">API reference</a><a href="/legal/">Legal</a></nav>
+<a class="btn primary" href="/console">Sign in</a>
+</div>
+</header>
+<nav class="subtabs" aria-label="Guide pages"><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/payment-methods">Payment methods</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/console" aria-current="page">Using the console</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul></nav>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/payment-methods">Payment methods</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/console" aria-current="page">Using the console</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/platform-billing">Platform billing</a></li><li><a href="/operator/treasury">Treasury and reconciliation</a></li><li><a href="/operator/console">Console tools</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article class="doc">
+<h1 id="using-the-console">Using the console</h1>
+<p>The console at <code>/console</code> is where you run a project day to day. It has a top bar with a project switcher, a search box (press Ctrl K) and your account menu, and tabs underneath. Everything the console shows is also reachable by API, and every change you make is written to the project's Activity log.</p>
+<h2 id="home">Home</h2>
+<p>Home opens on <strong>Needs attention</strong>: the things that need a person, grouped by what to do about them.</p>
+<ul><li>Disputes the customer has opened with their bank.</li><li>Payments that arrived late or short. Accept a late payment, or decide what to do about a short on-chain one.</li><li>On-chain payments waiting for confirmations.</li><li>Payments whose last attempt was declined and where the customer has not tried again.</li><li>Webhook endpoints that are failing, payment methods the gateway switched off after repeated errors, subscriptions that are past due and failed payouts.</li></ul>
+<p>Below the list, a single line says how much is only waiting for customers to pay, so you know nothing is hiding there. Select rows to cancel several payments at once, or to mark late payments as paid. The second action needs manual payment handling turned on in Settings and a reason of 3 to 500 characters.</p>
+<p>The rest of Home is today's paid total against the same hour last week, an activity feed you can filter by payments, refunds, payouts or webhooks, and a side rail with your funds, this month against the same days last month, and the health of each payment method.</p>
+<h2 id="payments-and-saved-views">Payments and saved views</h2>
+<p>Payments has ready-made views: all, pending, paid, refunded, disputed, expired, cancelled and the last 7 days, each with a count. Filter by status, method, customer, date range, amount or a reference prefix. When you have a filter you use often, choose <strong>Save view</strong> to keep it under a name. Saved views belong to your account and to the project, and you can keep up to 20 of them. Export the current filter as CSV from the same page.</p>
+<p>The payment detail page shows the timeline, the attempts, the webhook deliveries with what your server answered, internal notes, and where the money went. From it you can refund, resend the webhook or, with manual handling on, mark the payment as paid.</p>
+<h2 id="balance">Balance</h2>
+<p>Balance is for projects that use platform payment methods, where the gateway holds the money until you withdraw it. It shows what is held for you, what is still settling and your latest payout, with a statement underneath. Each statement line is a payment, a refund, a fee or a payout, with the balance after it and a link to the payment behind it. Payouts, destinations and withdrawal requests are on the Payouts tab next to it. See <a href="/guide/custody">Custody and payouts</a>.</p>
+<h2 id="endpoints-behind-these-pages">Endpoints behind these pages</h2>
+<p>These routes are under <code>/console/api</code> and use your signed-in session, not an API key. They are listed here for people scripting against the console. The stable integration surface is <a href="/guide/reference"><code>/v1</code></a>.</p>
+<table><thead><tr><th scope="col">Route</th><th scope="col">What it returns or does</th></tr></thead><tbody><tr><td><code>GET /projects/{id}/home?tz=</code></td><td>Today against last week by hour, this month against last month, funds and method health. <code>tz</code> is minutes east of UTC.</td></tr><tr><td><code>GET /projects/{id}/attention</code></td><td>The Needs attention groups and the count of payments only waiting for customers.</td></tr><tr><td><code>POST /projects/{id}/attention/bulk</code></td><td><code>{action: &quot;cancel&quot; or &quot;mark_paid&quot;, payments: [...], reason}</code>, 1 to 50 payments, admin role. Returns what was done and what failed.</td></tr><tr><td><code>GET /projects/{id}/feed?kind=&amp;before=</code></td><td>The activity feed. <code>kind</code> is <code>all</code>, <code>payments</code>, <code>refunds</code>, <code>payouts</code> or <code>webhooks</code>.</td></tr><tr><td><code>GET /projects/{id}/payment-view-counts</code></td><td>Counts for the ready-made payment views.</td></tr><tr><td><code>GET</code> and <code>POST /projects/{id}/saved-views</code>, <code>DELETE /projects/{id}/saved-views/{view}</code></td><td>Saved payment filters, 20 per account and project.</td></tr><tr><td><code>POST /projects/{id}/payments-bulk-cancel</code></td><td><code>{older_than_hours}</code> cancels stale pending payments, 200 per call.</td></tr><tr><td><code>GET /projects/{id}/payments-export</code></td><td>The current payment filter as CSV.</td></tr><tr><td><code>GET /projects/{id}/balance</code> and <code>GET /projects/{id}/statement?before=&amp;limit=</code></td><td>The balance and the statement, 1 to 200 lines per page.</td></tr></tbody></table>
+<p>Viewers can read, admins can change, and only members of the project can reach its routes.</p>
+</article>
+</main>
+</div>
+<footer>
+<div class="foot-in">
+<span>Payment Gateway</span>
+<nav aria-label="Legal">
+<ul>
+<li><a href="/legal/terms">Terms</a></li>
+<li><a href="/legal/privacy">Privacy</a></li>
+<li><a href="/legal/acceptable-use">Acceptable use</a></li>
+<li><a href="/legal/custody">Custodial and non-custodial</a></li>
+</ul>
+</nav>
+</div>
+</footer>
+</body>
+</html>

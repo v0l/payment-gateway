@@ -5,40 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Gateway sandbox</title>
-<style>
-:root { --bg:#0f1115; --card:#181b21; --line:#2a2f38; --text:#eceff4; --muted:#9aa3b2; --accent:#7c3aed; --ok:#22c55e; --bad:#ef4444; --warn:#f59e0b; }
-* { box-sizing: border-box; }
-body { margin:0; font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
-header { display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
-header h1 { font-size:16px; margin:0; }
-.badge { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
-.badge.ok { color:var(--ok); border-color:var(--ok); }
-.badge.bad { color:var(--bad); border-color:var(--bad); }
-main { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:14px; padding:16px 20px; max-width:1400px; margin:0 auto; }
-section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; min-width:0; }
-section.wide { grid-column:1/-1; }
-h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 10px; }
-.kv { display:grid; grid-template-columns:auto 1fr; gap:3px 12px; font-size:13px; }
-.kv dt { color:var(--muted); } .kv dd { margin:0; overflow-wrap:anywhere; }
-.mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
-button, input, select { font:inherit; color:var(--text); background:#0f1115; border:1px solid var(--line); border-radius:8px; padding:6px 10px; }
-button { cursor:pointer; background:var(--accent); border-color:var(--accent); font-weight:600; }
-button.ghost { background:transparent; border-color:var(--line); font-weight:400; }
-button:disabled { opacity:.5; cursor:progress; }
-.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0; }
-.row input { flex:1; min-width:90px; }
-table { width:100%; border-collapse:collapse; font-size:13px; }
-th, td { text-align:left; padding:5px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
-th { color:var(--muted); font-weight:500; }
-.pill { padding:1px 7px; border-radius:999px; font-size:11px; border:1px solid var(--line); }
-.pill.paid { color:var(--ok); border-color:var(--ok); } .pill.pending { color:var(--warn); border-color:var(--warn); }
-.pill.expired,.pill.cancelled,.pill.failed { color:var(--bad); border-color:var(--bad); }
-.log { background:#0b0d10; border:1px solid var(--line); border-radius:8px; padding:8px; max-height:220px; overflow:auto; white-space:pre-wrap; font-size:12px; }
-.err { color:var(--bad); } .muted { color:var(--muted); }
-details { margin:4px 0; } summary { cursor:pointer; }
-a { color:#a78bfa; }
-#login { max-width:420px; margin:12vh auto; padding:0 20px; }
-</style>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/sandbox/app.css">
 </head>
 <body>
 <div id="login" hidden>
@@ -53,12 +22,12 @@ a { color:#a78bfa; }
     <h1>Gateway sandbox</h1>
     <span class="badge">regtest, no real money</span>
     <span id="ready" class="badge">checking</span>
-    <span style="flex:1"></span>
+    <span class="grow"></span>
     <button class="ghost" id="signout">Sign out</button>
   </header>
   <main>
     <section id="chain"><h2>Chain</h2><div id="chain-body" class="muted">Loading</div>
-      <div class="row"><input id="mine-n" type="number" min="1" max="200" value="1" style="max-width:80px"><button id="mine">Mine blocks</button></div>
+      <div class="row"><input id="mine-n" class="narrow" type="number" min="1" max="200" value="1"><button id="mine">Mine blocks</button></div>
     </section>
     <section><h2>Gateway node (receives payments)</h2><div id="gw-body" class="muted">Loading</div>
       <div class="row"><input id="fund-gw" type="number" value="1000000"><button id="fund-gw-btn">Fund on-chain</button></div>
@@ -68,19 +37,19 @@ a { color:#a78bfa; }
       <div id="channels" class="muted"></div>
     </section>
     <section><h2>Setup</h2>
-      <p class="muted" style="margin-top:0">Mines blocks, funds both nodes, opens a channel, creates the <span class="mono">sandbox</span> tenant and its LND providers. Safe to run again.</p>
+      <p class="muted lead">Mines blocks, funds both nodes, opens a channel, creates the <span class="mono">sandbox</span> tenant and its LND providers. Safe to run again.</p>
       <div class="row"><button id="bootstrap">Bootstrap regtest</button><button class="ghost" id="rotate">New API key</button></div>
       <div id="setup-log" class="log" hidden></div>
     </section>
     <section><h2>Faucet</h2>
-      <p class="muted" style="margin-top:0">Send regtest coins to any address, for example one from a payment page.</p>
-      <div class="row"><input id="faucet-addr" placeholder="bcrt1..."><input id="faucet-sats" type="number" value="100000" style="max-width:120px"><button id="faucet-btn">Send</button></div>
-      <p class="muted" style="margin:10px 0 4px">Pay a lightning invoice from the customer node</p>
+      <p class="muted lead">Send regtest coins to any address, for example one from a payment page.</p>
+      <div class="row"><input id="faucet-addr" placeholder="bcrt1..."><input id="faucet-sats" class="wide-num" type="number" value="100000"><button id="faucet-btn">Send</button></div>
+      <p class="muted tight">Pay a lightning invoice from the customer node</p>
       <div class="row"><input id="pay-bolt" placeholder="lnbcrt..."><button id="pay-bolt-btn">Pay</button></div>
       <div id="tool-msg" class="muted"></div>
     </section>
     <section><h2>New payment</h2>
-      <div class="row"><input id="p-ref" placeholder="reference" value="sandbox-order"><input id="p-amount" type="number" value="1500" style="max-width:110px"><select id="p-cur"><option>EUR</option><option>USD</option><option>BTC</option></select></div>
+      <div class="row"><input id="p-ref" placeholder="reference" value="sandbox-order"><input id="p-amount" class="mid" type="number" value="1500"><select id="p-cur"><option>EUR</option><option>USD</option><option>BTC</option></select></div>
       <div class="row"><button id="p-create">Create payment</button><span class="muted">amount in minor units (cents, msats)</span></div>
       <div id="p-msg" class="muted"></div>
     </section>

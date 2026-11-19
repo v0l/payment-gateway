@@ -42,7 +42,7 @@ fn asset(body: &'static str, content_type: &'static str) -> Response {
     h.insert(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(
-            "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+            "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
         ),
     );
     h.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));

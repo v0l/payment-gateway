@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treasury and reconciliation | Payment Gateway</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+<div class="top-in">
+<a class="brand" href="/"><span class="mark"></span><span class="name">Payment Gateway</span></a>
+<nav class="tabs" aria-label="Primary"><a href="/guide/">Guide</a><a href="/operator/" aria-current="page">Operators</a><a href="/docs">API reference</a><a href="/legal/">Legal</a></nav>
+<a class="btn primary" href="/console">Sign in</a>
+</div>
+</header>
+<nav class="subtabs" aria-label="Operator guide pages"><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/platform-billing">Platform billing</a></li><li><a href="/operator/treasury" aria-current="page">Treasury and reconciliation</a></li><li><a href="/operator/console">Console tools</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul></nav>
+<div class="layout">
+<nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/payment-methods">Payment methods</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/console">Using the console</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/platform-billing">Platform billing</a></li><li><a href="/operator/treasury" aria-current="page">Treasury and reconciliation</a></li><li><a href="/operator/console">Console tools</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav>
+<main id="content">
+
+<article class="doc">
+<h1 id="treasury-and-reconciliation">Treasury and reconciliation</h1>
+<p>The Treasury page, under the operator section of the console, answers one question: can the gateway pay everyone it owes? It is read only. Nothing on it moves money or rewrites a balance.</p>
+<h2 id="what-a-run-checks">What a run checks</h2>
+<p>A run adds up what the gateway owes (project balances, pending payouts and platform fees) and compares it with what the shared platform providers report holding: the local channel balance of each Lightning node and the confirmed balance of each on-chain wallet. It also checks the ledger itself, that every cached balance equals the sum of its entries and that every transaction sums to zero.</p>
+<p>The lead worker runs it every hour. <strong>Run now</strong> on the page starts one on demand. Every run is kept with its assets, liabilities, difference, drift, unbalanced count, stuck count and status, so you can see when a problem began.</p>
+<h2 id="alerts">Alerts</h2>
+<p>A run raises an alert when:</p>
+<ul><li>liabilities exceed assets by more than <code>GATEWAY_SOLVENCY_TOLERANCE_SATS</code> (default 0)</li><li>a wallet lookup fails, so solvency could not be verified</li><li>a cached balance differs from its entries</li><li>a transaction does not sum to zero</li></ul>
+<p>Alerts are emailed to operators, at most once an hour, and shown as a banner on every console page for operators. They clear on the next run that finds nothing.</p>
+<h2 id="stuck-money">Stuck money</h2>
+<p>The page lists things that look finished but did not complete:</p>
+<table><thead><tr><th scope="col">Problem</th><th scope="col">Meaning</th></tr></thead><tbody><tr><td>Settled, no ledger credit</td><td>A payment settled on a shared provider but the project was not credited.</td></tr><tr><td>Withdrawal stuck sending</td><td>A withdrawal has been <code>sending</code> for over an hour. The node outcome is unknown, so the funds stay reserved.</td></tr><tr><td>On-chain receipt unconfirmed</td><td>A receipt has waited more than 24 hours for confirmations.</td></tr><tr><td>Paid, webhook not delivered</td><td>Every webhook for a paid attempt is still undelivered after an hour.</td></tr></tbody></table>
+<p>The same figures are on <code>/metrics</code>: <code>gateway_liabilities_msat</code>, <code>gateway_assets_msat</code>, <code>gateway_solvency_difference_msat</code>, <code>gateway_ledger_drift_accounts</code>, <code>gateway_ledger_unbalanced_transactions</code>, <code>gateway_stuck_items</code>, <code>gateway_withdrawals_pending</code> and <code>gateway_fees_earned_msat</code>. See <a href="/operator/monitoring">Monitoring and alerts</a> for suggested rules and the <a href="/operator/runbooks">runbooks</a> for what to do when the ledger does not reconcile.</p>
+<h2 id="endpoints">Endpoints</h2>
+<table><thead><tr><th scope="col">Route</th><th scope="col">What it does</th></tr></thead><tbody><tr><td><code>GET /console/api/admin/treasury</code></td><td>The page: totals, wallets, balances per project, stuck items and the last 50 runs.</td></tr><tr><td><code>POST /console/api/admin/treasury/run</code></td><td>Runs a reconciliation now and returns it.</td></tr><tr><td><code>GET /console/api/admin/treasury/banner</code></td><td>The current alerts, used by the banner.</td></tr><tr><td><code>GET /admin/ledger/reconcile</code></td><td>Admin token API. Lists cached balance mismatches and unbalanced transactions.</td></tr></tbody></table>
+</article>
+</main>
+</div>
+<footer>
+<div class="foot-in">
+<span>Payment Gateway</span>
+<nav aria-label="Legal">
+<ul>
+<li><a href="/legal/terms">Terms</a></li>
+<li><a href="/legal/privacy">Privacy</a></li>
+<li><a href="/legal/acceptable-use">Acceptable use</a></li>
+<li><a href="/legal/custody">Custodial and non-custodial</a></li>
+</ul>
+</nav>
+</div>
+</footer>
+</body>
+</html>

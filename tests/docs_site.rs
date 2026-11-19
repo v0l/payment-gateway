@@ -604,3 +604,104 @@ async fn error_reference_lists_every_code_the_api_returns() {
     .await;
     assert_eq!(r.json["error_detail"]["code"], "unauthorized");
 }
+
+fn colour_literals(text: &str) -> Vec<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    for (i, _) in text.match_indices('#') {
+        let hex = bytes[i + 1..]
+            .iter()
+            .take_while(|b| b.is_ascii_hexdigit())
+            .count();
+        let next = bytes.get(i + 1 + hex).copied().unwrap_or(b' ');
+        if matches!(hex, 3 | 4 | 6 | 8) && !next.is_ascii_alphanumeric() && next != b'-' {
+            out.push(text[i..i + 1 + hex].to_string());
+        }
+    }
+    for f in ["rgb(", "rgba(", "hsl(", "hsla("] {
+        if text.contains(f) {
+            out.push(f.to_string());
+        }
+    }
+    out
+}
+
+#[test]
+fn colour_literals_live_only_in_the_token_file() {
+    let mut checked = 0;
+    for entry in std::fs::read_dir(root().join("web")).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy().to_string();
+        let ext = path.extension().map(|e| e.to_string_lossy().to_string());
+        if name == "tokens.css" || !matches!(ext.as_deref(), Some("css") | Some("html")) {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(colour_literals(&text), Vec::<String>::new(), "{name}");
+        checked += 1;
+    }
+    for entry in std::fs::read_dir(root().join("web/site")).unwrap() {
+        let path = entry.unwrap().path();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(colour_literals(&text), Vec::<String>::new(), "{path:?}");
+        checked += 1;
+    }
+    assert!(checked > 40, "{checked}");
+}
+
+#[tokio::test]
+async fn every_public_page_allows_fonts_from_its_own_origin_and_loads_the_shared_tokens() {
+    let h = harness().await;
+    for uri in [
+        "/",
+        "/docs",
+        "/guide/",
+        "/operator/",
+        "/legal/",
+        "/guide/console",
+    ] {
+        let r = send(&h.app, "GET", uri, None, &[], Value::Null).await;
+        assert_eq!(r.status, StatusCode::OK, "{uri}");
+        let csp = r.headers["content-security-policy"].to_str().unwrap();
+        assert!(csp.contains("font-src 'self'"), "{uri}: {csp}");
+        assert!(r.text.contains("/assets/tokens.css"), "{uri}");
+        assert!(r.text.contains("class=\"top\""), "{uri}: top bar");
+    }
+    let tokens = send(&h.app, "GET", "/assets/tokens.css", None, &[], Value::Null).await;
+    assert!(tokens.text.contains("/console/fonts/plex-sans-400.woff2"));
+    let font = send(
+        &h.app,
+        "GET",
+        "/console/fonts/plex-sans-400.woff2",
+        None,
+        &[],
+        Value::Null,
+    )
+    .await;
+    assert_eq!(font.status, StatusCode::OK);
+}
+
+#[test]
+fn new_docs_pages_cover_what_shipped() {
+    let console = std::fs::read_to_string(root().join("docs-site/guide/console.md")).unwrap();
+    for needed in [
+        "Needs attention",
+        "Save view",
+        "Balance",
+        "/attention/bulk",
+        "/statement",
+    ] {
+        assert!(console.contains(needed), "console guide lacks {needed}");
+    }
+    let treasury = std::fs::read_to_string(root().join("docs-site/operator/treasury.md")).unwrap();
+    for needed in [
+        "GATEWAY_SOLVENCY_TOLERANCE_SATS",
+        "/admin/treasury/run",
+        "gateway_liabilities_msat",
+    ] {
+        assert!(treasury.contains(needed), "treasury page lacks {needed}");
+    }
+    let platform =
+        std::fs::read_to_string(root().join("docs-site/operator/platform-billing.md")).unwrap();
+    assert!(platform.contains("/platform/plans"));
+}

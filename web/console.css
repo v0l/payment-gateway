@@ -53,7 +53,7 @@ h3 { font-size: var(--fs-base); margin: 24px 0 8px; }
 .subtabs { border-top: 1px solid var(--line); }
 .subtabs a { padding: 7px 10px 8px; font-size: var(--fs-sm); }
 .subtabs a.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 500; }
-.count { background: var(--bad); color: #fff; border-radius: var(--radius-pill); font-size: var(--fs-xs); font-weight: 600; min-width: 18px; padding: 0 6px; line-height: 18px; text-align: center; }
+.count { background: var(--bad); color: var(--on-bad); border-radius: var(--radius-pill); font-size: var(--fs-xs); font-weight: 600; min-width: 18px; padding: 0 6px; line-height: 18px; text-align: center; }
 
 main { max-width: 1440px; margin: 0 auto; padding: 28px 28px 80px; outline: none; }
 .page { min-width: 0; }

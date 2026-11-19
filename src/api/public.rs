@@ -120,7 +120,7 @@ fn pay_headers(frame_ancestors: &str) -> HeaderMap {
 fn page_headers_with(frame_ancestors: &str, script_src: &str, frame_src: &str) -> HeaderMap {
     let mut h = HeaderMap::new();
     let csp = format!(
-        "default-src 'none'; {script_src}; style-src 'self'; img-src 'self' https: data:; connect-src 'self'; {frame_src}base-uri 'none'; form-action 'none'; frame-ancestors {frame_ancestors}"
+        "default-src 'none'; {script_src}; style-src 'self'; font-src 'self'; img-src 'self' https: data:; connect-src 'self'; {frame_src}base-uri 'none'; form-action 'none'; frame-ancestors {frame_ancestors}"
     );
     h.insert(header::CONTENT_SECURITY_POLICY, csp.parse().unwrap());
     h.insert(

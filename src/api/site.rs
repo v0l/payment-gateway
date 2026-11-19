@@ -17,8 +17,8 @@ macro_rules! pages {
 }
 
 pages! {
-    "guide" => ["index", "concepts", "quickstart-api", "quickstart-hosted", "quickstart-iframe", "webhooks", "going-live", "refunds-saved", "subscriptions", "custody", "errors", "faq", "reference"],
-    "operator" => ["index", "deploy", "lnd", "providers", "shared-providers", "backups", "platform-billing", "console", "monitoring", "runbooks"],
+    "guide" => ["index", "concepts", "quickstart-api", "quickstart-hosted", "quickstart-iframe", "payment-methods", "webhooks", "going-live", "refunds-saved", "subscriptions", "custody", "console", "errors", "faq", "reference"],
+    "operator" => ["index", "deploy", "lnd", "providers", "shared-providers", "backups", "platform-billing", "treasury", "console", "monitoring", "runbooks"],
     "legal" => ["index", "terms", "privacy", "acceptable-use", "custody"]
 }
 
@@ -46,7 +46,7 @@ fn with_headers(body: &'static str, content_type: &'static str) -> Response {
     h.insert(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(
-            "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+            "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
         ),
     );
     h.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));

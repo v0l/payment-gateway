@@ -2,10 +2,10 @@
 html, body { margin: 0; }
 body { font: var(--fs-md)/1.5 var(--font-sans); color: var(--text); background: var(--bg); }
 main { max-width: 760px; margin: 0 auto; padding: var(--space-5) var(--space-4); }
-.receipt { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); box-shadow: var(--shadow-1); }
+.receipt { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); }
 header { display: flex; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-5); }
 header > div { min-width: 0; overflow-wrap: anywhere; }
-h1 { margin: 0 0 var(--space-1); font-size: var(--fs-lg); line-height: 1.25; font-weight: 700; }
+h1 { margin: 0 0 var(--space-1); font-size: var(--fs-xl); line-height: 1.2; font-weight: 600; letter-spacing: -.01em; }
 .muted { color: var(--muted); }
 .addr { white-space: pre-line; }
 dl.meta { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); margin: 0 0 var(--space-5); }
@@ -22,7 +22,7 @@ th:first-child, td:first-child { padding-left: 0; }
 th:last-child, td:last-child { padding-right: 0; }
 .money { font-variant-numeric: tabular-nums; white-space: nowrap; }
 tfoot td { border-bottom: 0; }
-tr.total td { font-weight: 700; font-size: var(--fs-lg); border-top: 2px solid var(--text); border-bottom: 0; }
+tr.total td { font-weight: 600; font-size: var(--fs-lg); border-top: 2px solid var(--text); border-bottom: 0; }
 .sub { display: block; color: var(--muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .actions { margin-top: var(--space-5); }
 button { font: inherit; font-weight: 600; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--line-strong); background: var(--card); color: var(--text); cursor: pointer; }
@@ -38,10 +38,10 @@ button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 @page { margin: 16mm; }
 @media print {
   :root { color-scheme: light; }
-  body { background: #fff; color: black; }
-  .muted, .sub, th, dl.meta dt { color: dimgray; }
-  th, td, tr.total td { border-color: dimgray; }
+  body { background: var(--paper); color: var(--print-ink); }
+  .muted, .sub, th, dl.meta dt { color: var(--print-muted); }
+  th, td, tr.total td { border-color: var(--print-rule); }
   main { padding: 0; max-width: none; }
-  .receipt { border: 0; padding: 0; box-shadow: none; background: transparent; }
+  .receipt { border: 0; padding: 0; background: transparent; }
   .actions { display: none; }
 }
