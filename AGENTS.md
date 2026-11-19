@@ -10,7 +10,7 @@ Rust service (axum, sqlx on MySQL/MariaDB). Read `DESIGN.md` for the model and `
 - `src/db.rs`, `migrations/`: queries and schema. Migrations are forward only. Never edit an applied migration. Add a new file named `<UTC timestamp YYYYMMDDHHMMSS>_<name>.sql` (for example `20261118093000_audit_log.sql`), never the next small number: several branches add migrations in parallel and numbered ones collide. Existing `0001`-`0004` stay as they are and sort first.
 - `src/validate.rs`, `src/ssrf.rs`: customer supplied config and URL checks. Anything a customer can type that makes the server open a connection or read a file must go through these.
 - `src/accounts.rs`, `src/limiter.rs`, `src/crypto.rs`: accounts and sessions, login limiter, sealing of secrets at rest.
-- `web/`: dependency free front end (`pay.*`, `console.*`, `sandbox.*`, `gateway.js`). No build step. CSP is `script-src 'self'`, so no inline scripts or styles.
+- `web/`: bun + Vite + Preact + TypeScript (strict). Ported so far: pay page (`src/pay`), receipt (`src/receipt`), embed script (`src/gateway`). `bun run dev` proxies `/pay`, `/v1`, `/console/api` to `GATEWAY_URL` (default 127.0.0.1:8080). `bun run build` writes `web/dist`, which is committed and embedded by `src/web.rs` (rust-embed), so `cargo build` needs no bun; CI fails when `dist` is stale. Run `bun run check`, `bun test` and `bun run build` in `web/` after any change there. The pay bundle has a gzip budget in `web/scripts/budget.ts`. CSP is `script-src 'self'`, so no inline scripts or styles. No new plain JS.
 - `tests/`: integration tests over a real database. `tests/common/mod.rs` has the harness.
 - `regtest/compose.yaml`: bitcoind and two LND nodes for the real lightning and on-chain test.
 

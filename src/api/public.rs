@@ -18,13 +18,6 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use tokio_stream::wrappers::BroadcastStream;
 
-const PAY_HTML: &str = include_str!("../../web/pay.html");
-const PAY_JS: &str = include_str!("../../web/pay.js");
-const PAY_CSS: &str = include_str!("../../web/pay.css");
-const TOKENS_CSS: &str = include_str!("../../web/tokens.css");
-const FAVICON_SVG: &str = include_str!("../../web/favicon.svg");
-const PAY_I18N_JS: &str = include_str!("../../web/pay-i18n.js");
-const GATEWAY_JS: &str = include_str!("../../web/gateway.js");
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -35,72 +28,11 @@ pub fn router() -> Router<AppState> {
         .route("/pay/{id}/attempts", post(create_attempt))
         .route("/pay/{id}/events", get(events))
         .route("/pay/{id}/qr/{attempt}", get(qr))
-        .route(
-            "/assets/pay.js",
-            get(|| async { asset(PAY_JS, "text/javascript") }),
-        )
-        .route(
-            "/assets/pay.css",
-            get(|| async { asset(PAY_CSS, "text/css") }),
-        )
-        .route(
-            "/assets/tokens.css",
-            get(|| async { asset(TOKENS_CSS, "text/css") }),
-        )
-        .route(
-            "/assets/pay-i18n.js",
-            get(|| async { asset(PAY_I18N_JS, "text/javascript") }),
-        )
-        .route("/assets/i18n/{file}", get(i18n_file))
-        .route(
-            "/favicon.ico",
-            get(|| async { asset(FAVICON_SVG, "image/svg+xml") }),
-        )
-        .route(
-            "/favicon.svg",
-            get(|| async { asset(FAVICON_SVG, "image/svg+xml") }),
-        )
-        .route("/gateway.js", get(|| async { gateway_js() }))
+        .route("/static/{*path}", get(crate::web::static_file))
+        .route("/favicon.ico", get(|| async { crate::web::favicon() }))
+        .route("/favicon.svg", get(|| async { crate::web::favicon() }))
+        .route("/gateway.js", get(|| async { crate::web::gateway_script() }))
         .route("/hook/{tenant}/{provider}", post(hook))
-}
-
-const I18N_FILES: [(&str, &str); 7] = [
-    ("en.json", include_str!("../../web/i18n/en.json")),
-    ("es.json", include_str!("../../web/i18n/es.json")),
-    ("fr.json", include_str!("../../web/i18n/fr.json")),
-    ("de.json", include_str!("../../web/i18n/de.json")),
-    ("pt.json", include_str!("../../web/i18n/pt.json")),
-    ("it.json", include_str!("../../web/i18n/it.json")),
-    ("ga.json", include_str!("../../web/i18n/ga.json")),
-];
-
-async fn i18n_file(Path(file): Path<String>) -> Result<Response, ApiError> {
-    I18N_FILES
-        .iter()
-        .find(|(name, _)| *name == file)
-        .map(|(_, body)| asset(body, "application/json"))
-        .ok_or_else(ApiError::not_found)
-}
-
-fn asset(body: &'static str, content_type: &'static str) -> Response {
-    (
-        [
-            (header::CONTENT_TYPE, content_type),
-            (header::CACHE_CONTROL, "no-cache"),
-            (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
-        ],
-        body,
-    )
-        .into_response()
-}
-
-fn gateway_js() -> Response {
-    let mut r = asset(GATEWAY_JS, "text/javascript");
-    r.headers_mut().insert(
-        header::ACCESS_CONTROL_ALLOW_ORIGIN,
-        HeaderValue::from_static("*"),
-    );
-    r
 }
 
 pub(super) fn page_headers(frame_ancestors: &str) -> HeaderMap {
@@ -156,7 +88,7 @@ pub(super) async fn load(s: &AppState, raw: &str) -> Result<(db::PaymentRow, Ten
 
 async fn pay_page(State(s): State<AppState>, Path(id): Path<String>) -> Result<Response, ApiError> {
     load(&s, &id).await?;
-    Ok((StatusCode::OK, pay_headers("'none'"), PAY_HTML).into_response())
+    Ok((StatusCode::OK, pay_headers("'none'"), crate::web::page("pay")).into_response())
 }
 
 async fn embed_page(
@@ -170,7 +102,7 @@ async fn embed_page(
     } else {
         origins.join(" ")
     };
-    Ok((StatusCode::OK, pay_headers(&ancestors), PAY_HTML).into_response())
+    Ok((StatusCode::OK, pay_headers(&ancestors), crate::web::page("pay")).into_response())
 }
 
 #[derive(Serialize)]

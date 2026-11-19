@@ -43,7 +43,8 @@ async fn pay_page_is_served_with_a_locked_down_csp_and_no_framing() {
         csp.contains("frame-src https://merchant.revolut.com"),
         "{csp}"
     );
-    assert!(r.text.contains("/assets/pay.js"));
+    assert!(r.text.contains("/static/assets/pay-"));
+    assert!(!r.text.contains("<script>"));
 }
 
 #[tokio::test]
@@ -423,41 +424,49 @@ async fn state_changes_are_pushed_over_the_event_stream() {
 }
 
 #[tokio::test]
-async fn static_assets_and_gateway_script_are_served() {
+async fn built_assets_are_served_with_immutable_caching_and_pages_are_not_cached() {
     let h = harness().await;
-    for (uri, ct) in [
-        ("/assets/pay.js", "text/javascript"),
-        ("/assets/pay.css", "text/css"),
-        ("/assets/tokens.css", "text/css"),
-        ("/gateway.js", "text/javascript"),
-    ] {
+    let t = tenant(&h).await;
+    let p = new_payment(&h, &t, eur("o", 100)).await;
+    let id = p["id"].as_str().unwrap();
+    let page = send(&h.app, "GET", &format!("/pay/{id}"), None, &[], Value::Null).await;
+    assert_eq!(page.headers["cache-control"], "no-store");
+    let script = page
+        .text
+        .split('"')
+        .find(|s| s.starts_with("/static/assets/pay-") && s.ends_with(".js"))
+        .unwrap()
+        .to_string();
+    let style = page
+        .text
+        .split('"')
+        .find(|s| s.starts_with("/static/assets/pay-") && s.ends_with(".css"))
+        .unwrap()
+        .to_string();
+    for (uri, ct) in [(&script, "text/javascript"), (&style, "text/css")] {
         let r = send(&h.app, "GET", uri, None, &[], Value::Null).await;
         assert_eq!(r.status, StatusCode::OK, "{uri}");
         assert_eq!(r.headers["content-type"], ct);
+        assert_eq!(
+            r.headers["cache-control"],
+            "public, max-age=31536000, immutable"
+        );
     }
-    let g = send(&h.app, "GET", "/gateway.js", None, &[], Value::Null).await;
-    assert!(g.text.contains("PaymentGateway"));
-    assert_eq!(g.headers["access-control-allow-origin"], "*");
+    let r = send(&h.app, "GET", "/static/manifest.json", None, &[], Value::Null).await;
+    assert_eq!(r.status, StatusCode::NOT_FOUND);
+    let r = send(&h.app, "GET", "/static/i18n/fr.json", None, &[], Value::Null).await;
+    assert_eq!(r.status, StatusCode::OK);
 }
 
 #[tokio::test]
-async fn assets_are_revalidated_so_a_deploy_never_serves_stale_scripts() {
+async fn gateway_script_is_served_cross_origin_and_revalidated() {
     let h = harness().await;
-    for uri in [
-        "/assets/pay.js",
-        "/assets/pay.css",
-        "/assets/tokens.css",
-        "/gateway.js",
-    ] {
-        let r = send(&h.app, "GET", uri, None, &[], Value::Null).await;
-        assert_eq!(r.headers["cache-control"], "no-cache", "{uri}");
-    }
-}
-
-#[test]
-fn page_script_never_sets_null_attributes() {
-    let js = include_str!("../web/pay.js");
-    assert!(js.contains("attrs[k] === null || attrs[k] === undefined"));
+    let g = send(&h.app, "GET", "/gateway.js", None, &[], Value::Null).await;
+    assert_eq!(g.status, StatusCode::OK);
+    assert_eq!(g.headers["content-type"], "text/javascript");
+    assert!(g.text.contains("PaymentGateway"));
+    assert_eq!(g.headers["access-control-allow-origin"], "*");
+    assert_eq!(g.headers["cache-control"], "no-cache");
 }
 
 trait OneshotGet {

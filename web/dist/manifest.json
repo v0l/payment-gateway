@@ -1,0 +1,32 @@
+{
+  "_tokens-BoNFgtfW.css": {
+    "file": "assets/tokens-BoNFgtfW.css",
+    "src": "_tokens-BoNFgtfW.css"
+  },
+  "pay.html": {
+    "file": "assets/pay-Q1E-Mk3S.js",
+    "name": "pay",
+    "src": "pay.html",
+    "isEntry": true,
+    "css": [
+      "assets/pay-9lViy5g_.css",
+      "assets/tokens-BoNFgtfW.css"
+    ]
+  },
+  "receipt.html": {
+    "file": "assets/receipt-DEwRr9-0.js",
+    "name": "receipt",
+    "src": "receipt.html",
+    "isEntry": true,
+    "css": [
+      "assets/receipt-yfw1A-P2.css",
+      "assets/tokens-BoNFgtfW.css"
+    ]
+  },
+  "src/gateway/index.ts": {
+    "file": "gateway.js",
+    "name": "gateway",
+    "src": "src/gateway/index.ts",
+    "isEntry": true
+  }
+}

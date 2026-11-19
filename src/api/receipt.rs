@@ -9,32 +9,8 @@ use axum::http::{HeaderValue, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
-const RECEIPT_JS: &str = include_str!("../../web/receipt.js");
-const RECEIPT_CSS: &str = include_str!("../../web/receipt.css");
-
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/receipt/{id}", get(receipt_page))
-        .route(
-            "/assets/receipt.js",
-            get(|| async { asset(RECEIPT_JS, "text/javascript") }),
-        )
-        .route(
-            "/assets/receipt.css",
-            get(|| async { asset(RECEIPT_CSS, "text/css") }),
-        )
-}
-
-fn asset(body: &'static str, content_type: &'static str) -> Response {
-    (
-        [
-            (header::CONTENT_TYPE, content_type),
-            (header::CACHE_CONTROL, "no-cache"),
-            (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
-        ],
-        body,
-    )
-        .into_response()
+    Router::new().route("/receipt/{id}", get(receipt_page))
 }
 
 pub fn esc(s: &str) -> String {
@@ -250,12 +226,20 @@ pub fn render(p: &PaymentRow, tenant: &Tenant, method: Option<&str>) -> String {
         }
     };
 
+    let assets = crate::web::entry("receipt");
+    let head_links: String = assets
+        .styles
+        .iter()
+        .map(|c| format!("<link rel=\"stylesheet\" href=\"{c}\">"))
+        .collect();
     format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Receipt {}</title><link rel=\"stylesheet\" href=\"/assets/tokens.css\"><link rel=\"stylesheet\" href=\"/assets/receipt.css\"></head><body><main><div class=\"receipt\"><header><div><h1>Receipt</h1></div><div>{}</div></header><dl class=\"meta\">{}</dl>{}<div class=\"actions\"><button type=\"button\" id=\"print\">Print</button></div></div></main><script src=\"/assets/receipt.js\"></script></body></html>",
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Receipt {}</title>{}</head><body><main><div class=\"receipt\"><header><div><h1>Receipt</h1></div><div>{}</div></header><dl class=\"meta\">{}</dl>{}<div class=\"actions\"><button type=\"button\" id=\"print\">Print</button></div></div></main><script type=\"module\" src=\"{}\"></script></body></html>",
         esc(&p.reference),
+        head_links,
         seller_html,
         meta,
-        body
+        body,
+        assets.script
     )
 }
 

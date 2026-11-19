@@ -2,7 +2,7 @@ use super::*;
 
 const HTML: &str = include_str!("../../../web/console.html");
 const CSS: &str = include_str!("../../../web/console.css");
-const TOKENS_CSS: &str = include_str!("../../../web/tokens.css");
+const TOKENS_CSS: &str = include_str!("../../../web/src/tokens.css");
 const COMPONENTS_CSS: &str = include_str!("../../../web/components.css");
 const STYLEGUIDE_HTML: &str = include_str!("../../../web/styleguide.html");
 const STYLEGUIDE_JS: &str = include_str!("../../../web/styleguide.js");
@@ -96,27 +96,27 @@ pub const SCRIPTS: &[(&str, &str)] = &[
 const FONTS: &[(&str, &[u8])] = &[
     (
         "fonts/plex-sans-300.woff2",
-        include_bytes!("../../../web/fonts/plex-sans-300.woff2"),
+        include_bytes!("../../../web/public/fonts/plex-sans-300.woff2"),
     ),
     (
         "fonts/plex-sans-400.woff2",
-        include_bytes!("../../../web/fonts/plex-sans-400.woff2"),
+        include_bytes!("../../../web/public/fonts/plex-sans-400.woff2"),
     ),
     (
         "fonts/plex-sans-500.woff2",
-        include_bytes!("../../../web/fonts/plex-sans-500.woff2"),
+        include_bytes!("../../../web/public/fonts/plex-sans-500.woff2"),
     ),
     (
         "fonts/plex-sans-600.woff2",
-        include_bytes!("../../../web/fonts/plex-sans-600.woff2"),
+        include_bytes!("../../../web/public/fonts/plex-sans-600.woff2"),
     ),
     (
         "fonts/plex-mono-400.woff2",
-        include_bytes!("../../../web/fonts/plex-mono-400.woff2"),
+        include_bytes!("../../../web/public/fonts/plex-mono-400.woff2"),
     ),
     (
         "fonts/plex-mono-500.woff2",
-        include_bytes!("../../../web/fonts/plex-mono-500.woff2"),
+        include_bytes!("../../../web/public/fonts/plex-mono-500.woff2"),
     ),
 ];
 

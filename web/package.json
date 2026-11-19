@@ -1,0 +1,23 @@
+{
+  "name": "payment-gateway-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && bun scripts/budget.ts",
+    "check": "tsc --noEmit",
+    "types": "bun scripts/types.ts"
+  },
+  "dependencies": {
+    "preact": "^10.29.8",
+    "preact-iso": "2.12.2"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@types/bun": "^1.4.2",
+    "openapi-typescript": "^7.9.1",
+    "playwright-core": "^1.65.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6"
+  }
+}

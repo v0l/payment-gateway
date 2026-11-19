@@ -278,7 +278,7 @@ async fn onchain_attempt_reports_received_and_confirmation_target_for_underpayme
 
 fn read_lang(lang: &str) -> serde_json::Map<String, Value> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("web/i18n")
+        .join("web/public/i18n")
         .join(format!("{lang}.json"));
     let raw = std::fs::read_to_string(path).unwrap();
     serde_json::from_str::<Value>(&raw)
@@ -307,18 +307,19 @@ fn every_translation_has_the_same_keys_and_none_is_unused() {
             );
         }
     }
-    let js = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/pay.js"),
-    )
-    .unwrap();
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/src/pay");
+    let js = ["App.tsx", "revolut.tsx"]
+        .iter()
+        .map(|f| std::fs::read_to_string(dir.join(f)).unwrap())
+        .collect::<String>();
     for key in en.keys() {
-        let used = js.contains(&format!("\"{key}\"")) || key.starts_with("method.");
+        let used = js.contains(&format!("'{key}'")) || key.starts_with("method.");
         assert!(used, "unused translation key {key}");
     }
     let mut cursor = 0;
-    while let Some(i) = js[cursor..].find("t(\"") {
+    while let Some(i) = js[cursor..].find("t('") {
         let start = cursor + i + 3;
-        let end = start + js[start..].find('"').unwrap();
+        let end = start + js[start..].find('\'').unwrap();
         let key = &js[start..end];
         let before = js[..start - 3].chars().last().unwrap_or(' ');
         if before.is_alphanumeric() || before == '_' || before == '.' {
@@ -327,7 +328,7 @@ fn every_translation_has_the_same_keys_and_none_is_unused() {
         }
         assert!(
             key.ends_with('.') || en.contains_key(key),
-            "pay.js uses unknown key {key}"
+            "pay app uses unknown key {key}"
         );
         cursor = end;
     }

@@ -3,6 +3,14 @@ on:
   push:
   pull_request:
 jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: cd web && bun install --frozen-lockfile && bun run check && bun test && bun run build
+      - name: dist is up to date
+        run: git diff --exit-code web/dist
   test:
     runs-on: ubuntu-latest
     services:

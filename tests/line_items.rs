@@ -694,7 +694,13 @@ async fn receipt_names_the_seller_once_and_fills_the_card_width() {
     )
     .await;
     assert_eq!(r.text.matches("Acme &lt;b&gt;Ltd&lt;/b&gt;").count(), 1);
-    let css = send(&h.app, "GET", "/assets/receipt.css", None, &[], Value::Null).await;
-    assert!(css.text.contains(".lines { width: 100%"));
+    let css_href = r
+        .text
+        .split('"')
+        .find(|s| s.starts_with("/static/assets/receipt-") && s.ends_with(".css"))
+        .unwrap()
+        .to_string();
+    let css = send(&h.app, "GET", &css_href, None, &[], Value::Null).await;
+    assert!(css.text.contains(".lines{width:100%"));
     assert!(!css.text.contains("nth-child"));
 }
