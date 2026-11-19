@@ -305,11 +305,21 @@ impl Gateway {
         id: u64,
         input: &CreatePayment,
     ) -> Result<Payment, Error> {
+        self.charge_saved_method_with_key(id, input, &new_idempotency_key())
+            .await
+    }
+
+    pub async fn charge_saved_method_with_key(
+        &self,
+        id: u64,
+        input: &CreatePayment,
+        idempotency_key: &str,
+    ) -> Result<Payment, Error> {
         self.call(
             Method::POST,
             &format!("/v1/saved-methods/{id}/charge"),
             Some(input),
-            Some(&new_idempotency_key()),
+            Some(idempotency_key),
         )
         .await
     }
