@@ -36,7 +36,7 @@ function whereMoneyWent(pay) {
   }
   (pay.refunds || []).filter(function (r) { return r.status !== "failed"; }).forEach(function (r) {
     net -= r.amount;
-    rows.push(el("tr", {}, [el("td", { text: "Refund, " + statusWord(r.status).toLowerCase() }), el("td"), el("td", { class: "num" }, [signedMoney(-r.amount, pay.currency)])]));
+    rows.push(el("tr", {}, [el("td", { text: "Refund, " + (r.manual ? "send by hand" : statusWord(r.status).toLowerCase()) }), el("td"), el("td", { class: "num" }, [signedMoney(-r.amount, pay.currency)])]));
   });
   var where = !a ? "Not paid yet" : a.platform_managed ? "Added to your balance with the platform" : a.method === "lightning" || a.method === "onchain" ? "Paid into your own " + methodName(a.method) + " wallet" : "Held by " + methodName(a.method) + " and paid out on its schedule";
   if (pay.status === "pending" || pay.status === "expired" || pay.status === "cancelled") {

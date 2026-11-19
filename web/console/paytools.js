@@ -13,7 +13,7 @@ function refundFlow(pid, id, pay, amountText, destination, out, reload) {
     return confirmDialog({ title: "Confirm refund", body: lines, keep: "Do not refund", confirm: "Refund", danger: true }).then(function (r) {
       if (!r) return;
       return api("POST", "/projects/" + pid + "/payments/" + id + "/refund", { amount: amount, destination: destination || null, attempt_id: pv.attempt_id })
-        .then(function (res) { msg(out, "Refund " + res.status + (res.error ? ": " + res.error : ""), res.status === "failed"); reload(); });
+        .then(function (res) { msg(out, res.manual ? "Refund recorded. Send it by hand from your wallet" + (res.destination ? " to " + res.destination : "") + "." : "Refund " + res.status + (res.error ? ": " + res.error : ""), res.status === "failed"); reload(); });
     });
   }).catch(function (e) { msg(out, e.message, true); });
 }
