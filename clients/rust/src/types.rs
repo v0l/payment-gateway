@@ -40,6 +40,8 @@ pub struct Payment {
     pub tax: u64,
     pub status: String,
     #[serde(default)]
+    pub expires: Option<String>,
+    #[serde(default)]
     pub paid_at: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
