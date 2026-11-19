@@ -59,7 +59,7 @@ fn pay_row(
 }
 
 fn btc(msat: i64) -> String {
-    let sats = msat / 1000;
+    let sats = (msat + 500) / 1000;
     let s = sats.abs().to_string();
     let mut out = String::new();
     for (i, c) in s.chars().enumerate() {
@@ -96,7 +96,7 @@ pub(super) async fn attention(
                 pay_row(
                     p,
                     "The customer disputed this payment with their bank".into(),
-                    p.at.map(|t| format!("Opened {}", t.format("%-d %b"))),
+                    Some("Opened".into()),
                     "open",
                     "Review",
                     None,
@@ -110,7 +110,7 @@ pub(super) async fn attention(
         wrong.push(pay_row(
             &p,
             format!("Paid in full after the payment was {}", p.status),
-            p.at.map(|t| format!("Paid {}", t.format("%-d %b %H:%M"))),
+            Some("Paid".into()),
             "mark_paid",
             "Accept",
             Some("mark_paid"),
@@ -126,7 +126,7 @@ pub(super) async fn attention(
                 btc(need),
                 btc(need - got)
             ),
-            p.at.map(|t| format!("Last seen {}", t.format("%-d %b %H:%M"))),
+            Some("Last seen".into()),
             "open",
             "Decide",
             None,
@@ -151,7 +151,7 @@ pub(super) async fn attention(
                 pay_row(
                     p,
                     format!("{} seen on-chain, not confirmed yet", btc(got)),
-                    p.at.map(|t| format!("Seen {}", t.format("%H:%M"))),
+                    Some("Seen".into()),
                     "open",
                     "Watch",
                     None,
@@ -171,7 +171,7 @@ pub(super) async fn attention(
                 pay_row(
                     p,
                     "The last attempt was declined and the customer has not tried again".into(),
-                    p.at.map(|t| format!("Since {}", t.format("%-d %b %H:%M"))),
+                    Some("Since".into()),
                     "copy_link",
                     "Copy pay link",
                     Some("cancel"),
@@ -198,7 +198,7 @@ pub(super) async fn attention(
                     .as_deref()
                     .map(crate::logsafe::clean)
                     .unwrap_or_else(|| "The provider did not accept the refund".into()),
-                due: Some(format!("Failed {}", r.at.format("%-d %b %H:%M"))),
+                due: Some("Failed".into()),
                 due_soon: false,
                 at: Some(r.at),
                 amount: Some(r.amount),
@@ -237,12 +237,10 @@ pub(super) async fn attention(
                     )),
                     method: None,
                     why: format!(
-                        "{answer} since {}, {} given up, {} retrying",
-                        e.since.format("%-d %b %H:%M"),
-                        e.abandoned,
-                        e.retrying
+                        "{answer}, {} given up, {} retrying",
+                        e.abandoned, e.retrying
                     ),
-                    due: None,
+                    due: Some("Since".into()),
                     due_soon: false,
                     at: Some(e.since),
                     amount: None,
@@ -270,9 +268,7 @@ pub(super) async fn attention(
                 who: None,
                 method: Some(p.method.clone()),
                 why: "Switched off after repeated errors. Customers cannot pay with it".into(),
-                due: p
-                    .auto_disabled_at
-                    .map(|t| format!("Since {}", t.format("%-d %b %H:%M"))),
+                due: Some("Since".into()),
                 due_soon: true,
                 at: p.auto_disabled_at,
                 amount: None,
@@ -298,9 +294,7 @@ pub(super) async fn attention(
                 who: Some(x.customer_ref.clone()),
                 method: None,
                 why: "The renewal was not paid. Retries continue for a few days".into(),
-                due: x
-                    .next_charge
-                    .map(|t| format!("Next try {}", t.format("%-d %b"))),
+                due: Some("Next try".into()),
                 due_soon: false,
                 at: x.next_charge,
                 amount: x.amount,
@@ -330,7 +324,7 @@ pub(super) async fn attention(
                     .as_deref()
                     .map(crate::logsafe::clean)
                     .unwrap_or_else(|| format!("The payout was {}", w.status)),
-                due: Some(format!("{}", w.at.format("%-d %b %H:%M"))),
+                due: Some("Failed".into()),
                 due_soon: false,
                 at: Some(w.at),
                 amount: Some(w.amount),

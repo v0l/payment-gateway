@@ -17,6 +17,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 mod activity;
+mod assets;
 mod attention;
 mod balance;
 mod billing;
@@ -47,6 +48,7 @@ mod twofactor;
 mod webhook_tools;
 
 use activity::*;
+use assets::*;
 use attention::*;
 use balance::*;
 use billing::*;
@@ -78,43 +80,6 @@ use twofactor::*;
 use webhook_tools::*;
 
 pub const COOKIE: &str = "pgw_session";
-const HTML: &str = include_str!("../../../web/console.html");
-const JS_CORE: &str = include_str!("../../../web/console/core.js");
-const JS_AUTH: &str = include_str!("../../../web/console/auth.js");
-const JS_PROJECTS: &str = include_str!("../../../web/console/projects.js");
-const JS_PAYMENTS: &str = include_str!("../../../web/console/payments.js");
-const JS_PROVIDERS: &str = include_str!("../../../web/console/providers.js");
-const JS_WEBHOOKS: &str = include_str!("../../../web/console/webhooks.js");
-const JS_KEYS: &str = include_str!("../../../web/console/keys.js");
-const JS_TEAM: &str = include_str!("../../../web/console/team.js");
-const JS_BRANDING: &str = include_str!("../../../web/console/branding.js");
-const JS_SETTINGS: &str = include_str!("../../../web/console/settings.js");
-const JS_ACCOUNT: &str = include_str!("../../../web/console/account.js");
-const JS_ADMIN: &str = include_str!("../../../web/console/admin.js");
-const JS_ACTIVITY: &str = include_str!("../../../web/console/activity.js");
-const JS_BILLING: &str = include_str!("../../../web/console/billing.js");
-const JS_PLATFORM_BILLING: &str = include_str!("../../../web/console/platform-billing.js");
-const JS_BALANCE: &str = include_str!("../../../web/console/balance.js");
-const JS_SHARED: &str = include_str!("../../../web/console/shared.js");
-const JS_TREASURY: &str = include_str!("../../../web/console/treasury.js");
-const JS_PAYOUTS: &str = include_str!("../../../web/console/payouts.js");
-const JS_PAYLIST: &str = include_str!("../../../web/console/paylist.js");
-const JS_PAYTOOLS: &str = include_str!("../../../web/console/paytools.js");
-const JS_DASHBOARD: &str = include_str!("../../../web/console/dashboard.js");
-const JS_CUSTOMERS: &str = include_str!("../../../web/console/customers.js");
-const JS_OPERATOR: &str = include_str!("../../../web/console/operator.js");
-const JS_DANGER: &str = include_str!("../../../web/console/danger.js");
-const JS_APP: &str = include_str!("../../../web/console/app.js");
-const CSS: &str = include_str!("../../../web/console.css");
-const TOKENS_CSS: &str = include_str!("../../../web/tokens.css");
-const COMPONENTS_CSS: &str = include_str!("../../../web/components.css");
-const FONT_DISPLAY: &[u8] = include_bytes!("../../../web/fonts/bricolage-grotesque.woff2");
-const FONT_MONO_REGULAR: &[u8] = include_bytes!("../../../web/fonts/plex-mono-400.woff2");
-const FONT_MONO_MEDIUM: &[u8] = include_bytes!("../../../web/fonts/plex-mono-500.woff2");
-const JS_CHART: &str = include_str!("../../../web/console/chart.js");
-const STYLEGUIDE_HTML: &str = include_str!("../../../web/styleguide.html");
-const STYLEGUIDE_JS: &str = include_str!("../../../web/styleguide.js");
-
 pub fn router() -> Router<AppState> {
     let api = Router::new()
         .route("/login", post(login))
@@ -367,114 +332,6 @@ pub fn router() -> Router<AppState> {
         .route("/console", get(page))
         .route("/console/{*rest}", get(page_or_asset))
         .nest("/console/api", api)
-}
-
-fn security_headers(h: &mut HeaderMap) {
-    h.insert(
-        header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static(
-            "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: https:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
-        ),
-    );
-    h.insert(
-        header::X_CONTENT_TYPE_OPTIONS,
-        HeaderValue::from_static("nosniff"),
-    );
-    h.insert(
-        header::REFERRER_POLICY,
-        HeaderValue::from_static("no-referrer"),
-    );
-    h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    h.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
-}
-
-async fn page() -> Response {
-    let mut r = (StatusCode::OK, HTML).into_response();
-    r.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("text/html; charset=utf-8"),
-    );
-    security_headers(r.headers_mut());
-    r
-}
-
-async fn page_or_asset(Path(rest): Path<String>) -> Response {
-    match rest.as_str() {
-        "core.js" => asset(JS_CORE, "text/javascript"),
-        "auth.js" => asset(JS_AUTH, "text/javascript"),
-        "projects.js" => asset(JS_PROJECTS, "text/javascript"),
-        "payments.js" => asset(JS_PAYMENTS, "text/javascript"),
-        "providers.js" => asset(JS_PROVIDERS, "text/javascript"),
-        "webhooks.js" => asset(JS_WEBHOOKS, "text/javascript"),
-        "keys.js" => asset(JS_KEYS, "text/javascript"),
-        "team.js" => asset(JS_TEAM, "text/javascript"),
-        "branding.js" => asset(JS_BRANDING, "text/javascript"),
-        "settings.js" => asset(JS_SETTINGS, "text/javascript"),
-        "account.js" => asset(JS_ACCOUNT, "text/javascript"),
-        "admin.js" => asset(JS_ADMIN, "text/javascript"),
-        "platform-billing.js" => asset(JS_PLATFORM_BILLING, "text/javascript"),
-        "balance.js" => asset(JS_BALANCE, "text/javascript"),
-        "shared.js" => asset(JS_SHARED, "text/javascript"),
-        "billing.js" => asset(JS_BILLING, "text/javascript"),
-        "activity.js" => asset(JS_ACTIVITY, "text/javascript"),
-        "payouts.js" => asset(JS_PAYOUTS, "text/javascript"),
-        "treasury.js" => asset(JS_TREASURY, "text/javascript"),
-        "paylist.js" => asset(JS_PAYLIST, "text/javascript"),
-        "paytools.js" => asset(JS_PAYTOOLS, "text/javascript"),
-        "dashboard.js" => asset(JS_DASHBOARD, "text/javascript"),
-        "customers.js" => asset(JS_CUSTOMERS, "text/javascript"),
-        "operator.js" => asset(JS_OPERATOR, "text/javascript"),
-        "danger.js" => asset(JS_DANGER, "text/javascript"),
-        "app.js" => asset(JS_APP, "text/javascript"),
-        "chart.js" => asset(JS_CHART, "text/javascript"),
-        "fonts/bricolage-grotesque.woff2" => font(FONT_DISPLAY),
-        "fonts/plex-mono-400.woff2" => font(FONT_MONO_REGULAR),
-        "fonts/plex-mono-500.woff2" => font(FONT_MONO_MEDIUM),
-        "app.css" => asset(CSS, "text/css"),
-        "tokens.css" => asset(TOKENS_CSS, "text/css"),
-        "components.css" => asset(COMPONENTS_CSS, "text/css"),
-        "styleguide.js" => asset(STYLEGUIDE_JS, "text/javascript"),
-        "styleguide" => styleguide(),
-        _ => page().await,
-    }
-}
-
-fn styleguide() -> Response {
-    let mut r = (StatusCode::OK, STYLEGUIDE_HTML).into_response();
-    r.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("text/html; charset=utf-8"),
-    );
-    security_headers(r.headers_mut());
-    r
-}
-
-fn font(body: &'static [u8]) -> Response {
-    let mut r = (StatusCode::OK, body).into_response();
-    r.headers_mut()
-        .insert(header::CONTENT_TYPE, HeaderValue::from_static("font/woff2"));
-    r.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=31536000, immutable"),
-    );
-    r.headers_mut().insert(
-        header::X_CONTENT_TYPE_OPTIONS,
-        HeaderValue::from_static("nosniff"),
-    );
-    r
-}
-
-fn asset(body: &'static str, content_type: &'static str) -> Response {
-    let mut r = (StatusCode::OK, body).into_response();
-    r.headers_mut()
-        .insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
-    r.headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
-    r.headers_mut().insert(
-        header::X_CONTENT_TYPE_OPTIONS,
-        HeaderValue::from_static("nosniff"),
-    );
-    r
 }
 
 pub struct Session {

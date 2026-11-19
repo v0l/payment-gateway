@@ -30,26 +30,24 @@ function confirmChoice(title, body, safeLabel, dangerLabel, onConfirm) {
 
 function sharedMethods(pid, container) {
   var box = el("div", {}, [skeletonRows()]);
-  container.appendChild(el("h3", { text: "Platform managed methods" }));
-  container.appendChild(el("p", { class: "muted", text: "Use the platform's own Lightning and on-chain wallets. Payments are held as a balance for you, minus the fee shown." }));
-  container.appendChild(box);
+  container.appendChild(section("Platform payment methods", [el("p", { class: "muted", text: "Use the platform's own Lightning and on-chain wallets. Payments are held as a balance for you, minus the fee shown." }), box]));
   function toggle(r, btn) {
     busy(btn, function () { return api("POST", "/projects/" + pid + "/shared/" + r.id + "/enabled", { enabled: !r.enabled }); })
       .then(function () { load(); }).catch(function (e) { msg(box, e.message, true); });
   }
   function load() {
     api("GET", "/projects/" + pid + "/shared").then(function (rows) {
-      if (!rows.length) { box.replaceChildren(emptyState("No platform managed methods yet.", "An operator can make Lightning and on-chain wallets available to this project.")); return; }
+      if (!rows.length) { box.replaceChildren(emptyState("No platform payment methods offered yet.", "An operator can make Lightning and on-chain wallets available to this project.")); return; }
       var head = ["Name", "Method", "Network", "Platform fee", "Status", ""];
-      box.replaceChildren(el("table", {}, [el("tr", {}, head.map(function (h) { return el("th", { text: h }); }))].concat(rows.map(function (r) {
-        var btn = el("button", { class: r.enabled ? "" : "primary", text: r.enabled ? "Disable method" : "Enable method" });
+      box.replaceChildren(table(head, rows.map(function (r) {
+        var btn = el("button", { class: r.enabled ? "small" : "small primary", text: r.enabled ? "Turn off" : "Turn on" });
         btn.addEventListener("click", function () {
           if (!r.enabled) return toggle(r, btn);
           confirmChoice("Disable " + r.name + "?", "New payments can no longer use this method. Payments already started and your balance stay as they are.", "Keep method", "Disable method", function () { toggle(r, btn); });
         });
-        return el("tr", {}, [el("td", {}, [r.name, " ", pill("platform managed", "info")]), el("td", { text: r.method }), el("td", { text: r.network }),
-          el("td", {}, [feeMoney(r.fee_bps, r.fee_base_msat)]), el("td", {}, [pill(r.enabled ? "enabled" : "disabled", r.enabled ? "ok" : "neutral")]), el("td", {}, [btn])]);
-      }))));
+        return el("tr", {}, [el("td", { text: r.name }), el("td", { class: "muted", text: methodName(r.method) }), el("td", { class: "muted", text: r.network }),
+          el("td", {}, [feeMoney(r.fee_bps, r.fee_base_msat)]), el("td", {}, [status(r.enabled ? "active" : "expired", r.enabled ? "On" : "Off")]), el("td", { class: "num" }, [btn])]);
+      })));
     }).catch(function (e) { msg(box, e.message, true); });
   }
   load();
@@ -57,9 +55,7 @@ function sharedMethods(pid, container) {
 
 function sharedAdmin() {
   var body = el("div");
-  layout("shared", null, body);
-  body.appendChild(el("h2", { text: "Shared providers" }));
-  body.appendChild(el("p", { class: "sub", text: "Platform wallets that projects can enable. The platform holds the funds and keeps the fee." }));
+  operatorPage("shared", "Shared providers", "Platform wallets that projects can turn on. The platform holds the funds and keeps the fee.", body);
   var list = el("div", {}, [skeletonRows()]); var out = el("div");
   var overrideBox = el("div");
 
@@ -67,7 +63,7 @@ function sharedAdmin() {
     api("GET", "/admin/shared").then(function (rows) {
       if (!rows.length) { list.replaceChildren(emptyState("No shared providers yet.", "Add a Lightning or on-chain LND wallet below.")); return; }
       var head = ["Name", "Method", "Network", "Fee", "Test mode", "Live", "Status", ""];
-      list.replaceChildren(el("table", {}, [el("tr", {}, head.map(function (h) { return el("th", { text: h }); }))].concat(rows.map(function (r) {
+      list.replaceChildren(table(head, rows.map(function (r) {
         var toggleBtn = el("button", { text: r.enabled ? "Disable provider" : "Enable provider" });
         toggleBtn.addEventListener("click", function () {
           function run() { busy(toggleBtn, function () { return api("POST", "/admin/shared/" + r.id, { enabled: !r.enabled }); }).then(load).catch(function (e) { msg(out, e.message, true); }); }
@@ -75,13 +71,13 @@ function sharedAdmin() {
           confirmChoice("Disable " + r.name + "?", "Projects can no longer start payments on it. Existing balances and refunds are not affected.", "Keep provider", "Disable provider", run);
         });
         var feeBtn = el("button", { text: "Override fee", onclick: function () { feeOverride(r); } });
-        return el("tr", {}, [el("td", { text: r.name }), el("td", { text: r.method + "/" + r.provider_type }), el("td", { text: r.network }),
+        return el("tr", {}, [el("td", { text: r.name }), el("td", { class: "muted", text: methodName(r.method) + ", " + r.provider_type }), el("td", { class: "muted", text: r.network }),
           el("td", {}, [feeMoney(r.fee_bps, r.fee_base_msat)]),
-          el("td", {}, [pill(r.allow_untrusted ? "allowed" : "blocked", r.allow_untrusted ? "ok" : "neutral")]),
-          el("td", {}, [pill(r.allow_trusted ? "allowed" : "blocked", r.allow_trusted ? "ok" : "neutral")]),
-          el("td", {}, [pill(r.enabled ? "enabled" : "disabled", r.enabled ? "ok" : "neutral")]),
-          el("td", {}, [toggleBtn, " ", feeBtn])]);
-      }))));
+          el("td", {}, [status(r.allow_untrusted ? "active" : "expired", r.allow_untrusted ? "Allowed" : "Blocked")]),
+          el("td", {}, [status(r.allow_trusted ? "active" : "expired", r.allow_trusted ? "Allowed" : "Blocked")]),
+          el("td", {}, [status(r.enabled ? "active" : "expired", r.enabled ? "On" : "Off")]),
+          el("td", { class: "num" }, [toggleBtn, " ", feeBtn])]);
+      })));
     }).catch(function (e) { msg(list, e.message, true); });
   }
 
@@ -109,7 +105,7 @@ function sharedAdmin() {
   }
 
   var name = el("input", { placeholder: "Platform Lightning" });
-  var kind = el("select", {}, [el("option", { value: "lightning", text: "lightning" }), el("option", { value: "onchain", text: "onchain" })]);
+  var kind = el("select", {}, [el("option", { value: "lightning", text: "Lightning" }), el("option", { value: "onchain", text: "On-chain" })]);
   var network = el("select", {}, ["mainnet", "testnet", "signet", "regtest"].map(function (n) { return el("option", { value: n, text: n }); }));
   var url = el("input", { placeholder: "https://host:10009" });
   var cert = el("textarea", { placeholder: "tls.cert (PEM)" });
@@ -124,14 +120,12 @@ function sharedAdmin() {
       return api("POST", "/admin/shared", { name: name.value, method: kind.value, provider_type: "lnd", network: network.value, config: cfg, fee_bps: Number(bps.value || 0), fee_base_msat: Number(base.value || 0), allow_untrusted: untrusted.checked });
     }).then(function () { cert.value = ""; mac.value = ""; msg(out, "Shared provider added.", false); load(); }).catch(function (e) { msg(out, e.message, true); });
   });
-  body.appendChild(list);
-  body.appendChild(overrideBox);
-  body.appendChild(el("div", { class: "card" }, [
-    el("h3", { text: "Add a shared provider" }),
+  body.appendChild(section("Providers", [list, overrideBox]));
+  body.appendChild(section("Add a shared provider", [el("div", { class: "card" }, [
     el("div", { class: "banner warn", role: "note" }, [el("div", {}, [el("b", { text: "Test mode projects stay off mainnet" }), "Only providers on testnet, signet or regtest can be allowed for test mode projects."])]),
-    field("Name", name), field("Method", kind), field("Network", network), field("LND url", url), field("tls.cert", cert), field("Macaroon", mac),
-    field("Platform fee (basis points)", bps), field("Base fee (msats)", base), field("Allow test mode projects", untrusted), add
-  ]));
+    el("div", { class: "form" }, [field("Name", name), field("Method", kind), field("Network", network), field("LND url", url), field("tls.cert", cert), field("Macaroon", mac),
+      field("Platform fee (basis points)", bps), field("Base fee (msats)", base), el("label", { class: "check" }, [untrusted, "Allow test mode projects"]), el("div", { class: "row" }, [add])])
+  ])]));
   body.appendChild(out);
   load();
 }

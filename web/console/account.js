@@ -6,8 +6,8 @@ function account() {
   btn.addEventListener("click", function () {
     busy(btn, function () { return api("POST", "/password", { current: cur.value, new: nw.value }); }).then(function () { cur.value = ""; nw.value = ""; msg(out, "Password changed. Other sessions were signed out."); }).catch(function (e) { msg(out, e.message, true); });
   });
-  var cards = [field("Current password", cur), field("New password (10+ characters)", nw), btn, out];
-  var sections = [el("h2", { text: "Account" }), el("p", { class: "sub", text: me.email }), el("div", { class: "card" }, cards)];
+  var cards = [field("Current password", cur), field("New password, 10 or more characters", nw), el("div", { class: "row" }, [btn]), out];
+  var sections = [section("Password", [el("div", { class: "card form" }, cards)])];
   if (me.mail_enabled) {
     var pwNow = el("input", { type: "password", autocomplete: "current-password" });
     var newEmail = el("input", { type: "email", autocomplete: "off" });
@@ -15,20 +15,17 @@ function account() {
     emailBtn.addEventListener("click", function () {
       busy(emailBtn, function () { return api("POST", "/email", { password: pwNow.value, new_email: newEmail.value }); }).then(function (r) { pwNow.value = ""; msg(emailOut, "Confirmation sent to " + r.email + ". The change applies once you open the link."); }).catch(function (e) { msg(emailOut, e.message, true); });
     });
-    sections.push(el("h3", { text: "Change email" }));
-    sections.push(el("div", { class: "card" }, [field("New email", newEmail), field("Current password", pwNow), emailBtn, emailOut]));
+    sections.push(section("Email", [el("div", { class: "card form" }, [field("New email", newEmail), field("Current password", pwNow), el("div", { class: "row" }, [emailBtn]), emailOut])]));
     var box = el("input", { type: "checkbox" }); box.checked = me.notify;
     var notifyOut = el("div");
     box.addEventListener("change", function () {
       api("POST", "/notifications", { enabled: box.checked }).then(function (r) { me.notify = r.notify; msg(notifyOut, r.notify ? "Notifications on." : "Notifications off."); }).catch(function (e) { box.checked = me.notify; msg(notifyOut, e.message, true); });
     });
-    sections.push(el("h3", { text: "Notifications" }));
-    sections.push(el("div", { class: "card" }, [el("label", {}, [box, el("span", { text: " Email me about failed webhooks, failing providers and failed refunds on projects I own" })]), notifyOut]));
+    sections.push(section("Notifications", [el("div", { class: "card" }, [el("label", { class: "check" }, [box, el("span", { text: "Email me about failed webhooks, failing payment methods and failed refunds on projects I own" })]), notifyOut])]));
   }
   var tf = el("div", { class: "card" });
-  sections.push(el("h3", { text: "Two factor authentication" }));
-  sections.push(tf);
-  layout("account", null, el("div", {}, sections));
+  sections.push(section("Two factor authentication", [tf]));
+  operatorPage("account", "Account", me.email, el("div", {}, sections));
   twoFactorCard(tf);
 }
 
@@ -74,8 +71,9 @@ function twoFactorEnabled(box, st) {
     busy(regen, function () { return api("POST", "/2fa/recovery-codes", body()); }).then(function (r) { out.replaceChildren(recoveryList(r.recovery_codes)); }).catch(function (e) { msg(out, e.message, true); });
   });
   off.addEventListener("click", function () {
-    if (!confirm("Turn off two factor for this account?")) return;
-    busy(off, function () { return api("POST", "/2fa/disable", body()); }).then(function () { me.totp_enabled = false; twoFactorCard(box); }).catch(function (e) { msg(out, e.message, true); });
+    confirmDialog({ title: "Turn off two factor", body: "Signing in will only need your password.", keep: "Keep it on", confirm: "Turn off", danger: true }).then(function (r) {
+      if (r) busy(off, function () { return api("POST", "/2fa/disable", body()); }).then(function () { me.totp_enabled = false; twoFactorCard(box); }).catch(function (e) { msg(out, e.message, true); });
+    });
   });
   box.replaceChildren(el("p", { class: "ok-msg", text: "On. " + st.recovery_codes_remaining + " recovery codes left." }),
     field("Password", pw), field("Current code", code), el("div", { class: "row" }, [regen, off]), out);

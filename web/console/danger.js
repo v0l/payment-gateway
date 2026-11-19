@@ -1,9 +1,9 @@
 "use strict";
 function dangerZone(pid, p) {
-  var out = el("div"); var box = el("div", { class: "card" });
+  var out = el("div"); var box = el("div", { class: "card danger-zone" });
   var token = el("input", { placeholder: "Deletion token", "aria-label": "Deletion token", autocomplete: "off" });
   function draw(s) {
-    var kids = [el("h4", { text: "Danger zone" })];
+    var kids = [];
     kids.push(el("div", { class: "row" }, [el("button", { class: "danger", text: p.enabled === false ? "Project disabled" : "Disable project", disabled: p.enabled === false, onclick: function () {
       confirmDialog({ title: "Disable project", body: "API keys stop working and no new payments are accepted. You can enable it again from the operator area or by calling the settings endpoint.", keep: "Keep enabled", confirm: "Disable", danger: true }).then(function (r) {
         if (!r) return;
@@ -31,7 +31,7 @@ function dangerZone(pid, p) {
     api("GET", "/projects/" + pid + "/settings").then(draw).catch(function (e) { msg(box, e.message, true); });
   }
   load();
-  return el("div", {}, [box, out]);
+  return section("Disable or delete", [box, out]);
 }
 
 function projectConfigPanels(pid, p) {
@@ -46,7 +46,7 @@ function projectConfigPanels(pid, p) {
     } });
     var kinds = [["webhook_abandoned", "A webhook delivery is abandoned"], ["provider_failing", "A provider keeps failing"], ["refund_failed", "A refund fails"]];
     var boxes = {}; var notifOut = el("div");
-    var notifRows = kinds.map(function (k) { var c = el("input", { type: "checkbox" }); c.checked = !!s["notify_" + k[0]]; boxes[k[0]] = c; return el("div", {}, [el("label", {}, [c, " " + k[1]])]); });
+    var notifRows = kinds.map(function (k) { var c = el("input", { type: "checkbox" }); c.checked = !!s["notify_" + k[0]]; boxes[k[0]] = c; return el("div", {}, [el("label", { class: "check" }, [c, k[1]])]); });
     var saveNotif = el("button", { text: "Save notifications", disabled: p.role === "viewer", onclick: function () {
       var body = {}; kinds.forEach(function (k) { body[k[0]] = boxes[k[0]].checked; });
       api("POST", "/projects/" + pid + "/settings/notifications", body).then(function () { msg(notifOut, "Saved."); }).catch(function (e) { msg(notifOut, e.message, true); });
@@ -57,12 +57,9 @@ function projectConfigPanels(pid, p) {
       api("POST", "/projects/" + pid + "/manual-paid", { enabled: manual.checked }).then(function () { msg(manualOut, "Saved."); }).catch(function (e) { manual.checked = !manual.checked; msg(manualOut, e.message, true); });
     });
     wrap.replaceChildren(
-      el("h3", { text: "Legal details for receipts" }),
-      el("div", { class: "card" }, [field("Legal name", legal.name), field("Address", legal.address), field("VAT id", legal.vat_id), field("Contact email", legal.email), save, legalOut]),
-      el("h3", { text: "Notification preferences" }),
-      el("div", { class: "card" }, notifRows.concat([saveNotif, notifOut])),
-      el("h3", { text: "Manual payment handling" }),
-      el("div", { class: "card" }, [el("label", {}, [manual, " Allow admins to mark pending payments as paid with a reason"]), manualOut]));
+      section("Legal details for receipts", [el("div", { class: "card form" }, [field("Legal name", legal.name), field("Address", legal.address), field("VAT id", legal.vat_id), field("Contact email", legal.email), el("div", { class: "row" }, [save]), legalOut])]),
+      section("Notifications", [el("div", { class: "card" }, notifRows.concat([el("div", { class: "row" }, [saveNotif]), notifOut]))]),
+      section("Manual payment handling", [el("div", { class: "card" }, [el("label", { class: "check" }, [manual, "Let admins mark waiting payments as paid, with a reason. Needed for Accept in the attention queue."]), manualOut])]));
   }).catch(function (e) { msg(wrap, e.message, true); });
   return wrap;
 }

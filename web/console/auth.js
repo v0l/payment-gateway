@@ -1,13 +1,19 @@
 "use strict";
 function authPage(title, sub, fields, label, onsubmit) {
-  var err = el("div", { class: "err" });
+  var err = el("div", { class: "err", role: "alert" });
   var btn = el("button", { class: "primary", type: "submit", text: label });
-  var form = el("form", { class: "card" }, fields.concat([btn, err]));
+  var form = el("form", { class: "card" }, fields.concat([el("div", { class: "row" }, [btn]), err]));
   form.addEventListener("submit", function (ev) {
     ev.preventDefault(); err.textContent = "";
     busy(btn, function () { return onsubmit(); }).catch(function (e) { err.textContent = e.message; });
   });
-  root.replaceChildren(el("div", { class: "auth" }, [el("h1", { text: title }), el("p", { class: "muted", text: sub }), form]));
+  authScreen([el("h1", { text: title }), el("p", { class: "muted", text: sub }), form]);
+  var first = form.querySelector("input"); if (first) first.focus();
+}
+
+function authScreen(kids) {
+  document.title = "Console";
+  root.replaceChildren(el("main", { class: "auth", id: "main" }, [el("div", { class: "brand" }, [el("span", { class: "mark", "aria-hidden": "true" }), "Payment gateway"])].concat(kids)));
 }
 
 function loginPage() {
@@ -26,7 +32,7 @@ function resetRequestPage() {
   var email = el("input", { type: "email", autocomplete: "username", required: true });
   authPage("Reset password", "Enter your email and we will send a reset link if an account exists.", [field("Email", email)], "Send reset link", function () {
     return api("POST", "/reset", { email: email.value }).then(function () {
-      root.replaceChildren(el("div", { class: "auth" }, [el("h1", { text: "Check your email" }), el("p", { class: "muted", text: "If an account exists for that address, a reset link is on its way. It works once and expires in 1 hour." }), el("p", {}, [el("a", { text: "Back to sign in", href: "#/" })])]));
+      authScreen([el("h1", { text: "Check your email" }), el("p", { class: "muted", text: "If an account exists for that address, a reset link is on its way. It works once and expires in 1 hour." }), el("p", {}, [el("a", { text: "Back to sign in", href: "#/" })])]);
     });
   });
 }
@@ -39,11 +45,11 @@ function resetConfirmPage(token) {
 }
 
 function confirmEmailPage(token) {
-  root.replaceChildren(el("div", { class: "auth" }, [el("h1", { text: "Confirming email" })]));
+  authScreen([el("h1", { text: "Confirming email" })]);
   api("POST", "/email/confirm", { token: token }).then(function (r) {
-    root.replaceChildren(el("div", { class: "auth" }, [el("h1", { text: "Email confirmed" }), el("p", { class: "muted", text: "Your sign in email is now " + r.email + "." }), el("p", {}, [el("a", { text: "Continue", href: "/console#/" })])]));
+    authScreen([el("h1", { text: "Email confirmed" }), el("p", { class: "muted", text: "Your sign in email is now " + r.email + "." }), el("p", {}, [el("a", { text: "Continue", href: "/console#/" })])]);
   }).catch(function () {
-    root.replaceChildren(el("div", { class: "auth" }, [el("h1", { text: "Link not valid" }), el("p", { class: "muted", text: "It may have expired or already been used." })]));
+    authScreen([el("h1", { text: "Link not valid" }), el("p", { class: "muted", text: "It may have expired or already been used." })]);
   });
 }
 
@@ -55,7 +61,7 @@ function invitePage(token) {
       return api("POST", "/signup", { token: token, password: pw.value }).then(function (m) { me = m; csrf = m.csrf; location.replace("/console#/"); });
     });
   }).catch(function () {
-    root.replaceChildren(el("div", { class: "auth" }, [el("h1", { text: "Invite not valid" }), el("p", { class: "muted", text: "It may have expired or already been used. Ask for a new one." })]));
+    authScreen([el("h1", { text: "Invite not valid" }), el("p", { class: "muted", text: "It may have expired or already been used. Ask for a new one." })]);
   });
 }
 

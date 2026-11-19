@@ -139,7 +139,14 @@ async fn styleguide_and_design_tokens_are_served_and_csp_safe() {
 #[tokio::test]
 async fn console_fonts_are_self_hosted_and_allowed_by_csp() {
     let h = harness().await;
-    for name in ["bricolage-grotesque", "plex-mono-400", "plex-mono-500"] {
+    for name in [
+        "plex-sans-300",
+        "plex-sans-400",
+        "plex-sans-500",
+        "plex-sans-600",
+        "plex-mono-400",
+        "plex-mono-500",
+    ] {
         let r = send(
             &h.app,
             "GET",
@@ -152,11 +159,22 @@ async fn console_fonts_are_self_hosted_and_allowed_by_csp() {
         assert_eq!(r.status, StatusCode::OK, "{name}");
         assert_eq!(r.headers["content-type"], "font/woff2");
     }
+    let gone = send(
+        &h.app,
+        "GET",
+        "/console/fonts/bricolage-grotesque.woff2",
+        None,
+        &[],
+        Value::Null,
+    )
+    .await;
+    assert_ne!(gone.headers["content-type"], "font/woff2");
     let page = send(&h.app, "GET", "/console", None, &[], Value::Null).await;
     let csp = page.headers["content-security-policy"].to_str().unwrap();
     assert!(csp.contains("font-src 'self'"));
     let tokens = include_str!("../web/tokens.css");
     assert!(!tokens.contains("fonts.googleapis") && !tokens.contains("http"));
+    assert!(tokens.contains("IBM Plex Sans") && !tokens.contains("Bricolage"));
 }
 
 #[test]
@@ -177,12 +195,13 @@ fn console_and_pay_css_take_colours_from_tokens() {
 
 #[test]
 fn console_never_hands_null_to_replace_children_which_renders_the_text_null() {
-    for (name, js) in [
-        ("payments", include_str!("../web/console/payments.js")),
-        ("providers", include_str!("../web/console/providers.js")),
-    ] {
+    let nullable = ["tabBar(", ": null)", "change,"];
+    for (name, js) in console_scripts() {
         for line in js.lines().filter(|l| l.contains("replaceChildren(")) {
-            assert!(!line.contains(": null)"), "{name}: {line}");
+            let filtered = line.contains(".filter(Boolean)");
+            for n in nullable {
+                assert!(filtered || !line.contains(n), "{name}: {line}");
+            }
         }
     }
 }
@@ -199,9 +218,14 @@ fn console_defines_confirm_dialog_once_so_later_scripts_cannot_override_it() {
 }
 
 #[test]
-fn mobile_shell_keeps_the_navigation_row_to_its_content_height() {
+fn mobile_tabs_scroll_sideways_instead_of_wrapping_and_there_is_no_sidebar() {
     let css = include_str!("../web/console.css");
-    assert!(css.contains("grid-template-columns: 1fr; grid-template-rows: auto 1fr;"));
+    let tabs = css
+        .lines()
+        .find(|l| l.starts_with(".tabs, .subtabs {"))
+        .unwrap();
+    assert!(tabs.contains("overflow-x: auto") && !tabs.contains("flex-wrap"));
+    assert!(!css.contains("--nav-bg") && !css.contains(".shell {"));
 }
 
 fn console_scripts() -> Vec<(String, String)> {
@@ -308,7 +332,7 @@ fn every_helper_the_console_calls_is_defined_in_a_console_script() {
 
 #[test]
 fn payment_detail_without_line_items_renders_no_null_text() {
-    let js = include_str!("../web/console/payments.js");
+    let js = include_str!("../web/console/paydetail.js");
     assert!(!js.contains("box.replaceChildren(\n"));
     assert!(js.contains("].filter(Boolean)"));
 }
@@ -322,6 +346,13 @@ fn expired_and_cancelled_pills_are_neutral_and_failures_stay_red() {
         .unwrap();
     assert!(red.contains(".pill.failed") && red.contains(".pill.disputed"));
     assert!(!red.contains("expired") && !red.contains("cancelled"));
+    let core = include_str!("../web/console/core.js");
+    let tones = core
+        .lines()
+        .find(|l| l.starts_with("var STATUS_TONE"))
+        .unwrap();
+    assert!(tones.contains("expired: \"neutral\"") && tones.contains("cancelled: \"neutral\""));
+    assert!(tones.contains("failed: \"bad\"") && tones.contains("disputed: \"bad\""));
 }
 
 #[tokio::test]
@@ -1420,22 +1451,28 @@ fn signup_leaves_the_invite_url_so_the_used_invite_is_not_rechecked() {
 async fn every_console_script_is_served_and_loaded_by_the_shell() {
     let h = harness().await;
     let shell = send(&h.app, "GET", "/console", None, &[], Value::Null).await;
-    for name in [
-        "core",
-        "auth",
-        "projects",
-        "payments",
-        "providers",
-        "webhooks",
-        "team",
-        "settings",
-        "account",
-        "admin",
-        "activity",
-        "app",
-    ] {
-        let path = format!("/console/{name}.js");
-        assert!(shell.text.contains(&path), "{path}");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/console");
+    let mut on_disk: Vec<String> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|n| n.ends_with(".js"))
+        .collect();
+    on_disk.sort();
+    let mut tagged: Vec<String> = shell
+        .text
+        .split("<script src=\"/console/")
+        .skip(1)
+        .map(|rest| rest.split('"').next().unwrap().to_string())
+        .collect();
+    assert_eq!(tagged.last().map(String::as_str), Some("app.js"));
+    assert_eq!(tagged.first().map(String::as_str), Some("core.js"));
+    tagged.sort();
+    assert_eq!(
+        tagged, on_disk,
+        "console.html and web/console must list the same scripts"
+    );
+    for name in &on_disk {
+        let path = format!("/console/{name}");
         let r = send(&h.app, "GET", &path, None, &[], Value::Null).await;
         assert_eq!(r.headers["content-type"], "text/javascript", "{path}");
         assert!(!r.text.is_empty(), "{path}");

@@ -51,6 +51,11 @@ const pairs = [
   ["line-strong", "card", 3],
   ["line-strong", "bg", 3],
   ["focus", "card", 3],
+  ["faint", "card", 3],
+  ["muted", "rail", 4.5],
+  ["muted", "hover", 4.5],
+  ["accent", "accent-soft", 4.5],
+  ["text", "rail", 4.5],
 ];
 
 let failed = 0;

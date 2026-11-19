@@ -10,9 +10,9 @@ var PROVIDER_TEMPLATES = {
 
 function healthText(r) {
   var h = r.health;
-  if (r.auto_disabled_at) return "auto-disabled after repeated failures";
-  if (!h) return "no calls yet";
-  return h.successes + " ok, " + h.errors + " errors" + (h.last_error ? " (last: " + h.last_error + ")" : "");
+  if (r.auto_disabled_at) return "Switched off after repeated errors";
+  if (!h) return "No calls yet";
+  return h.successes + " worked, " + h.errors + " failed" + (h.last_error ? ". Last error: " + h.last_error : "");
 }
 
 function testProvider(pid, id, box) {
@@ -23,23 +23,26 @@ function testProvider(pid, id, box) {
 
 function providers(pid) {
   projectShell(pid, "providers", function (p, body) {
-    var list = el("div"); body.appendChild(list);
+    var list = el("div", {}, [skeletonRows()]);
+    var canWrite = p.role !== "viewer";
     function load() {
       api("GET", "/projects/" + pid + "/providers").then(function (rows) {
-        list.replaceChildren(rows.length ? el("table", {}, [el("tr", {}, ["Name", "Method", "Fee", "Status", "Health (24h)", ""].map(function (h) { return el("th", { text: h }); }))].concat(rows.map(function (r) {
-          return el("tr", {}, [el("td", { text: r.name }), el("td", { text: r.method + "/" + r.provider_type }),
-            el("td", { class: "muted", text: (r.fee_rate ? r.fee_rate + "%" : "") + (r.fee_base ? " + " + r.fee_base + " " + (r.fee_currency || "") : "") }),
-            el("td", {}, [pill(r.enabled ? "enabled" : "disabled", r.enabled ? "ok" : "bad")]),
-            el("td", { class: "muted", text: healthText(r) }),
-            el("td", {}, [el("a", { text: "test", onclick: function () { testProvider(pid, r.id, list); } }), " ", el("a", { text: r.enabled ? "disable" : "enable", onclick: function () { api("POST", "/projects/" + pid + "/providers/" + r.id + "/enabled", { enabled: !r.enabled }).then(load); } }), " ",
-              el("a", { text: "edit", onclick: function () { go("#/p/" + pid + "/providers/" + r.id); } })])]);
-        }))) : el("p", { class: "muted", text: "No providers yet. Add one to take payments." }));
-      });
+        list.replaceChildren(rows.length ? table(["Name", "Method", "Fee to customer", "Status", "Last 24 hours", ""], rows.map(function (r) {
+          return el("tr", {}, [el("td", { text: r.name }), el("td", { class: "muted", text: methodName(r.method) + ", " + r.provider_type }),
+            el("td", { class: "muted", text: (r.fee_rate ? r.fee_rate + "%" : "") + (r.fee_base ? " + " + r.fee_base + " " + (r.fee_currency || "") : "") || "None" }),
+            el("td", {}, [status(r.auto_disabled_at ? "failed" : r.enabled ? "active" : "expired", r.auto_disabled_at ? "Switched off" : r.enabled ? "On" : "Off")]),
+            el("td", { class: "muted wrap", text: healthText(r) }),
+            el("td", { class: "num" }, [el("button", { class: "link", type: "button", text: "Test", disabled: !canWrite, onclick: function () { testProvider(pid, r.id, list); } }), " ", el("button", { class: "link", type: "button", text: r.enabled ? "Turn off" : "Turn on", disabled: !canWrite, onclick: function () { api("POST", "/projects/" + pid + "/providers/" + r.id + "/enabled", { enabled: !r.enabled }).then(load); } }), " ",
+              el("a", { href: "#/p/" + pid + "/providers/" + r.id, text: "Edit" })])]);
+        })) : el("div", { class: "empty" }, [el("b", { text: "No payment methods of your own yet." }), el("p", { class: "muted", text: "Connect your Lightning node, an on-chain wallet or a card provider to take payments directly." })]));
+      }).catch(function (e) { msg(list, e.message, true); });
     }
-    body.appendChild(el("div", { class: "row" }, [el("button", { class: "primary", text: "Add provider", onclick: function () { go("#/p/" + pid + "/providers/new"); } })]));
+    body.appendChild(section("Your payment methods", [list], { aside: el("button", { class: "primary", text: "Add payment method", disabled: !canWrite, onclick: function () { go("#/p/" + pid + "/providers/new"); } }) }));
     load();
-    sharedMethods(pid, body);
-  });
+    var shared = el("div");
+    body.appendChild(shared);
+    sharedMethods(pid, shared);
+  }, { sub: "How customers can pay you. Money from your own methods goes straight to you." });
 }
 
 function providerForm(pid, id) {
@@ -49,14 +52,14 @@ function providerForm(pid, id) {
     start.then(function (row) {
       existing = row;
       var keys = Object.keys(PROVIDER_TEMPLATES).filter(function (k) { return k !== "mock"; });
-      var sel = el("select", {}, keys.map(function (k) { return el("option", { value: k, text: k }); }));
+      var sel = el("select", {}, keys.map(function (k) { var x = k.split("/"); return el("option", { value: k, text: methodName(x[0]) + " through " + x[1] }); }));
       if (row) { sel.value = row.method + "/" + row.provider_type; sel.disabled = true; }
       var name = el("input", { value: row ? row.name : "" });
       var rate = el("input", { type: "number", step: "0.01", placeholder: "e.g. 1.5", value: row && row.fee_rate !== null ? row.fee_rate : "" });
       var base = el("input", { type: "number", placeholder: "minor units", value: row && row.fee_base !== null ? row.fee_base : "" });
       var fcur = el("input", { placeholder: "EUR", value: row && row.fee_currency ? row.fee_currency : "" });
       var cfgBox = el("div"); var inputs = {};
-      var out = el("div"); var btn = el("button", { class: "primary", text: row ? "Save" : "Add provider" });
+      var out = el("div"); var btn = el("button", { class: "primary", text: row ? "Save changes" : "Add payment method" });
       function drawConfig() {
         var t = PROVIDER_TEMPLATES[sel.value]; inputs = {};
         cfgBox.replaceChildren.apply(cfgBox, t.fields.map(function (f) {
@@ -88,12 +91,15 @@ function providerForm(pid, id) {
         busy(test, function () { return api("POST", "/projects/" + pid + "/providers/" + row.id + "/test"); }).then(function (r) { msg(out, r.message, !r.ok); }).catch(function (e) { msg(out, e.message, true); });
       } }) : null;
       var del = row ? el("button", { class: "danger", text: "Delete", onclick: function () {
-        if (!confirm("Delete this provider?")) return;
-        api("DELETE", "/projects/" + pid + "/providers/" + row.id).then(function () { go("#/p/" + pid + "/providers"); }).catch(function (e) { msg(out, e.message, true); });
+        confirmDialog({ title: "Delete " + row.name, body: "Customers can no longer pay with it. Payments already made are not affected.", keep: "Keep it", confirm: "Delete", danger: true }).then(function (r) {
+          if (r) api("DELETE", "/projects/" + pid + "/providers/" + row.id).then(function () { go("#/p/" + pid + "/providers"); }).catch(function (e) { msg(out, e.message, true); });
+        });
       } }) : null;
-      body.appendChild(el("div", { class: "card" }, [field("Provider", sel), field("Name", name), cfgBox,
-        el("h3", { text: "Processing fee added to the customer total" }), el("div", { class: "row" }, [rate, base, fcur]),
-        el("div", { class: "row" }, [btn, test, del]), out]));
+      [rate, base, fcur].forEach(function (x, i) { x.setAttribute("aria-label", ["Fee percent", "Fixed fee", "Fee currency"][i]); });
+      body.querySelector(".page-head h1").textContent = row ? row.name : "Add a payment method";
+      body.appendChild(el("div", { class: "card" }, [el("div", { class: "form" }, [field("Type", sel), field("Name", name)]), cfgBox,
+        el("h3", { text: "Processing fee added to the customer's total" }), el("div", { class: "row" }, [rate, base, fcur]),
+        el("div", { class: "row" }, [btn, test, del, el("a", { href: "#/p/" + pid + "/providers", text: "Back" })]), out]));
     });
   });
 }

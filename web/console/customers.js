@@ -1,51 +1,46 @@
 "use strict";
 function customers(pid) {
   projectShell(pid, "customers", function (p, body) {
-    var q = el("input", { placeholder: "Customer ref starts with", "aria-label": "Search customers" });
-    var list = el("div", { class: "list-area" });
+    var q = el("input", { type: "search", placeholder: "Customer ref starts with", "aria-label": "Search customers" });
+    var list = el("div", { class: "list-area" }, [skeletonRows()]);
     function load() {
       api("GET", "/projects/" + pid + "/customers" + (q.value.trim() ? "?q=" + encodeURIComponent(q.value.trim()) : "")).then(function (r) {
-        list.replaceChildren(r.customers.length ? el("table", {}, [el("tr", {}, ["Customer", "Payments", "Paid", "Last payment"].map(function (h) { return el("th", { text: h }); }))].concat(r.customers.map(function (c) {
-          var open = function () { go("#/p/" + pid + "/customers/" + encodeURIComponent(c.customer_ref)); };
-          return el("tr", { class: "click", tabindex: "0", onclick: open, onkeydown: function (e) { if (e.key === "Enter") open(); } }, [el("td", { text: c.customer_ref }), el("td", { text: c.payments }), el("td", { text: c.paid }), el("td", { class: "muted", text: ago(c.last_payment) })]);
-        }))) : el("p", { class: "muted", text: "No customers yet. Pass customer_ref when creating payments." }));
+        list.replaceChildren(r.customers.length ? table(["Customer", ["Payments", "num"], ["Paid", "num"], "Last payment"], r.customers.map(function (c) {
+          return clickRow({}, [el("td", { text: c.customer_ref }), el("td", { class: "num", text: String(c.payments) }), el("td", { class: "num", text: String(c.paid) }), el("td", { class: "muted", text: fmtWhen(c.last_payment) })], function () { go("#/p/" + pid + "/customers/" + encodeURIComponent(c.customer_ref)); });
+        })) : el("div", { class: "empty" }, [el("b", { text: "No customers yet." }), el("p", { class: "muted", text: "Pass customer_ref when your app creates a payment and customers appear here." })]));
       }).catch(function (e) { msg(list, e.message, true); });
     }
     q.addEventListener("keydown", function (e) { if (e.key === "Enter") load(); });
-    body.appendChild(el("div", { class: "row" }, [q, el("button", { text: "Search", onclick: load })]));
+    body.appendChild(el("div", { class: "filterbar" }, [q, el("button", { text: "Search", onclick: load })]));
     body.appendChild(list); load();
-  });
+  }, { sub: "Everyone who paid you, by the customer_ref your app sends." });
 }
 
 function customerDetail(pid, ref) {
   projectShell(pid, "customers", function (p, body) {
-    var box = el("div"); body.appendChild(box);
+    var box = el("div", {}, [skeletonRows()]); body.appendChild(box);
+    body.querySelector(".page-head h1").textContent = ref;
     function load() {
       api("GET", "/projects/" + pid + "/customers/" + encodeURIComponent(ref)).then(function (c) {
         var out = el("div");
         var totals = Object.keys(c.paid_totals).map(function (k) { return fmtAmount(c.paid_totals[k], k); }).join(", ");
         box.replaceChildren(
-          el("div", { class: "card" }, [el("dl", { class: "kv" }, [el("dt", { text: "Customer" }), el("dd", { text: c.customer_ref }), el("dt", { text: "Email" }), el("dd", { text: c.email || "" }), el("dt", { text: "Paid in total" }), el("dd", { text: totals || "nothing yet" })])]),
-          el("h3", { text: "Payments" }),
-          c.payments.length ? el("table", {}, [el("tr", {}, ["Id", "Reference", "Amount", "Status", "Created"].map(function (h) { return el("th", { text: h }); }))].concat(c.payments.map(function (x) {
-            var open = function () { go("#/p/" + pid + "/payments/" + x.id); };
-            return el("tr", { class: "click", tabindex: "0", onclick: open, onkeydown: function (e) { if (e.key === "Enter") open(); } }, [el("td", { class: "mono", text: x.id.slice(0, 8) }), el("td", { text: x.reference }), el("td", { text: fmtAmount(x.amount, x.currency) }), el("td", {}, [pill(x.status)]), el("td", { class: "muted", text: ago(x.created) })]);
-          }))) : el("p", { class: "muted", text: "No payments." }),
-          el("h3", { text: "Saved methods" }),
-          c.saved_methods.length ? el("table", {}, c.saved_methods.map(function (m) {
-            return el("tr", {}, [el("td", { text: (m.brand || "card") + " ending " + (m.last4 || "????") }), el("td", { class: "muted", text: m.exp_month ? m.exp_month + "/" + m.exp_year : "" }),
-              el("td", {}, [el("button", { class: "danger", text: "Delete", disabled: p.role === "viewer", onclick: function () {
-                confirmDialog({ title: "Delete saved method", body: "Delete " + (m.brand || "card") + " ending " + (m.last4 || "????") + "? The customer will have to enter it again.", keep: "Keep it", confirm: "Delete", danger: true }).then(function (r) {
+          section("Customer", [kv([["Customer ref", c.customer_ref], ["Email", c.email], ["Paid in total", totals || "Nothing yet"]])]),
+          section("Payments", [c.payments.length ? table([["Amount", "num"], "Status", "Reference", "Created"], c.payments.map(function (x) {
+            return clickRow({}, [el("td", { class: "amt", text: fmtAmount(x.amount, x.currency) }), el("td", {}, [status(x.status)]), el("td", { text: x.reference }), el("td", { class: "muted", text: fmtWhen(x.created) })], function () { go("#/p/" + pid + "/payments/" + x.id); });
+          })) : el("p", { class: "muted", text: "No payments." })]),
+          section("Saved cards", [c.saved_methods.length ? table(["Card", "Expires", ""], c.saved_methods.map(function (m) {
+            return el("tr", {}, [el("td", { text: (m.brand || "Card") + " ending " + (m.last4 || "????") }), el("td", { class: "muted", text: m.exp_month ? m.exp_month + "/" + m.exp_year : "" }),
+              el("td", { class: "num" }, [el("button", { class: "link", type: "button", text: "Delete", disabled: p.role === "viewer", onclick: function () {
+                confirmDialog({ title: "Delete saved card", body: "Delete " + (m.brand || "card") + " ending " + (m.last4 || "????") + "? The customer will have to enter it again.", keep: "Keep it", confirm: "Delete", danger: true }).then(function (r) {
                   if (!r) return;
-                  api("DELETE", "/projects/" + pid + "/customers/" + encodeURIComponent(ref) + "/saved-methods/" + m.id).then(function () { toast("Saved method deleted."); load(); }).catch(function (e) { msg(out, e.message, true); });
+                  api("DELETE", "/projects/" + pid + "/customers/" + encodeURIComponent(ref) + "/saved-methods/" + m.id).then(function () { toast("Saved card deleted."); load(); }).catch(function (e) { msg(out, e.message, true); });
                 });
               } })])]);
-          })) : el("p", { class: "muted", text: "No saved methods." }),
-          el("h3", { text: "Subscriptions" }),
-          c.subscriptions.length ? el("table", {}, [el("tr", {}, ["Plan", "Amount", "Status", "Next charge"].map(function (h) { return el("th", { text: h }); }))].concat(c.subscriptions.map(function (x) {
-            var open = function () { go("#/p/" + pid + "/subscriptions/" + x.id); };
-            return el("tr", { class: "click", tabindex: "0", onclick: open, onkeydown: function (e) { if (e.key === "Enter") open(); } }, [el("td", { text: x.plan_name || "plan " + x.plan_id }), el("td", { text: x.amount === null ? "" : fmtAmount(x.amount, x.currency) }), el("td", {}, [pill(x.status + (x.cancel_at_period_end ? ", ends" : ""), x.status === "active" ? "ok" : x.status === "past_due" ? "bad" : "pending")]), el("td", { class: "muted", text: x.next_charge ? new Date(x.next_charge).toLocaleDateString() : "" })]);
-          }))) : el("p", { class: "muted", text: "No subscriptions." }),
+          })) : el("p", { class: "muted", text: "No saved cards." })]),
+          section("Subscriptions", [c.subscriptions.length ? table(["Plan", ["Amount", "num"], "Status", "Next charge"], c.subscriptions.map(function (x) {
+            return clickRow({}, [el("td", { text: x.plan_name || "Plan " + x.plan_id }), el("td", { class: "num", text: x.amount === null ? "" : fmtAmount(x.amount, x.currency) }), el("td", {}, [status(x.status, x.cancel_at_period_end ? statusWord(x.status) + ", ends" : null)]), el("td", { class: "muted", text: x.next_charge ? fmtDay(x.next_charge) : "" })], function () { go("#/p/" + pid + "/subscriptions/" + x.id); });
+          })) : el("p", { class: "muted", text: "No subscriptions." })]),
           out);
       }).catch(function (e) { msg(box, e.message, true); });
     }

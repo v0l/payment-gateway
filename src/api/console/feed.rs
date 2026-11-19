@@ -188,23 +188,47 @@ pub(super) async fn feed(
         }
     }
     if kind == "all" || kind == "webhooks" {
-        for d in db::feed_failed_deliveries(s.pool(), id, before, limit).await? {
-            let state = if d.delivered {
-                "delivered after retrying"
+        let failed = db::feed_failed_deliveries(s.pool(), id, before, limit * 4).await?;
+        let mut groups: Vec<(Option<String>, Vec<&db::FailedDelivery>)> = vec![];
+        for d in &failed {
+            match groups.iter_mut().find(|(url, _)| *url == d.url) {
+                Some((_, list)) if kind == "all" => list.push(d),
+                _ => groups.push((d.url.clone(), vec![d])),
+            }
+        }
+        for (url, list) in groups {
+            let d = list[0];
+            let pending = list.iter().filter(|x| !x.delivered && !x.abandoned).count();
+            let state = if list.len() > 1 {
+                format!("{} events failed, {pending} still retrying", list.len())
+            } else if d.delivered {
+                "delivered after retrying".into()
             } else if d.abandoned {
-                "gave up after retrying"
+                "gave up after retrying".into()
             } else {
-                "retrying"
+                "retrying".into()
             };
             items.push(FeedItem {
                 at: d.at,
                 kind: "webhook",
-                tone: if d.delivered { "warn" } else { "bad" },
-                title: format!("Webhook {} failed", d.event_type),
+                tone: if list.iter().all(|x| x.delivered) {
+                    "warn"
+                } else {
+                    "bad"
+                },
+                title: if list.len() > 1 {
+                    "Webhooks failing".into()
+                } else {
+                    format!("Webhook {} failed", d.event_type)
+                },
                 amount: None,
                 currency: None,
-                payment_id: d.payment_id.clone(),
-                reference: d.url.clone(),
+                payment_id: if list.len() > 1 {
+                    None
+                } else {
+                    d.payment_id.clone()
+                },
+                reference: url,
                 customer: None,
                 method: None,
                 detail: Some(format!(

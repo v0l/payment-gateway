@@ -10,6 +10,5 @@ function newProject() {
       return api("GET", "/me").then(function (m) { me = m; });
     }).catch(function (e) { msg(out, e.message, true); });
   });
-  layout("new", null, el("div", {}, [el("h2", { text: "New project" }), el("p", { class: "sub", text: "A project has its own API key, providers and webhook." }),
-    el("div", { class: "card" }, [field("Name", name), btn, out])]));
+  operatorPage("new", "New project", "A project has its own API key, payment methods and webhooks.", el("div", { class: "card" }, [field("Name", name), el("div", { class: "row" }, [btn]), out]));
 }

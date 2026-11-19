@@ -23,16 +23,15 @@ function settings(pid) {
       payload.allowed_origins = f.allowed_origins.value.split(/\s+/).filter(Boolean);
       busy(btn, function () { return api("POST", "/projects/" + pid + "/settings", payload); }).then(function () { msg(out, "Saved."); }).catch(function (e) { msg(out, e.message, true); });
     });
-    body.appendChild(el("div", { class: "card form" }, [field("Webhook URL (https)", f.webhook_url), field("Display name on pay page", f.display_name), field("Logo URL", f.logo_url), field("Accent colour", f.accent_color),
+    btn.disabled = p.role === "viewer";
+    body.appendChild(section("Project", [el("div", { class: "card form" }, [field("Webhook URL (https)", f.webhook_url), field("Display name on pay page", f.display_name), field("Logo URL", f.logo_url), field("Accent colour", f.accent_color),
       field("Default success URL", f.default_success_url), field("Default cancel URL", f.default_cancel_url), field("Allowed embed origins", f.allowed_origins),
-      field("Legal name (receipts)", f.legal_name), field("Address (receipts)", f.address), field("Tax ID (receipts)", f.tax_id), field("Support email (receipts)", f.support_email), btn, out]));
+      field("Legal name (receipts)", f.legal_name), field("Address (receipts)", f.address), field("Tax ID (receipts)", f.tax_id), field("Support email (receipts)", f.support_email), el("div", { class: "row" }, [btn]), out])]));
     var brandingBox = el("div", { class: "card" });
-    body.appendChild(el("h3", { text: "Pay page branding" }));
-    body.appendChild(brandingBox);
+    body.appendChild(section("Pay page branding", [brandingBox]));
     renderBranding(pid, brandingBox);
-    var limitsBox = el("div", { class: "card" });
-    body.appendChild(el("h3", { text: "Limits and usage" }));
-    body.appendChild(limitsBox);
+    var limitsBox = el("div");
+    body.appendChild(section("Limits and usage", [limitsBox]));
     renderLimits(pid, limitsBox);
     if (p.role === "owner") {
       var req = el("input", { type: "checkbox" });
@@ -41,31 +40,29 @@ function settings(pid) {
       req.addEventListener("change", function () {
         api("POST", "/projects/" + pid + "/require-2fa", { required: req.checked }).then(function () { msg(reqOut, "Saved."); }).catch(function (e) { req.checked = !req.checked; msg(reqOut, e.message, true); });
       });
-      body.appendChild(el("h3", { text: "Security" }));
-      body.appendChild(el("div", { class: "card" }, [el("label", {}, [req, " Require two factor for members of this project"]), reqOut]));
+      body.appendChild(section("Security", [el("div", { class: "card" }, [el("label", { class: "check" }, [req, "Require two factor for members of this project"]), reqOut])]));
     }
     body.appendChild(projectConfigPanels(pid, p));
     var keyOut = el("div");
-    var rows = [el("button", { text: "Rotate API key", onclick: function () {
-      if (!confirm("The old key stops working immediately. Continue?")) return;
-      api("POST", "/projects/" + pid + "/rotate-key", {}).then(function (r) { keyOut.replaceChildren(secretBox("New API key", r.api_key)); }).catch(function (e) { msg(keyOut, e.message, true); });
+    var rows = [el("button", { text: "Rotate API key", disabled: p.role === "viewer", onclick: function () {
+      confirmDialog({ title: "Rotate the project API key", body: "The old key stops working immediately.", keep: "Keep the old key", confirm: "Rotate key", danger: true }).then(function (r) {
+        if (r) api("POST", "/projects/" + pid + "/rotate-key", {}).then(function (x) { keyOut.replaceChildren(secretBox("New API key", x.api_key)); }).catch(function (e) { msg(keyOut, e.message, true); });
+      });
     } })];
     if (p.role === "owner") rows.push(el("button", { text: "Rotate webhook signing secret", onclick: function () {
-      if (!confirm("Update your receiver with the new secret straight away. Continue?")) return;
-      api("POST", "/projects/" + pid + "/rotate-webhook-secret", {}).then(function (r) { keyOut.replaceChildren(secretBox("New webhook secret", r.webhook_secret)); }).catch(function (e) { msg(keyOut, e.message, true); });
+      confirmDialog({ title: "Rotate the webhook signing secret", body: "Update your receiver with the new secret straight away, or it will reject events.", keep: "Keep the old secret", confirm: "Rotate secret", danger: true }).then(function (r) {
+        if (r) api("POST", "/projects/" + pid + "/rotate-webhook-secret", {}).then(function (x) { keyOut.replaceChildren(secretBox("New webhook secret", x.webhook_secret)); }).catch(function (e) { msg(keyOut, e.message, true); });
+      });
     } }));
     if (me.is_operator) {
       var trustOut = el("div");
-      body.appendChild(el("h3", { text: "Operator" }));
-      body.appendChild(el("div", { class: "row" }, [el("button", { text: p.trusted ? "Move back to test limits" : "Lift test limits (go live)", onclick: function () {
+      body.appendChild(section("Operator", [el("div", { class: "card" }, [el("p", { class: "muted", text: p.trusted ? "This project is live." : "This project is in test mode with lower limits." }), el("div", { class: "row" }, [el("button", { text: p.trusted ? "Move back to test limits" : "Lift test limits and go live", onclick: function () {
         api("POST", "/admin/projects/" + pid + "/trusted", { trusted: !p.trusted }).then(function () { msg(trustOut, "Updated. Reload to see it."); }).catch(function (e) { msg(trustOut, e.message, true); });
-      } })]));
-      body.appendChild(trustOut);
+      } })]), trustOut])]));
     }
-    body.appendChild(el("h3", { text: "Keys" }));
-    body.appendChild(el("div", { class: "row" }, rows)); body.appendChild(keyOut);
+    body.appendChild(section("Keys and secrets", [el("div", { class: "row" }, rows), keyOut]));
     if (p.role === "owner") body.appendChild(dangerZone(pid, p));
-  });
+  }, { sub: "How the pay page looks, where webhooks go and who can do what." });
 }
 
 
@@ -85,15 +82,14 @@ function renderLimits(pid, box) {
       var used = r[2] ? String(v.usage[r[2]]) : "";
       var cell;
       if (me.is_operator) {
-        cell = el("input", { value: String(v.limits[r[0]]), type: "number", min: "0" });
+        cell = el("input", { value: String(v.limits[r[0]]), type: "number", min: "0", "aria-label": r[1] });
         inputs[r[0]] = cell;
       } else {
         cell = el("span", { text: String(v.limits[r[0]]) });
       }
-      return el("tr", {}, [el("td", { text: r[1] }), el("td", { text: used }), el("td", {}, [cell]), el("td", { text: String(v.defaults[r[0]]) })]);
+      return el("tr", {}, [el("td", { text: r[1] }), el("td", { class: "num", text: used }), el("td", {}, [cell]), el("td", { class: "num muted", text: String(v.defaults[r[0]]) })]);
     });
-    var head = el("tr", {}, ["Limit", "Used", "Limit", "Default"].map(function (t) { return el("th", { text: t }); }));
-    box.replaceChildren(el("table", {}, [head].concat(rows)), out);
+    box.replaceChildren(table(["Limit", ["Used", "num"], "Limit", ["Default", "num"]], rows), out);
     if (!me.is_operator) return;
     var save = el("button", { class: "primary", text: "Save limits" });
     save.addEventListener("click", function () {

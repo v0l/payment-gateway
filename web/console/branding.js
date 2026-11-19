@@ -34,9 +34,10 @@ function renderBranding(pid, box) {
       if (b.can_hide_powered_by) payload.show_powered_by = powered.checked;
       busy(save, function () { return api("POST", "/projects/" + pid + "/branding", payload); }).then(function () { msg(out, "Saved."); }).catch(function (e) { msg(out, e.message, true); });
     });
-    var poweredField = el("div", { class: "field" }, [el("label", {}, [powered, " Show Powered by on the pay page"])]);
+    var poweredField = el("div", { class: "field" }, [el("label", { class: "check" }, [powered, "Show Powered by on the pay page"])]);
+    box.classList.add("form");
     box.replaceChildren(field("Default language", f.default_lang), field("Theme", f.theme), field("Corner radius", f.radius), field("Font", f.font),
       field("Accent colour in dark mode", f.accent_dark), field("Logo URL for dark mode", f.logo_dark_url), field("Thank-you text", f.thanks_text),
-      field("Footer links", links), poweredField, save, out);
-  }).catch(function (e) { box.replaceChildren(el("div", { text: e.message })); });
+      field("Footer links", links), poweredField, el("div", { class: "row" }, [save]), out);
+  }).catch(function (e) { box.replaceChildren(el("div", { class: "err", role: "alert", text: e.message })); });
 }

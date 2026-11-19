@@ -34,18 +34,17 @@ function paymentTools(pid, id, pay, role, out, reload) {
       });
     } }));
   }
-  var notes = el("div"); var note = el("textarea", { rows: "2", placeholder: "Internal note, not shown to the customer", "aria-label": "Internal note" });
+  var notes = el("div", { class: "notes" }); var note = el("textarea", { rows: "2", placeholder: "Internal note for your team, not shown to the customer", "aria-label": "Internal note" });
   function loadNotes() {
     api("GET", base + "/notes").then(function (r) {
-      notes.replaceChildren.apply(notes, r.notes.length ? r.notes.map(function (n) { return el("p", {}, [el("span", { class: "muted", text: new Date(n.created).toLocaleString() + " " }), n.body]); }) : [el("p", { class: "muted", text: "No notes." })]);
+      notes.replaceChildren.apply(notes, r.notes.length ? r.notes.map(function (n) { return el("p", {}, [el("span", { class: "muted", text: fmtFull(n.created) + "  " }), n.body]); }) : [el("p", { class: "muted", text: "No notes yet." })]);
     });
   }
-  box.appendChild(buttons);
-  box.appendChild(el("h3", { text: "Internal notes" }));
   box.appendChild(notes);
   if (canWrite) box.appendChild(el("div", { class: "row" }, [note, el("button", { text: "Add note", onclick: function () {
     api("POST", base + "/notes", { body: note.value }).then(function () { note.value = ""; loadNotes(); }).catch(function (e) { msg(out, e.message, true); });
   } })]));
+  box.appendChild(buttons);
   loadNotes();
   return box;
 }
