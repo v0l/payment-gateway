@@ -93,13 +93,13 @@ impl BitcoindSource {
             .call(
                 true,
                 "importdescriptors",
-                json!([{
+                json!([[{
                     "desc": spec.descriptor(),
                     "range": [0, upto],
                     "timestamp": timestamp,
                     "active": false,
                     "internal": false
-                }]),
+                }]]),
             )
             .await?;
         let failed = result
@@ -137,7 +137,7 @@ impl ChainSource for BitcoindSource {
             _ => json!("now"),
         };
         self.import(spec, upto + 20, timestamp).await?;
-        *self.imported.lock().unwrap() = Some(upto);
+        *self.imported.lock().unwrap() = Some(upto + 10);
         Ok(())
     }
 
