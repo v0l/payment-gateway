@@ -22,7 +22,7 @@ export TEST_DATABASE_URL=mysql://root:test@127.0.0.1:33907/
 CARGO_BUILD_JOBS=2 cargo test
 CARGO_BUILD_JOBS=2 cargo clippy --all-targets
 cargo fmt
-node --check web/console/*.js   # and every other web js file you touch
+(cd web && bun run check && bun test && bun run build)
 ```
 
 - Always set `CARGO_BUILD_JOBS=2`. A default build uses 9 GB or more and several agents run at once. When using the bash tool pass `memory_mb: 0` for cargo.

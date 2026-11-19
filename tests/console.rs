@@ -172,7 +172,7 @@ async fn console_fonts_are_self_hosted_and_allowed_by_csp() {
     let page = send(&h.app, "GET", "/console", None, &[], Value::Null).await;
     let csp = page.headers["content-security-policy"].to_str().unwrap();
     assert!(csp.contains("font-src 'self'"));
-    let tokens = include_str!("../web/tokens.css");
+    let tokens = include_str!("../web/src/tokens.css");
     assert!(!tokens.contains("fonts.googleapis") && !tokens.contains("http"));
     assert!(tokens.contains("IBM Plex Sans") && !tokens.contains("Bricolage"));
 }
@@ -181,8 +181,8 @@ async fn console_fonts_are_self_hosted_and_allowed_by_csp() {
 fn console_and_pay_css_take_colours_from_tokens() {
     for css in [
         include_str!("../web/console.css"),
-        include_str!("../web/pay.css"),
-        include_str!("../web/receipt.css"),
+        include_str!("../web/src/pay/pay.css"),
+        include_str!("../web/src/receipt/receipt.css"),
         include_str!("../web/components.css"),
     ] {
         let loose = css.lines().filter(|l| {
