@@ -17,6 +17,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 mod activity;
+mod attention;
 mod balance;
 mod billing;
 mod branding;
@@ -24,6 +25,8 @@ mod customers;
 mod dashboard;
 mod endpoints;
 mod export;
+mod feed;
+mod home;
 mod keys;
 mod operator;
 mod operator_tools;
@@ -44,6 +47,7 @@ mod twofactor;
 mod webhook_tools;
 
 use activity::*;
+use attention::*;
 use balance::*;
 use billing::*;
 use branding::*;
@@ -51,6 +55,8 @@ use customers::*;
 use dashboard::*;
 use endpoints::*;
 use export::*;
+use feed::*;
+use home::*;
 use keys::*;
 use operator::*;
 use operator_tools::*;
@@ -193,6 +199,14 @@ pub fn router() -> Router<AppState> {
         )
         .route("/projects/{id}/stats", get(stats))
         .route("/projects/{id}/dashboard", get(dashboard))
+        .route("/projects/{id}/home", get(home))
+        .route("/projects/{id}/feed", get(feed))
+        .route("/projects/{id}/attention", get(attention))
+        .route("/projects/{id}/attention/bulk", post(attention_bulk))
+        .route(
+            "/projects/{id}/payment-view-counts",
+            get(payment_view_counts),
+        )
         .route("/projects/{id}/settings", get(get_settings))
         .route("/projects/{id}/settings/legal", post(set_legal))
         .route(
@@ -265,6 +279,7 @@ pub fn router() -> Router<AppState> {
             post(subscription_action),
         )
         .route("/projects/{id}/ledger", get(project_ledger))
+        .route("/projects/{id}/statement", get(project_statement))
         .route("/projects/{id}/shared", get(project_shared))
         .route(
             "/projects/{id}/shared/{shared}/enabled",

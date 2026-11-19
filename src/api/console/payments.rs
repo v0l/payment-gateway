@@ -44,16 +44,36 @@ pub(super) async fn get_payment(
             receipts.push(json!({"attempt_id": a.id, "ref": r.r#ref, "amount": r.amount, "confirmed": r.confirmed}));
         }
     }
-    let deliveries: Vec<Value> = db::deliveries_for_payment(s.pool(), &pid)
+    let deliveries: Vec<Value> = db::payment_deliveries(s.pool(), id, &pid)
         .await?
         .into_iter()
-        .map(|d| json!({"id": d.id, "event_type": d.event_type, "attempts": d.attempts, "delivered_at": d.delivered_at, "abandoned_at": d.abandoned_at, "last_error": d.last_error}))
+        .map(|d| json!({"id": d.id, "event_type": d.event_type, "attempts": d.attempts, "created": d.created, "delivered_at": d.delivered_at, "abandoned_at": d.abandoned_at, "last_error": d.last_error, "last_status": d.last_status, "last_duration_ms": d.last_duration_ms, "last_attempt_at": d.last_attempt_at, "url": d.url}))
+        .collect();
+    let events: Vec<Value> = db::events_for_payment(s.pool(), id, &pid)
+        .await?
+        .into_iter()
+        .map(|e| {
+            let body: Value = serde_json::from_str(&e.body).unwrap_or(Value::Null);
+            json!({"id": e.id, "type": e.event_type, "created": e.created, "detail": body["data"]["detail"]})
+        })
         .collect();
     Ok(Json(json!({
         "payment": s.service.view(&row).await?,
         "receipts": receipts,
         "deliveries": deliveries,
+        "events": events,
+        "customer_email": row.customer_email.as_deref().map(mask_email),
     })))
+}
+
+pub(super) fn mask_email(email: &str) -> String {
+    match email.split_once('@') {
+        Some((user, domain)) => {
+            let head: String = user.chars().take(2).collect();
+            format!("{head}***@{domain}")
+        }
+        None => "***".into(),
+    }
 }
 
 pub(super) async fn create_payment(

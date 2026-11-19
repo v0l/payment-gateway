@@ -5,8 +5,8 @@ use sqlx::{MySql, Transaction};
 use std::collections::BTreeMap;
 
 pub use read::{
-    AccountBalance, EntryView, Mismatch, balances, history, reconcile, reconcile_tenant,
-    tenant_balance,
+    AccountBalance, EntryView, Mismatch, StatementLine, balances, history, reconcile,
+    reconcile_tenant, statement, tenant_balance,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

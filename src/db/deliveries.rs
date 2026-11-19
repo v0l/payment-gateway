@@ -193,15 +193,6 @@ pub async fn replay_tenant_delivery(
     Ok(r.rows_affected() > 0)
 }
 
-pub async fn deliveries_for_payment(pool: &MySqlPool, id: &PaymentId) -> Result<Vec<DeliveryRow>> {
-    Ok(sqlx::query_as(
-        "select id, tenant_id, event_id, event_type, attempts, created, next_attempt, delivered_at, abandoned_at, last_error from webhook_delivery where payment_id = ? order by id",
-    )
-    .bind(&id[..])
-    .fetch_all(pool)
-    .await?)
-}
-
 pub async fn pending_delivery_count(pool: &MySqlPool, tenant_id: u64) -> Result<i64> {
     Ok(sqlx::query_scalar(
         "select count(*) from webhook_delivery where tenant_id = ? and delivered_at is null and abandoned_at is null",

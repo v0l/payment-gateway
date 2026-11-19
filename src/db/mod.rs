@@ -227,9 +227,12 @@ const PAYMENT_COLS: &str = "id, tenant_id, reference, currency, amount, tax, sta
 const ATTEMPT_COLS: &str = "id, payment_id, provider_config_id, watch_provider_id, method, option_key, base_amount, processing_fee, currency, charge_amount, charge_currency, rate, lookup, external_id, details, status, created, expires, paid_at, save_method, shared_provider_id, platform_fee_bps, platform_fee_base, platform_fee, platform_net";
 const SAVED_COLS: &str = "id, tenant_id, customer_ref, provider_config_id, external_customer_id, external_id, brand, last4, exp_month, exp_year, enabled, created";
 const REFUND_COLS: &str = "id, payment_id, attempt_id, amount, charge_amount, currency, destination, status, external_id, error, created";
+pub(crate) const PAID_STATES: &str = "('paid','partially_refunded','refunded')";
 
 mod attempts;
+mod attention;
 mod branding;
+mod console_home;
 mod customers;
 mod dashboard;
 mod deliveries;
@@ -252,7 +255,9 @@ mod tenants;
 mod withdrawals;
 
 pub use attempts::*;
+pub use attention::*;
 pub use branding::*;
+pub use console_home::*;
 pub use customers::*;
 pub use dashboard::*;
 pub use deliveries::*;

@@ -11,6 +11,7 @@ pub struct SearchFilter {
     pub min_amount: Option<u64>,
     pub max_amount: Option<u64>,
     pub currency: Option<String>,
+    pub disputed: bool,
     pub before: Option<(DateTime<Utc>, Vec<u8>)>,
 }
 
@@ -20,13 +21,8 @@ fn escape_like(text: &str) -> String {
         .replace('_', "\\_")
 }
 
-pub async fn search_payments(
-    pool: &MySqlPool,
-    tenant_id: u64,
-    f: &SearchFilter,
-    limit: u32,
-) -> Result<Vec<PaymentRow>> {
-    let mut sql = format!("select {PAYMENT_COLS} from payment where tenant_id = ?");
+fn filter_sql(f: &SearchFilter) -> String {
+    let mut sql = String::from(" where tenant_id = ?");
     if f.status.is_some() {
         sql.push_str(" and status = ?");
     }
@@ -56,11 +52,21 @@ pub async fn search_payments(
     if f.currency.is_some() {
         sql.push_str(" and currency = ?");
     }
+    if f.disputed {
+        sql.push_str(" and dispute_status = 'open'");
+    }
     if f.before.is_some() {
         sql.push_str(" and (created < ? or (created = ? and id < ?))");
     }
-    sql.push_str(" order by created desc, id desc limit ?");
-    let mut q = sqlx::query_as(&sql).bind(tenant_id);
+    sql
+}
+
+fn bind_filter<'q, O>(
+    mut q: sqlx::query::QueryAs<'q, MySql, O, sqlx::mysql::MySqlArguments>,
+    tenant_id: u64,
+    f: &SearchFilter,
+) -> sqlx::query::QueryAs<'q, MySql, O, sqlx::mysql::MySqlArguments> {
+    q = q.bind(tenant_id);
     if let Some(v) = &f.status {
         q = q.bind(v.clone());
     }
@@ -94,7 +100,27 @@ pub async fn search_payments(
     if let Some((at, id)) = &f.before {
         q = q.bind(*at).bind(*at).bind(id.clone());
     }
+    q
+}
+
+pub async fn search_payments(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    f: &SearchFilter,
+    limit: u32,
+) -> Result<Vec<PaymentRow>> {
+    let sql = format!(
+        "select {PAYMENT_COLS} from payment{} order by created desc, id desc limit ?",
+        filter_sql(f)
+    );
+    let q = bind_filter(sqlx::query_as(&sql), tenant_id, f);
     Ok(q.bind(limit).fetch_all(pool).await?)
+}
+
+pub async fn count_payments(pool: &MySqlPool, tenant_id: u64, f: &SearchFilter) -> Result<i64> {
+    let sql = format!("select count(*) from payment{}", filter_sql(f));
+    let q = bind_filter(sqlx::query_as::<_, (i64,)>(&sql), tenant_id, f);
+    Ok(q.fetch_one(pool).await?.0)
 }
 
 pub async fn stale_pending_payments(

@@ -1,7 +1,5 @@
 use super::*;
 
-const PAID_STATES: &str = "('paid','partially_refunded','refunded')";
-
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct VolumeRow {
     pub currency: String,

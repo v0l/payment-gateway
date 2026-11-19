@@ -22,6 +22,44 @@ pub struct EntryView {
     pub created: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct StatementLine {
+    pub id: u64,
+    pub account_kind: String,
+    pub amount: i64,
+    pub currency: String,
+    pub balance_after: i64,
+    pub transaction_kind: String,
+    pub reference_kind: Option<String>,
+    pub reference_id: Option<String>,
+    pub payment_id: Option<String>,
+    pub payment_description: Option<String>,
+    pub customer_ref: Option<String>,
+    pub method: Option<String>,
+    pub created: DateTime<Utc>,
+}
+
+pub async fn statement(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    kind: &str,
+    currency: &str,
+    before: Option<u64>,
+    limit: u32,
+) -> Result<Vec<StatementLine>, sqlx::Error> {
+    sqlx::query_as(
+        "select e.id, a.kind as account_kind, e.amount, e.currency, cast(a.balance - coalesce((select sum(l.amount) from ledger_entry l where l.account_id = a.id and l.id > e.id), 0) as signed) as balance_after, t.kind as transaction_kind, t.reference_kind, t.reference_id, lower(hex(p.id)) as payment_id, p.description as payment_description, p.customer_ref, pa.method, e.created from ledger_entry e join ledger_account a on a.id = e.account_id join ledger_transaction t on t.id = e.transaction_id left join refund r on t.reference_kind = 'refund' and r.id = cast(t.reference_id as unsigned) left join payment_attempt pa on pa.id = case when t.reference_kind = 'attempt' then cast(t.reference_id as unsigned) else r.attempt_id end left join payment p on p.id = pa.payment_id and p.tenant_id = a.tenant_id where a.tenant_id = ? and a.kind = ? and a.currency = ? and (? is null or e.id < ?) order by e.id desc limit ?",
+    )
+    .bind(tenant_id)
+    .bind(kind)
+    .bind(currency)
+    .bind(before)
+    .bind(before)
+    .bind(limit.clamp(1, 200))
+    .fetch_all(pool)
+    .await
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Mismatch {
     pub account_id: Option<u64>,
