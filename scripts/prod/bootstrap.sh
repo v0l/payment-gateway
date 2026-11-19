@@ -9,6 +9,7 @@ usage() {
     cat >&2 <<EOF
 usage: bootstrap.sh tenant      [--apply]   create the yalr tenant and its Lightning provider
        bootstrap.sh revolut     [--apply]   add the Revolut live provider (registers a live webhook at Revolut)
+       bootstrap.sh fixedfloat  [--apply]   add the FixedFloat provider from $secrets_dir/fixedfloat.json (needs an onchain provider on the tenant)
        bootstrap.sh webhook URL [--apply]   point the yalr tenant at its webhook endpoint
        bootstrap.sh operator EMAIL [--apply] create the first operator invite
 EOF
@@ -60,6 +61,14 @@ revolut)
     admin POST "/admin/tenants/$(tenant_id)/providers" -d "$body"
     echo
     echo "webhook registration happens within one worker tick; confirm with: kubectl --context $context -n $namespace logs deploy/payment-gateway | grep -i webhook"
+    ;;
+fixedfloat)
+    run_or_describe "${1:-}" "create the fixedfloat provider from $secrets_dir/fixedfloat.json (api_key, api_secret, coins)" || exit 0
+    [ -e "$tenant_file" ] || fail "run tenant first"
+    [ -r "$secrets_dir/fixedfloat.json" ] || fail "$secrets_dir/fixedfloat.json missing"
+    start_port_forward
+    body="$(jq '{method:"fixedfloat",provider_type:"fixedfloat",name:"fixedfloat",config:.,fee_rate:0.0}' "$secrets_dir/fixedfloat.json")"
+    admin POST "/admin/tenants/$(tenant_id)/providers" -d "$body"
     ;;
 webhook)
     [ $# -ge 1 ] || usage
