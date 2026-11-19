@@ -36,3 +36,4 @@ pub mod treasury;
 pub mod twofactor;
 pub mod validate;
 pub mod worker;
+pub mod xpub;

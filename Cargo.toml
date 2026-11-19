@@ -39,6 +39,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 fedimint-tonic-lnd = { version = "0.4", default-features = false, features = ["lightningrpc", "routerrpc"] }
 payments-rs = { version = "0.10.0", features = ["method-lnd", "method-lnd-onchain", "method-revolut", "method-stripe", "tls-ring", "mock"], default-features = false }
 bitcoin = { version = "0.32", features = ["base64"] }
+miniscript = { version = "12.3", default-features = false, features = ["std"] }
 lettre = { version = "0.11.24", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "webpki-roots"] }
 
 [dev-dependencies]
