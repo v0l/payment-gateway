@@ -452,9 +452,25 @@ async fn built_assets_are_served_with_immutable_caching_and_pages_are_not_cached
             "public, max-age=31536000, immutable"
         );
     }
-    let r = send(&h.app, "GET", "/static/manifest.json", None, &[], Value::Null).await;
+    let r = send(
+        &h.app,
+        "GET",
+        "/static/manifest.json",
+        None,
+        &[],
+        Value::Null,
+    )
+    .await;
     assert_eq!(r.status, StatusCode::NOT_FOUND);
-    let r = send(&h.app, "GET", "/static/i18n/fr.json", None, &[], Value::Null).await;
+    let r = send(
+        &h.app,
+        "GET",
+        "/static/i18n/fr.json",
+        None,
+        &[],
+        Value::Null,
+    )
+    .await;
     assert_eq!(r.status, StatusCode::OK);
 }
 

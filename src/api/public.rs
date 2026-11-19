@@ -18,7 +18,6 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use tokio_stream::wrappers::BroadcastStream;
 
-
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/pay/{id}", get(pay_page))
@@ -31,7 +30,10 @@ pub fn router() -> Router<AppState> {
         .route("/static/{*path}", get(crate::web::static_file))
         .route("/favicon.ico", get(|| async { crate::web::favicon() }))
         .route("/favicon.svg", get(|| async { crate::web::favicon() }))
-        .route("/gateway.js", get(|| async { crate::web::gateway_script() }))
+        .route(
+            "/gateway.js",
+            get(|| async { crate::web::gateway_script() }),
+        )
         .route("/hook/{tenant}/{provider}", post(hook))
 }
 
@@ -88,7 +90,12 @@ pub(super) async fn load(s: &AppState, raw: &str) -> Result<(db::PaymentRow, Ten
 
 async fn pay_page(State(s): State<AppState>, Path(id): Path<String>) -> Result<Response, ApiError> {
     load(&s, &id).await?;
-    Ok((StatusCode::OK, pay_headers("'none'"), crate::web::page("pay")).into_response())
+    Ok((
+        StatusCode::OK,
+        pay_headers("'none'"),
+        crate::web::page("pay"),
+    )
+        .into_response())
 }
 
 async fn embed_page(
@@ -102,7 +109,12 @@ async fn embed_page(
     } else {
         origins.join(" ")
     };
-    Ok((StatusCode::OK, pay_headers(&ancestors), crate::web::page("pay")).into_response())
+    Ok((
+        StatusCode::OK,
+        pay_headers(&ancestors),
+        crate::web::page("pay"),
+    )
+        .into_response())
 }
 
 #[derive(Serialize)]

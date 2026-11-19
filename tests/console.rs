@@ -111,9 +111,20 @@ async fn console_shell_is_served_without_a_session_and_with_a_strict_csp() {
         assert!(!r.text.contains("<script>"), "{path}");
     }
     let shell = send(&h.app, "GET", "/console", None, &[], Value::Null).await;
-    let js = send(&h.app, "GET", &console_asset(&shell.text, ".js"), None, &[], Value::Null).await;
+    let js = send(
+        &h.app,
+        "GET",
+        &console_asset(&shell.text, ".js"),
+        None,
+        &[],
+        Value::Null,
+    )
+    .await;
     assert_eq!(js.headers["content-type"], "text/javascript");
-    assert_eq!(js.headers["cache-control"], "public, max-age=31536000, immutable");
+    assert_eq!(
+        js.headers["cache-control"],
+        "public, max-age=31536000, immutable"
+    );
     assert_eq!(shell.headers["cache-control"], "no-store");
 }
 

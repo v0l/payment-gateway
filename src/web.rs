@@ -20,7 +20,8 @@ struct ManifestEntry {
 fn manifest() -> &'static HashMap<String, ManifestEntry> {
     static MANIFEST: OnceLock<HashMap<String, ManifestEntry>> = OnceLock::new();
     MANIFEST.get_or_init(|| {
-        let file = Dist::get("manifest.json").expect("web/dist/manifest.json, run bun run build in web/");
+        let file =
+            Dist::get("manifest.json").expect("web/dist/manifest.json, run bun run build in web/");
         serde_json::from_slice(&file.data).expect("manifest.json")
     })
 }

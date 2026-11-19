@@ -5,7 +5,15 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/docs", get(|| async { asset(crate::web::site_page("docs").unwrap_or(b""), "text/html; charset=utf-8") }))
+    Router::new().route(
+        "/docs",
+        get(|| async {
+            asset(
+                crate::web::site_page("docs").unwrap_or(b""),
+                "text/html; charset=utf-8",
+            )
+        }),
+    )
 }
 
 pub async fn openapi_json() -> Response {
