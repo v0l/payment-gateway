@@ -56,7 +56,7 @@ Left aligned, amounts right aligned in tables. Under 900 px the rail drops below
 
 ### Critique notes
 
-Composites of v3, the round 2 mockups and the built page are in `docs/design/screenshots/console-v4/compare/`. Screenshots of every page at 1440 and 390 are in `docs/design/screenshots/console-v4/`, made by `scripts/e2e/console_shots.mjs` against `examples/console_demo.rs`. Each run checks axe (WCAG 2.1 AA), horizontal scroll, console errors and stray "null" text on every page at both widths. Fixes from that review:
+Composites of v3, the round 2 mockups and the built page are in `docs/design/screenshots/console-v4/compare/`. Screenshots of every page at 1440 and 390 are in `docs/design/screenshots/console-v4/`, made by `web/scripts/console-shots.ts` against `examples/console_demo.rs`. Each run checks axe (WCAG 2.1 AA), horizontal scroll, console errors and stray "null" text on every page at both widths. Fixes from that review:
 
 - Home: the queue had a "Needs attention" section title under a "Home" page title, so the queue now owns the page head. The today chart got its own "Today" heading. Webhook failures for one endpoint were 30 identical feed rows, now one row per endpoint.
 - Attention times were formatted in UTC on the server. The API now sends a label and a timestamp, and the browser formats it in local time ("Paid yesterday 17:18").
@@ -109,7 +109,7 @@ Rule: never convey state by colour alone. A pill always carries its status word.
 
 ### Contrast (WCAG AA)
 
-`node scripts/contrast.mjs` reads `tokens.css`, checks every text and control pair in both themes and exits non zero on failure. Text pairs need 4.5:1, control borders, focus ring and `--faint` marks 3:1. Every pair passes in both themes.
+`bun web/scripts/contrast.ts` reads `web/src/tokens.css`, checks every text and control pair in both themes and exits non zero on failure. Text pairs need 4.5:1, control borders, focus ring and `--faint` marks 3:1. Every pair passes in both themes.
 
 ### Type
 

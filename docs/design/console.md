@@ -49,4 +49,4 @@ Body 14 px, table rows 40 px, header rows 34 px, 8 px radius on tables, 6 px on 
 
 ## Screenshots
 
-`scripts/e2e/console_demo.sh` seeds a demo project through the service and serves it on port 18760. `node scripts/e2e/console_shots.mjs` (with `CHROME` pointing at a Chromium) signs in and saves every page at 1440 and 390 to `docs/design/screenshots/console-v4/`, failing on axe serious issues, horizontal scroll, console errors or "null" text. `python3 scripts/e2e/compare.py . docs/design/screenshots/console-v4/compare` builds the side by side sheets. `scripts/e2e/console_demo.sh --stop` removes the demo database.
+`scripts/e2e/console_demo.sh` seeds a demo project through the service and serves it on port 18760. `bun web/scripts/console-shots.ts` (with `DEMO_URL` and `SHOTS_DIR`, and `ONLY=home,payments` to pick pages) signs in and saves every page at 1440 and 390 to `docs/design/screenshots/console-v4/`, failing on axe serious issues, horizontal scroll, console errors or "null" text. `python3 scripts/e2e/compare.py . docs/design/screenshots/console-v4/compare` builds the side by side sheets. `scripts/e2e/console_demo.sh --stop` removes the demo database.

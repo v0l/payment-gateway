@@ -211,7 +211,7 @@ Branding is set per project with `GET/POST /console/api/projects/{id}/branding` 
 
 The gateway serves a token coloured SVG mark at `/favicon.ico` and `/favicon.svg`, linked from the pay page and the console.
 
-Accessibility checks: `scripts/e2e/` holds a Playwright and axe-core run (`npm ci`, build the binary, then `TEST_DATABASE_URL=mysql://root:test@127.0.0.1:33907/ CHROME=/usr/bin/google-chrome node run.mjs`). It starts the gateway on a fresh database with the mock provider, scans the pay page in light, dark and 360px for serious axe violations, checks horizontal scroll, tap targets, language selection, embed message passing, origin enforcement and the modal, and writes screenshots to `docs/design/screenshots/`. `node --test format.test.mjs` covers language choice and number formatting. The translation key parity test is `tests/pay_branding.rs`.
+Accessibility checks: `web/scripts/e2e/` holds a Playwright and axe-core run in TypeScript (`bun install` in `web/`, build the binary, then `TEST_DATABASE_URL=mysql://root:test@127.0.0.1:33907/ CHROME=/usr/bin/google-chrome bun scripts/e2e/pay.ts`). It starts the gateway on a fresh database with the mock provider, scans the pay page in light, dark and 360px for serious axe violations, checks horizontal scroll, tap targets, language selection, embed message passing, origin enforcement and the modal, and writes screenshots to `docs/design/screenshots/`. `bun test` in `web/` covers language choice and number formatting, and `bun scripts/e2e/pages.ts` loads every page headless and fails on console errors or CSP violations. The translation key parity test is `tests/pay_branding.rs`.
 
 ## Client libraries
 

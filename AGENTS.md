@@ -10,7 +10,8 @@ Rust service (axum, sqlx on MySQL/MariaDB). Read `DESIGN.md` for the model and `
 - `src/db.rs`, `migrations/`: queries and schema. Migrations are forward only. Never edit an applied migration. Add a new file named `<UTC timestamp YYYYMMDDHHMMSS>_<name>.sql` (for example `20261118093000_audit_log.sql`), never the next small number: several branches add migrations in parallel and numbered ones collide. Existing `0001`-`0004` stay as they are and sort first.
 - `src/validate.rs`, `src/ssrf.rs`: customer supplied config and URL checks. Anything a customer can type that makes the server open a connection or read a file must go through these.
 - `src/accounts.rs`, `src/limiter.rs`, `src/crypto.rs`: accounts and sessions, login limiter, sealing of secrets at rest.
-- `web/`: bun + Vite + Preact + TypeScript (strict). Ported so far: pay page (`src/pay`), receipt (`src/receipt`), embed script (`src/gateway`). `bun run dev` proxies `/pay`, `/v1`, `/console/api` to `GATEWAY_URL` (default 127.0.0.1:8080). `bun run build` writes `web/dist`, which is committed and embedded by `src/web.rs` (rust-embed), so `cargo build` needs no bun; CI fails when `dist` is stale. Run `bun run check`, `bun test` and `bun run build` in `web/` after any change there. The pay bundle has a gzip budget in `web/scripts/budget.ts`. CSP is `script-src 'self'`, so no inline scripts or styles. No new plain JS.
+- `web/`: bun + Vite + Preact + TypeScript (strict), no plain JS. Entries: `src/pay`, `src/receipt`, `src/gateway` (the embed script), `src/console` (preact-iso routes), `src/sandbox`, `src/styleguide`, `src/site` (landing, guide, operator, legal and the API reference). `docs-site/*.md` is rendered at build time by `scripts/prerender.tsx` into `dist/site/*.html` with one shared layout (`src/site/layout.tsx`); there are no generated HTML files in git other than `dist`. Shared CSS: `src/tokens.css` (the only colour literals), `src/shared/shell.css`, `src/components.css`. API types are generated from `docs-site/openapi.json` into `src/api/schema.d.ts` by `bun run gen:api`.
+- Web dev loop: `cd web && bun install`, start a gateway (`scripts/start-test-gateway.sh` or `cargo run -- serve`), then `GATEWAY_URL=http://127.0.0.1:8080 bun run dev`. Vite proxies `/pay`, `/embed`, `/v1`, `/console/api` and `/receipt` to it. The Rust binary embeds `web/dist` with rust-embed (`src/web.rs`). `dist` is committed so `cargo build` and `cargo test` need no bun; run `bun run build` after any change in `web/` and commit the result. CI fails when `dist` or the generated API types are stale. The pay bundle has a gzip budget in `web/scripts/budget.ts`. The Dockerfile has a bun stage that rebuilds `dist`.
 - `tests/`: integration tests over a real database. `tests/common/mod.rs` has the harness.
 - `regtest/compose.yaml`: bitcoind and two LND nodes for the real lightning and on-chain test.
 
@@ -42,11 +43,11 @@ cargo fmt
 - Customer facing features must work for an untrusted project (see `validate.rs`). Operator only behaviour is gated on `trusted` or `is_operator`.
 - Every tenant scoped query takes the tenant id. Add a test where tenant B cannot read or change tenant A's data.
 - Several agents work at once in separate worktrees. Keep your change set focused, rebase on the default branch before you finish, and resolve conflicts yourself. Prefer adding a new module over growing a shared file.
-- Keep files under about 600 lines. Split by concern instead of growing `service.rs`, `db.rs` and `console.js`.
+- Keep files under about 600 lines. Split by concern instead of growing `service.rs`, `db.rs` and the console modules.
 
 ## Definition of done
 
-1. `cargo test` passes in full, `cargo clippy --all-targets` has no warnings, `cargo fmt` is clean, changed web js passes `node --check`.
+1. `cargo test` passes in full, `cargo clippy --all-targets` has no warnings, `cargo fmt` is clean, in `web/`: `bun run check`, `bun test`, `bun run build` (commit `dist`), and `bun run e2e` for UI changes (needs `TEST_DATABASE_URL`, `CHROME` and a built `payment-gateway` binary).
 2. New behaviour is covered by tests as above. For UI changes, also run the binary and check the page in a headless browser.
 3. `README.md` or `DESIGN.md` updated when public behaviour changes.
 4. One focused commit series on your branch. Move the issue to review with a short note on how you verified it.

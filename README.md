@@ -2,7 +2,7 @@
 
 A self contained payment gateway. Apps ask it to collect money (Lightning, on-chain Bitcoin, cards, bank, PayPal) and it tells them when it is paid, with optional custody and payouts. App logic such as subscriptions and credit stays in the app.
 
-- Documentation, quickstarts and the operator guide: the gateway serves them at `/`, `/guide/` and `/operator/`. The sources are in [docs-site/](docs-site/). Regenerate the pages with `node docs-site/build.mjs`.
+- Documentation, quickstarts and the operator guide: the gateway serves them at `/`, `/guide/` and `/operator/`. The sources are in [docs-site/](docs-site/). The pages are prerendered from the markdown by the Vite app in [web/](web/): run `bun run build` there.
 - API reference: `/docs`, generated from `GET /v1/openapi.json`.
 - Full configuration table, endpoints and operations notes: [docs/reference.md](docs/reference.md).
 - Design: [DESIGN.md](DESIGN.md). API changes: [docs/CHANGELOG.md](docs/CHANGELOG.md).
