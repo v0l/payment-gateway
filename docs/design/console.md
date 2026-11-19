@@ -4,30 +4,49 @@ The operator and project console at `/console`. Components and tokens are in the
 
 ## Layout
 
-- Two columns: a 236 px navy navigation rail and the main area (max 1180 px, padded 32/40). Under 800 px the navigation stacks above the content. The page never scrolls sideways at 360 px; a wide table scrolls inside `main`.
-- The navigation lists every project the account belongs to. The open project expands into its areas; others show "Open". Below it: "+ New project", the Operator section (operators only), then the account email, Account and Sign out.
-- The main area starts with the project name (`h2`), a one line `sub` giving role and the "test limits" pill for untrusted projects, then content. There is no tab bar.
-- Content is a vertical stack of `card`s and `grid` stat tiles. Use `h3` for section headings inside a tab (16 px bold, sentence case, never uppercase). The overview opens with the `hero` panel (paid volume figure, daily SVG chart from `chart.js`, method share bar) followed by the `ledger` figure strip.
+- No sidebar. A 56 px top bar holds the project switcher, the Live or Test mode tag, search (Ctrl K or `/`), the Operator menu (operators only) and the account menu. Under it, the project tabs: Home, Payments, Customers, Billing, Balance, Developers, Settings. Tabs with more than one area show a second row: Billing (Subscriptions, Plans, Platform bill), Balance (Balance, Payouts), Developers (Payment methods, API keys, Webhooks), Settings (Settings, Team, Activity).
+- Home carries a red count of open attention items. It refreshes when Home loads and when an action on the queue finishes.
+- Content is at most 1440 px wide, padded 28 px. Under 900 px the tabs scroll sideways, the right rail and the payment side panel drop away or below, and wide tables become stacked lists. Nothing scrolls the page sideways at 390 px.
+- Operator pages (Projects, Accounts, Shared providers, Platform plans, Treasury, Payout queue, Audit) use the same bar without project tabs.
 
-## Project navigation
+## Home
 
-The navy rail is the only place project areas are listed, so there is no tab bar above the content. The open project expands into five groups separated by a gap: Overview, Payments and Customers; Plans, Subscriptions and Billing; Balance and Payouts; Providers, API keys and Webhooks; Team, Activity and Settings. Order within a group is by how often it is used, with Settings last. Links go to `#/p/{id}/{area}`, so reload and back keep your place. The current link is `on`. Under 800 px the rail is one horizontally scrolling strip and the current link is scrolled into view. A new area goes into an existing group.
+1. **Needs attention.** `GET /console/api/projects/{id}/attention`. Groups, each with a tone bar and count: Disputes, Paid late or short, Waiting for confirmations, Declined, Refunds that failed, Webhook endpoint failing, Payment method switched off, Subscriptions past due, Payouts that failed. Every row has a reason, a when, an amount and one next step. Rows whose action the API supports in bulk have a checkbox: Paid late can be accepted as paid (only when manual payment handling is on in Settings, with a reason), Declined can be cancelled (`POST .../attention/bulk`). Payments that only wait for the customer are one quiet line under the table. With nothing open the queue is a single line.
+2. **Today.** Paid so far today against the same time on the same day last week, as a cumulative line by hour (`GET .../home?tz=` with the browser's offset in minutes).
+3. **Activity.** `GET .../feed?kind=all|payments|refunds|payouts|webhooks&before=`. Paid, created, declined, refunds, disputes, payouts and failed webhooks, newest first. Failed webhooks to one endpoint are one row.
+4. **Right rail.** Funds (balance held by the platform, settling, in payouts, latest payout, each wallet and what is still settling), this month against the same days last month, and payment method health from `provider_health`.
+
+## Payments
+
+Views with counts (`GET .../payment-view-counts`): All, Waiting, Paid, Refunded, Expired, Last 7 days, then saved views. A filter row (search, status, method, dates), more filters in a disclosure. The table shows amount, status, description, customer, method, when the money is available, and created. Selecting a row fills the side panel; Open payment goes to the detail page. Export CSV, Cancel stale and New payment sit in the page head. 50 rows per page, then Load more.
+
+## Payment detail
+
+Header with the amount, status, dispute state and actions (Copy pay link, Cancel, Refund). Then: where the money went, timeline (attempts, events from `gateway_event`, webhook deliveries with their response), line items, attempts, network receipts, webhooks, cost, customer (email masked as `am***@domain`), metadata, notes, and the payment as the API returns it. A section index on the left at 1180 px and wider, properties on the right.
+
+## Balance
+
+Available to withdraw, settling and in payouts, a bar by wallet and the wallet table. Balance changes come from `GET .../statement`, one line per ledger entry on the project's platform balance with the balance after it and the payment it belongs to. The right column has payouts on the way, recent payouts, limits and when each method's money becomes available. Payouts (destinations, requests, history) is the second sub-tab.
 
 ## Operator and tenant areas
 
 - Tenant areas are everything under a project. They are what a customer sees and must work for untrusted (test mode) projects.
-- Operator areas (Accounts, Audit, limits, trusted flag) sit under the Operator heading in the navigation only when `is_operator`. They never appear inside a project tab for a non operator. Operator only controls inside a project (limits, trusted) go in Settings under a clearly labelled "Operator" card.
+- Operator areas sit in the Operator menu only when `is_operator`. Operator only controls inside a project (limits, trusted) are in Settings under "Operator".
 - Server side checks gate every operator action. Hiding a control is a courtesy, not security.
 
 ## Density
 
-Console density is compact: 14 px text, 11 px cell padding, 10 px card radius, 16 px gaps. Tables show 25 rows. Do not go below 12 px except pills (11 px). Touch targets reach 32 px high on mobile via control padding. Increase spacing, not font size, for emphasis.
+Body 14 px, table rows 40 px, header rows 34 px, 8 px radius on tables, 6 px on controls. Increase spacing, not font size, for emphasis.
 
 ## States and behaviour
 
-- First paint is the shell. Fetch failures show `err` text with the reason from the API.
-- Destructive actions (delete provider, rotate key, remove member, disable 2FA) use the confirm dialog pattern. Secrets returned once use the `secret` box.
+- First paint is the shell. Lists show skeleton rows while they load. Fetch failures show `err` text with the reason from the API.
+- Destructive actions (delete payment method, rotate key, remove member, disable 2FA, cancel payments) use `confirmDialog`. Secrets returned once use the `secret` box.
 - Polling views stop their timer when the route changes.
 - Amounts use `fmtAmount` (Intl currency, sats for BTC). Do not format money by hand.
-- Payments list: 50 rows per page. While the API returns a cursor the control is a "Load more" button; at the end it is the muted text "No more payments". Never pass a possibly null value to `replaceChildren`, it renders as the text "null".
-- The Method column shows the method of the paid attempt, else of the latest attempt (the list API returns attempts), and "-" when the payment has none yet.
+- Never pass a possibly null value to `replaceChildren`, it renders as the text "null". Filter the list with `.filter(Boolean)`; a test checks every script.
+- Every function a script calls must be defined in a console script; a test checks this.
+
+## Screenshots
+
+`scripts/e2e/console_demo.sh` seeds a demo project through the service and serves it on port 18760. `node scripts/e2e/console_shots.mjs` (with `CHROME` pointing at a Chromium) signs in and saves every page at 1440 and 390 to `docs/design/screenshots/console-v4/`, failing on axe serious issues, horizontal scroll, console errors or "null" text. `python3 scripts/e2e/compare.py . docs/design/screenshots/console-v4/compare` builds the side by side sheets. `scripts/e2e/console_demo.sh --stop` removes the demo database.

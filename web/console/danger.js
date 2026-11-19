@@ -1,6 +1,6 @@
 "use strict";
 function dangerZone(pid, p) {
-  var out = el("div"); var box = el("div", { class: "card danger-zone" });
+  var out = el("div"); var box = el("div", { class: "card" });
   var token = el("input", { placeholder: "Deletion token", "aria-label": "Deletion token", autocomplete: "off" });
   function draw(s) {
     var kids = [];
@@ -12,7 +12,7 @@ function dangerZone(pid, p) {
     } })]));
     kids.push(el("p", { class: "muted", text: "Deleting a project needs a token and a " + s.cooling_off_hours + " hour cooling-off period. It is blocked while there are pending payments or a balance." }));
     if (s.delete_requested_at) {
-      kids.push(el("p", { text: "Deletion requested " + ago(s.delete_requested_at) + ". Paste the token to confirm once the cooling-off has passed." }));
+      kids.push(el("p", { text: "Deletion requested " + fmtWhen(s.delete_requested_at) + ". Paste the token to confirm once the cooling-off has passed." }));
       kids.push(el("div", { class: "row" }, [token, el("button", { class: "danger", text: "Delete project", onclick: function () {
         confirmDialog({ title: "Delete project", body: "This disables the project, revokes its keys and removes its members. It cannot be undone.", keep: "Keep project", confirm: "Delete forever", danger: true }).then(function (r) {
           if (!r) return;

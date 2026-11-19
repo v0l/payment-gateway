@@ -2,7 +2,7 @@
 function customers(pid) {
   projectShell(pid, "customers", function (p, body) {
     var q = el("input", { type: "search", placeholder: "Customer ref starts with", "aria-label": "Search customers" });
-    var list = el("div", { class: "list-area" }, [skeletonRows()]);
+    var list = el("div", {}, [skeletonRows()]);
     function load() {
       api("GET", "/projects/" + pid + "/customers" + (q.value.trim() ? "?q=" + encodeURIComponent(q.value.trim()) : "")).then(function (r) {
         list.replaceChildren(r.customers.length ? table(["Customer", ["Payments", "num"], ["Paid", "num"], "Last payment"], r.customers.map(function (c) {

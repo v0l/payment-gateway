@@ -20,7 +20,7 @@ function todayChart(series) {
 }
 
 function deltaText(now, then) {
-  if (!then) return now ? el("span", { class: "up", text: "new" }) : el("span");
+  if (!then) return now ? el("span", { class: "up", text: "New" }) : el("span");
   var pct = (now - then) / then * 100;
   var s = (pct >= 0 ? "+" : "\u2212") + Math.abs(pct).toFixed(1) + "%";
   return el("span", { class: pct >= 0 ? "up" : "down", text: s });
@@ -147,14 +147,14 @@ function attentionQueue(pid, p, onCount) {
           var cells = [el("td", { class: "cb" }, [cb]),
             el("td", { class: "two" }, [el("b", { text: x.title }), el("span", { class: "sub2", text: [x.who, methodName(x.method)].filter(Boolean).join(", ") })]),
             el("td", { class: "why", text: x.why }),
-            el("td", { class: "due hide-m" + (x.due_soon ? " soon" : ""), text: fmtWhenAfter(x.due, x.at) }),
+            el("td", { class: "due" + (x.due_soon ? " soon" : ""), text: fmtWhenAfter(x.due, x.at) }),
             el("td", { class: "amt" }, [x.amount !== null && x.currency ? fmtAmount(x.amount, x.currency) : ""]),
             el("td", {}, [queueAction(pid, p, x, out, load)])];
           rows.push(x.payment_id ? clickRow({}, cells, function () { go("#/p/" + pid + "/payments/" + x.payment_id); }) : el("tr", {}, cells));
         });
       });
       if (waiting) rows.push(el("tr", { class: "fold" }, [el("td", { class: "cb" }), el("td", { colspan: "5" }, [waiting + " waiting for customers to pay. Nothing to do yet. ", el("a", { href: "#/p/" + pid + "/payments", text: "Show them" })])]));
-      var t = el("div", { class: "table-wrap", tabindex: "0", role: "region", "aria-label": "Needs attention" }, [bulkBar, el("table", {}, [el("thead", {}, [el("tr", {}, [el("th", { class: "cb" }), el("th", { text: "Payment" }), el("th", { text: "Why it is here" }), el("th", { class: "hide-m", text: "When" }), el("th", { class: "num", text: "Amount" }), el("th", { text: "Next step" })])]), el("tbody", {}, rows)])]);
+      var t = el("div", { class: "table-wrap", tabindex: "0", role: "region", "aria-label": "Needs attention" }, [bulkBar, el("table", {}, [el("thead", {}, [el("tr", {}, [el("th", { class: "cb" }), el("th", { text: "Payment" }), el("th", { text: "Why it is here" }), el("th", { text: "When" }), el("th", { class: "num", text: "Amount" }), el("th", { text: "Next step" })])]), el("tbody", {}, rows)])]);
       var mob = el("ul", { class: "queue-mob" }, [].concat.apply([], r.groups.map(function (g) {
         return [el("li", { class: "g" }, [el("span", { class: "tone " + g.tone, "aria-hidden": "true" }), g.title + " ", el("span", { class: "muted", text: String(g.rows.length) })])].concat(g.rows.map(function (x) {
           return el("li", {}, [el("b", { text: x.title }), el("span", { class: "a", text: x.amount !== null && x.currency ? fmtAmount(x.amount, x.currency) : "" }),

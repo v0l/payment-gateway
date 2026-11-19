@@ -1,89 +1,81 @@
 # Design language
 
-One language for the console, the hosted pay page and email. Tokens live in `web/tokens.css`. The living reference is `/console/styleguide` (static, CSP safe, shows every component in light and dark). Surface guides: [console](console.md), [pay page](pay-page.md), [email](email.md).
+One language for the console, the hosted pay page and email. Tokens live in `web/tokens.css`. The living reference is `/console/styleguide` (static, CSP safe, shows every component in light and dark). Surface guides: [console](console.md), [pay page](pay-page.md), [email](email.md). The round 1 and round 2 directions behind the console are in [directions](directions/round2/README.md), with the product research in [research.md](directions/research.md).
 
-## Console identity (v3)
+## Console identity (v4)
 
-Subject: a payment gateway console for operators and merchant developers. They read amounts, statuses and ids all day, in sats, EUR and BTC.
+Subject: a payment gateway console for merchant developers and the platform operator. They read amounts, statuses and ids all day, in sats, EUR and BTC, across Lightning, on-chain, card and bank.
 
-Direction: a ledger book bound in deep navy. The memorable thing is the overview: one large paid-volume figure over a real daily volume chart, with a quiet ledger strip of figures below. Everything else stays disciplined.
+Direction: a blend of the three round 2 directions, chosen by the user. The shell is D (a top bar with project tabs and search, no sidebar). Home leads with F's "Needs attention" queue, then D's today against last week chart and activity feed, with a right rail of E's funds, D's month figures and F's payment method health. Payments is F's views over D's table and side panel, with E's "available" column. Payment detail is F's sections, D's timeline and API object, and E's "where the money went". Balance is E's page.
 
 ### Palette
 
 | Name | Light | Dark | Role |
 | --- | --- | --- | --- |
-| Paper | `#eef1f6` | `#0a1120` | page |
-| Ledger | `#ffffff` | `#111b2e` | cards, inputs |
-| Ink | `#0f1a2e` | `#e5ebf7` | text |
-| Cobalt | `#2440d4` | `#8aa0ff` | action, links, chart bars |
-| Navy | `#0c1530` | `#060a16` | navigation rail |
-| Brass | `#ffb454` | `#ffb454` | current location mark in the rail, today's bar |
+| Page | `#fbfbfc` | `#12141b` | page |
+| Surface | `#ffffff` | `#181b24` | top bar, tables, cards, inputs |
+| Rail | `#f4f5f7` | `#15171f` | table heads, group rows |
+| Ink | `#1e2130` | `#e6e8ef` | text |
+| Blue | `#1f3a8a` | `#9db0f0` | primary action, links, focus, wallet ramp |
 
-State colours (green, amber, red, teal for info) are unchanged in role. Cobalt on navy replaces the teal accent, which read as the generic fintech default.
+Colour otherwise means state only: green paid, amber waiting, red needs action, blue informational. Charts are ink and grey.
 
 ### Type
 
-- Bricolage Grotesque (variable, self-hosted) for everything: headings are bold with tight tracking (-0.03em), body at 14 px. Its slightly quirky grotesque shapes carry the personality, so no second display face.
-- IBM Plex Mono (self-hosted, 400 and 500) for ids, keys and codes only.
-- Scale: 11, 12, 14, 16, 20, 24, 34 (figures), 40, hero figure `clamp(36px, 7vw, 56px)`.
+- IBM Plex Sans (self-hosted, 300, 400, 500, 600) for everything. The balance and payment amounts use 300 at 40 to 44 px with the cents set smaller, so a figure reads as a figure rather than a heading.
+- IBM Plex Mono (self-hosted) only for ids, invoices and the raw API object.
+- Scale: 12, 13, 14, 15, 18, 22, 28, 44.
 
 ### Layout
 
 ```
-+---------+--------------------------------------------+
-| navy    |  Project name (30px)                        |
-| rail    |  (project areas live in the rail only)      |
-| 236px   |  [7 | 30 | 90 days]                          |
-|         |  +--------------------------------------+   |
-|         |  | 61,000 sats            [BTC|EUR]     |   |
-|         |  | paid across 7 payments                |   |
-|         |  | ||  |  ||||     |   daily bars      |   |
-|         |  | ====== method share bar ======        |   |
-|         |  +--------------------------------------+   |
-|         |  | pending | success | settle | webhooks |   |
-|         |  Top customers (ruled table, left aligned)  |
-+---------+--------------------------------------------+
+[project v] Live          [Find a payment, customer or reference  Ctrl K]  Operator v  (SA)
+Home 6   Payments   Customers   Billing   Balance   Developers   Settings
+--------------------------------------------------------------------------------------------
+Needs attention                                            | Funds
++--------------------------------------------------------+ | 2,958,424 sats
+| [ ] Disputes 1                                          | | Settling, latest payout
+|     Dedicated host  Customer disputed  Opened  €149 Review| | wallets with what is settling
+| [ ] Paid late or short 2                                | |
+|     ...                                    Accept  Decide | | This month
+| 1 for €18.00 waiting for customers. Show them           | | Paid €6,412  €2,545 +152%
++--------------------------------------------------------+ |
+Today  Paid so far €405.00  €0.00 by this time last week   | Payment methods
+~~~~~ today vs same day last week ~~~~~                    | • Lightning node, working
+Activity                    [All|Payments|Refunds|Payouts|Webhooks]
+01:42  • €18.00 paid           Lightning
 ```
 
-Left aligned throughout, amounts right aligned in tables. Under 800 px the rail becomes a single scrolling strip above the content.
+Left aligned, amounts right aligned in tables. Under 900 px the rail drops below the main column, the tabs scroll sideways, the attention table and payments table become stacked lists, and the payment side panel gives way to the full detail page.
 
 ### Defaults avoided
 
-- Cream paper with a serif and a clay accent: used cool blue grey paper and a grotesque instead.
-- Identical rounded stat cards with soft grey shadows: the figures sit in one ruled strip, and the hero is a single large panel. No shadows on cards.
-- Uppercase muted section labels: headings are sentence case 16 px bold.
-- Monospace for small data labels: mono is only for ids and keys.
-- A tracked caps eyebrow, numbered markers, dash-joined meta strings and arrows on links: none.
-- Pills are 3 px rectangles with a status dot, not capsules, so state does not rely on colour alone.
+- No sidebar, no navy rail, no stat tile row, no identical rounded cards. Structure is tables, ruled lists and one sticky rail.
+- No all caps labels, eyebrows, middle dot joins, arrows on links or gradients.
+- `--faint` is for dots and marks only, never text. Every text pair passes AA in both themes.
 
 ### Critique notes
 
-Screenshots are `docs/design/screenshots/console-v3-before-*` and `console-v3-after-*` at 1280, 820 and 390 px. Each after shot was checked against the plan. Fixes made from that review:
+Composites of v3, the round 2 mockups and the built page are in `docs/design/screenshots/console-v4/compare/`. Screenshots of every page at 1440 and 390 are in `docs/design/screenshots/console-v4/`, made by `scripts/e2e/console_shots.mjs` against `examples/console_demo.rs`. Each run checks axe (WCAG 2.1 AA), horizontal scroll, console errors and stray "null" text on every page at both widths. Fixes from that review:
 
-- Overview: the ledger strip left one figure alone on a second row with empty cells. It now flexes in one row. At 390 px it stacks with hairlines.
-- Navigation: project areas were in both the rail and a tab bar that wrapped to two lines. The tab bar is gone. The rail groups the areas in five blocks and becomes a scrolling strip at 390 px, with the current link scrolled into view. On short pages the mobile strip was stretched to the viewport height by the grid, fixed with `grid-template-rows: auto 1fr`.
-- Payments: fourteen equal controls over three rows with clipped placeholders. Search, status, method and dates are one row, customer, amounts and saved views sit in a disclosure, Export CSV and Cancel stale pending moved into a menu, and New payment is the only filled button.
-- Payment detail: the page printed the text "nullnull" from empty line item sections. Fixed, and the amount is now the largest value in the card with the refund controls under a rule.
-- Dialogs: a second `confirmDialog` in `shared.js` overrode the object style one, so the bulk cancel dialog showed "[object Object]" and no labels. Renamed it `confirmChoice`. A test now enforces a single definition.
-- Settings: one column of eleven full width fields became a two column form, with the two text areas full width.
-- Operator Projects: volume was an unformatted integer, now formatted money. Billing: the standing pill and its text sit on one line.
-- Webhooks: the lone checkbox and button now share one toolbar row.
-- Focus: every control shows a 2 px focus ring (brass on the rail, cobalt elsewhere). The dialog opens on the safe button, Tab reaches the danger button, Escape returns focus to the control that opened it. With `prefers-reduced-motion: reduce` transitions are 0.01 ms.
-
-Still plain by design: Treasury, Audit, Accounts and Plans are ruled tables on the shared system.
+- Home: the queue had a "Needs attention" section title under a "Home" page title, so the queue now owns the page head. The today chart got its own "Today" heading. Webhook failures for one endpoint were 30 identical feed rows, now one row per endpoint.
+- Attention times were formatted in UTC on the server. The API now sends a label and a timestamp, and the browser formats it in local time ("Paid yesterday 17:18").
+- Balance: providers that pay you directly showed "Paid to you directly" wrapped over three lines in the wallet table. They now show what is settling and where it goes.
+- Payment detail: refund and webhook rows sorted by time alone, so equal timestamps flipped. Ties keep the order they happened in. The "where the money went" table no longer overflows at 390.
+- Form labels were not tied to their inputs. `field()` now sets `for`.
+- The Operator label crowded the search box at 390; on phones only its chevron shows.
+- Endpoint health returned 500 once any delivery had a duration (a DECIMAL average read as a float). Fixed with a regression test.
 
 ## Principles
 
 The product handles other people's money, so it should feel like a good bank statement: calm, exact and quiet.
 
 1. **Numbers first.** Amounts, statuses and ids are the content. They use tabular figures, never wrap mid-value and never share a line with decoration.
-2. **One memorable thing.** The identity is a cobalt accent and a navy rail on cool blue greys (paper in light, ink in dark). Everything else stays neutral. Colour means something: teal is the action, green/amber/red/blue are states. Nothing is coloured for decoration.
+2. **What needs someone comes first.** Home opens on the queue of things a person must decide, and collapses to one line when nothing is open.
 3. **Say what happened.** Every state names its cause and the next step. Errors do not apologise.
 4. **No surprises with money.** Destructive and irreversible actions ask first, name what will be lost, and use the same verb on the button as in the dialog title.
-5. **Works everywhere.** 360 px wide, keyboard only, light or dark, reduced motion, no external fonts, scripts or images.
-6. **Borders over shadows.** Structure comes from 1 px lines. Shadow is reserved for things that float (dialogs, toasts) plus a faint lift on cards.
-
-Not used on purpose: gradients, glass, all caps labels beyond the small section headings in the console nav, emoji as icons, animated entrances.
+5. **Works everywhere.** 390 px wide, keyboard only, light or dark, reduced motion, no external fonts, scripts or images.
+6. **Borders over shadows.** Structure comes from 1 px lines. Shadow is reserved for things that float (menus, dialogs, toasts).
 
 ## Tokens
 
@@ -93,92 +85,82 @@ All tokens are CSS custom properties in `web/tokens.css`. Dark values apply with
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `--bg` | `#eef1f6` | `#0a1120` | page |
-| `--card` | `#ffffff` | `#111b2e` | cards, inputs, dialogs |
-| `--code` | `#e4e9f1` | `#1a2640` | code, hover rows, secret boxes |
-| `--text` | `#0f1a2e` | `#e5ebf7` | body |
-| `--muted` | `#52607a` | `#9aa8c4` | hints, metadata, table heads |
-| `--line` | `#d6ddea` | `#243250` | decorative dividers |
-| `--line-strong` | `#7384a3` | `#5f7196` | borders of controls (3:1 needed) |
-| `--accent` / `--accent-text` | `#2440d4` / `#ffffff` | `#8aa0ff` / `#0a1230` | primary action, links, focus |
-| `--ok`, `--ok-bg` | `#1a6b39`, `#e3f3e8` | `#62c786`, `#12301e` | paid, completed, delivered |
-| `--warn`, `--warn-bg` | `#86500a`, `#fbf0d9` | `#e5b45a`, `#36280c` | pending, needs attention, one time secrets |
-| `--bad`, `--bad-bg` | `#b3261e`, `#fbe6e4` | `#f0877f`, `#3a1714` | failed, expired, destructive |
-| `--info`, `--info-bg` | `#0b6572`, `#dcf0f2` | `#52c3d1`, `#0e2d33` | informational, processing, refunded |
+| `--bg` | `#fbfbfc` | `#12141b` | page |
+| `--card` | `#ffffff` | `#181b24` | top bar, tables, cards, inputs, dialogs |
+| `--rail` | `#f4f5f7` | `#15171f` | table heads, group rows |
+| `--code` | `#f1f2f5` | `#20232e` | code, pills, skeletons |
+| `--hover` | `#f4f5f8` | `#1e212b` | hovered rows and menu items |
+| `--text` | `#1e2130` | `#e6e8ef` | body |
+| `--muted` | `#5d6375` | `#a4a9b8` | hints, metadata, table heads |
+| `--faint` | `#8a8fa0` | `#7c8293` | dots and marks only, never text |
+| `--line` | `#e3e5ea` | `#2a2e3a` | dividers |
+| `--line-strong` | `#767c8f` | `#7a8092` | borders of inputs (3:1 needed) |
+| `--accent` / `--accent-text` | `#1f3a8a` / `#ffffff` | `#9db0f0` / `#10152a` | primary action, links |
+| `--accent-soft` | `#e8ecf8` | `#232b45` | selected row |
+| `--focus` | `#2f5bd3` | `#9db0f0` | focus ring |
+| `--ok`, `--ok-bg` | `#16794a`, `#e7f3ec` | `#6cc897`, `#16291f` | paid, completed, delivered |
+| `--warn`, `--warn-bg` | `#8f5300`, `#fbf1dd` | `#e6b45c`, `#2f2512` | waiting, needs a look, one time secrets |
+| `--bad`, `--bad-bg` | `#b42318`, `#fbe9e7` | `#f08a80`, `#351a17` | failed, disputed, destructive |
+| `--info`, `--info-bg` | `#1f5b8a`, `#e5eff7` | `#7fb4e6`, `#15263a` | processing, approved |
+| `--series-a`, `--series-b` | ink, grey | ink, grey | today and last week lines |
+| `--wallet-1` to `--wallet-5` | blue ramp | blue ramp | wallet shares on Balance |
 
 Rule: never convey state by colour alone. A pill always carries its status word.
 
 ### Contrast (WCAG AA)
 
-`node scripts/contrast.mjs` reads `tokens.css`, checks every pair below in both themes and exits non zero on failure. Text pairs need 4.5:1, control borders and focus ring 3:1. Every pair passes in both themes.
+`node scripts/contrast.mjs` reads `tokens.css`, checks every text and control pair in both themes and exits non zero on failure. Text pairs need 4.5:1, control borders, focus ring and `--faint` marks 3:1. Every pair passes in both themes.
 
 ### Type
 
 Self-hosted fonts served from `/console/fonts/` (CSP `font-src 'self'`, no CDNs), with system fallbacks.
 
-- `--font-sans`: Bricolage Grotesque, then `system-ui`.
-- `--font-mono`: Plex Mono, then `ui-monospace`, for ids, keys, invoices, codes and addresses only.
+- `--font-sans`: IBM Plex Sans, then `system-ui`.
+- `--font-mono`: IBM Plex Mono, then `ui-monospace`, for ids, invoices, codes, addresses and the API object only.
 
-Scale: `--fs-xs` 11, `--fs-sm` 12, `--fs-base` 14, `--fs-md` 16, `--fs-lg` 20, `--fs-xl` 24, `--fs-display` 32. Line height 1.5 for text, 1.25 for headings. Weights: 400 body, 600 emphasis and buttons, 700 headings and amounts. Amounts use `font-variant-numeric: tabular-nums`. Keep lines under 75 characters. The pay page body is 16 px, the console 14 px.
+Scale: `--fs-xs` 12, `--fs-sm` 13, `--fs-base` 14, `--fs-md` 15, `--fs-lg` 18, `--fs-xl` 22, `--fs-figure` 28, `--fs-display` 44. Line height 1.5 for text, 1.2 for headings. Weights: 300 big figures, 400 body, 500 tabs and buttons, 600 headings and amounts in tables. Amounts use tabular figures. The pay page keeps its 16 px body.
 
 ### Space, radius, shadow
 
 - Space: 4, 8, 12, 16, 24, 32, 48 (`--space-1` to `--space-7`).
-- Radius: 4 chips and skeletons, 8 controls, 10 pay page method buttons, 12 cards and dialogs, 14 pay page card, pill for badges. Use the smaller radius for the smaller thing.
-- Shadow: `--shadow-1` cards (barely visible), `--shadow-2` toasts, `--shadow-3` dialogs.
+- Radius: 4 pills and kbd, 6 controls, 8 tables, cards and menus, 12 dialogs, pill for chips and the count badge.
+- Shadow: `--shadow-2` menus and search results, `--shadow-3` dialogs. Nothing else floats.
 
 ### Motion
 
-`--dur-fast` 120 ms for hover and focus, `--dur` 200 ms for open and close, easing `--ease`. Motion answers an action; nothing animates on load. The spinner and the loading skeleton are the only looping animations. `tokens.css` contains a global `prefers-reduced-motion` rule that makes all animations and transitions instant. Do not add JS driven motion without checking `matchMedia("(prefers-reduced-motion: reduce)")`.
+`--dur-fast` 120 ms for hover and focus, `--dur` 200 ms for open and close, easing `--ease`. Motion answers an action; nothing animates on load. The loading skeleton is the only looping animation. `tokens.css` makes all motion instant under `prefers-reduced-motion: reduce`.
 
 ### Breakpoints
 
-- 360 px: the minimum. Nothing may scroll the page sideways. Wide tables scroll inside their container.
-- 800 px: the console nav collapses above the content (tablet and below).
-- 1100 px: console content max width.
+- 390 px: the phone target. Nothing may scroll the page sideways. Wide tables scroll inside their own region, which is focusable and labelled.
+- 900 px: the rail and side panels drop below or away, tables with many columns become stacked lists.
+- 1180 px: the payment detail section index hides.
+- 1440 px: console content max width.
 - Pay page is a single 460 px column at every width.
 
 Focus: every interactive element shows a 2 px `--focus` outline with 2 px offset on `:focus-visible`. Never remove it.
 
 ## Components
 
-Classes are in `console.css` (existing) and `components.css` (new). See the styleguide for each.
+Classes are in `console.css` and `components.css`; helpers in `web/console/core.js` and `shell.js`. See the styleguide for each.
 
-- **Buttons.** One `primary` per view (the thing most people do next). Default for secondary. `danger` for destructive, never filled red. Disabled while a request runs and the label changes to the progress form ("Saving"). Labels are verb plus object: "Save changes", "Create project", not "Submit" or "OK".
-- **Inputs and validation.** Label above, always visible, sentence case. Hint below in `--muted`. Validate on submit and on blur, not on every key. An invalid field gets `field invalid`, a red border, `aria-invalid="true"` and a hint that says how to fix it ("Use an https URL that is reachable from the internet."). Do not clear what the person typed.
-- **Tables and paging.** Left aligned text, amounts right aligned where columns are numeric, muted header 12 px, row dividers only. Clickable rows get `click` and must also contain a link for keyboard use. Paging is Previous / Next with a "1 to 25 of 140" count, aligned right. Wide tables scroll inside `main`.
-- **Navigation.** One rail, no tab bar. See the console guide.
-- **Badges and status pills.** `pill <status>`. Always lower case, the raw status word with underscores shown as written by the API. Tone follows what the status means for the person, not whether the payment completed. Red is only for something that broke or needs action. A customer letting a payment lapse or a merchant cancelling is an ordinary outcome and stays neutral.
-
-  | Tone | Class | Payment | Attempt | Refund | Withdrawal | Webhook |
-  | --- | --- | --- | --- | --- | --- | --- |
-  | green | `ok` | paid | paid | completed | completed | delivered |
-  | amber | `pending` | pending, partially_refunded | pending | pending | requested | waiting, retrying |
-  | blue | `info` | refunded | none | none | processing | none |
-  | neutral | `expired`, `cancelled` | expired, cancelled | expired, cancelled | none | cancelled | none |
-  | red | `failed`, `disputed`, `refund_failed`, `bad` | failed, disputed | failed | refund_failed | failed | failed (abandoned) |
-
-  Subscriptions: active green, trialing blue, incomplete amber, past_due red, paused and cancelled neutral. Invoice periods: paid green, open amber, void neutral.
-
-  Unknown statuses fall back to a neutral outlined pill.
-- **Money.** Stored and compared as integer minor units; BTC is msats. Never use floats for storing or comparing. Display only: fiat with `Intl.NumberFormat(undefined, {style:"currency"})` so the person's locale decides separators; BTC amounts as whole sats with thousands separators and the word "sats" ("250,000 sats", rounded up from msats on the pay page). Show msats only in the console where sub-sat precision matters, written "250,000,000 msats". Wrap in `.money` (tabular figures, no wrapping). Show the currency code when it is not obvious from the symbol. A fee is shown beside the amount as "+1.50 EUR fee", never folded in silently.
-- **Copyable ids and secrets.** Ids are monospace and truncated in the middle only with a full value in `title`. A copy control is a button reading "Copy" that changes to "Copied" for 1.5 s and announces through `aria-live`. Secrets are shown once in the `secret` box (dashed amber border) with the text "(shown once, copy it now)". They are never put in a URL, a log or a toast.
-- **QR blocks.** Always on a white square with 6 to 8 px padding, in both themes, so scanners work. Provide `alt` text that names what the code is ("Lightning invoice QR code") and the same payload as a copyable string below it.
-- **Empty states.** A bold sentence saying what is missing, one line on how to fix it, and the primary action. "No payments yet. Create a payment from your app or send a test payment."
-- **Loading.** Show the shell at once and use `skeleton` rows for lists. Use plain "Loading" text only before the shell exists. Spinners only next to a status line ("Waiting for payment").
-- **Error states.** `err` text (console) or a `banner bad` for page level problems. Say what failed and what to do. Include `role="alert"`.
-- **Confirm dialogs.** For deleting, rotating keys, disabling 2FA, refunds and any change that cannot be undone. Title is a question using the action's verb ("Delete the Stripe provider?"), body says what is lost and what stays, two buttons: a plain one that names the safe choice ("Keep provider") and a `danger` one repeating the action ("Delete provider"). Focus starts on the safe button. Escape cancels. Never use a bare browser `confirm()` for new work.
-- **Banners.** `banner info|ok|warn|bad`, inline at the top of the area they concern, with a bold first line. Not dismissible if they report a standing condition (test limits).
-- **Toasts.** Short confirmation of a finished action, using the button's verb in past tense ("Copied", "Saved", "Key rotated"). Bottom left on desktop, full width on mobile, `role="status"`, gone after 5 s unless it has an Undo.
-- **2FA and recovery codes.** The setup screen shows the QR block, the secret as copyable text, then a 6 digit field with `inputmode="numeric"` and `autocomplete="one-time-code"`. Recovery codes appear once, in the `codes` grid (monospace, two or three columns), under a `banner warn` that says each code works once and they are not shown again. Offer Copy codes and Download, and require "I saved them" before leaving.
+- **Shell.** `layout(active, projectId, content)` builds the top bar (project switcher, Live or Test mode, search, Operator menu, account menu) and the tab row. `projectShell(pid, tab, build, opts)` adds the page head. `operatorPage(active, title, sub, content)` for pages outside a project.
+- **Search.** Ctrl K or `/` focuses it. Inside a project it finds payments by reference or id and customers by ref; operators also search every project once the term is 6 characters or more. Arrow keys move through results, Enter opens the first.
+- **Page head.** `pageHead(title, sub, actions)`: 22 px title, one muted line, actions on the right. One primary action per page.
+- **Buttons.** `primary` for the thing most people do next, default for secondary, `danger` for destructive, `link` for row actions. Disabled for viewers instead of hidden.
+- **Inputs.** Built with `field(label, input)`, which ties the label to the input. Label above, hint below.
+- **Tables.** `table(head, rows, opts)`: header row on `--rail`, 40 px rows, amounts right aligned with tabular figures, row dividers only. Clickable rows use `clickRow`, which opens on click and Enter. Group rows (`tr.group`) carry a coloured tone bar and a count.
+- **Status pills.** `status(apiStatus, word)` maps the API status to a word ("Waiting", "Part refunded") and a tone. Red only for something broken or needing action; expired and cancelled stay neutral.
+- **Money.** Integer minor units everywhere, BTC in msats. `fmtAmount` for display, `bigMoney` for the large figures with smaller cents, `signedMoney` for ledger lines (green in, red out with a real minus sign), `sats` for BTC amounts.
+- **Chips.** `chips(options, current, onpick, label)`: pill toggles with `aria-pressed`, for feed filters, subscription status and webhook views.
+- **Empty states.** A bold sentence saying what is missing and one line on how to change it.
+- **Confirm dialogs.** `confirmDialog({title, body, keep, confirm, danger, input})` for anything destructive or irreversible. Focus starts on the safe button, Escape cancels. Browser `confirm()` is not used anywhere.
 
 ## Voice and tone
 
-- Plain words. "Sign in", not "authenticate". "Payment", not "transaction object". Describe what a thing does for the person, not how it is built: "Notifications", not "webhook config" in customer facing text.
+- Plain words. "Payment methods", not "providers", in what customers read. "Waiting", not "pending". "Turn off", not "disable".
 - Sentence case everywhere, including buttons and headings. No exclamation marks.
 - Active voice. Buttons are verb plus object. The same action keeps its name through button, dialog and toast.
-- Errors state the cause and the fix and do not apologise: "The webhook URL must use https." not "Oops, something went wrong". Pattern: what happened, then what to do. Never blame the person.
-- Empty states invite an action. Success messages are one short line.
-- Numbers and units are exact ("expires in 1 hour", "valid for 7 days").
-- No em dashes or en dashes anywhere a person reads. Use a full stop, comma, colon or parentheses, and a plain hyphen for ranges (1-128 characters). No "not just X, it's Y", no "seamless", "robust", "unlock", "elevate".
-- Dates in the console are relative for the last day ("5m ago") and absolute afterwards, always with the time zone in a tooltip.
+- Errors state the cause and the fix and do not apologise.
+- No em dashes or en dashes anywhere a person reads.
+- Times: today shows the time, yesterday "Yesterday 17:18", older "6 Nov, 17:18", always in the browser's time zone.
