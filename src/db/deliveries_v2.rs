@@ -71,7 +71,7 @@ pub async fn endpoint_health(
     since: DateTime<Utc>,
 ) -> Result<Vec<EndpointHealth>> {
     Ok(sqlx::query_as(
-        "select endpoint_id, cast(count(*) as signed) as recent_total, cast(coalesce(sum(abandoned_at is not null or (delivered_at is null and last_error is not null)), 0) as signed) as recent_failed, max(delivered_at) as last_success, max(case when last_error is not null then last_attempt_at end) as last_failure, avg(last_duration_ms) as avg_duration_ms from webhook_delivery where tenant_id = ? and created >= ? group by endpoint_id",
+        "select endpoint_id, cast(count(*) as signed) as recent_total, cast(coalesce(sum(abandoned_at is not null or (delivered_at is null and last_error is not null)), 0) as signed) as recent_failed, max(delivered_at) as last_success, max(case when last_error is not null then last_attempt_at end) as last_failure, cast(avg(last_duration_ms) as double) as avg_duration_ms from webhook_delivery where tenant_id = ? and created >= ? group by endpoint_id",
     )
     .bind(tenant_id)
     .bind(since)

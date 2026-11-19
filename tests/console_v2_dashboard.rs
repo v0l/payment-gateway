@@ -179,6 +179,11 @@ async fn operator_tools_are_operator_only_and_audit_support_views() {
         .unwrap();
     assert_eq!(row["enabled"], true);
     assert!(row["last_payment"].is_string());
+    sqlx::query("insert into webhook_delivery (tenant_id, payment_id, event_id, event_type, body, attempts, created, next_attempt, delivered_at, last_duration_ms) select tenant_id, id, md5(id), 'payment.paid', '{}', 1, now(), now(), now(), 214 from payment where tenant_id = ? limit 1")
+        .bind(p.id)
+        .execute(&h.pool)
+        .await
+        .unwrap();
     let (s, r) = op
         .req(
             "GET",

@@ -153,19 +153,20 @@ async fn resend_failed_requeues_abandoned_deliveries_for_admins_only() {
     )
     .await;
     sqlx::query(
-        "update webhook_delivery set abandoned_at = now(), last_error = 'boom' where tenant_id = ?",
+        "update webhook_delivery set abandoned_at = now(), last_error = 'boom', last_duration_ms = 214 where tenant_id = ?",
     )
     .bind(p.id)
     .execute(&h.pool)
     .await
     .unwrap();
-    let (_, health) = c
+    let (s, health) = c
         .req(
             "GET",
             &format!("/projects/{}/webhook-health", p.id),
             Value::Null,
         )
         .await;
+    assert_eq!(s, StatusCode::OK, "{health}");
     assert_eq!(health["endpoints"][0]["state"], "failing");
 
     let viewer = signed_in(&h, "v@example.com", false).await;
