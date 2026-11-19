@@ -1,6 +1,6 @@
 # Console directions, round 2
 
-Round 1 (A statement, B terminal, C lanes) was rejected as themed. These three are plain product consoles built from what well regarded payment and fintech dashboards do; see [research.md](../research.md). Same Northwind Hosting data and the same three pages in each. Regenerate with `node gen/d.mjs` (and `e`, `f`) from `docs/design/directions`, then `sh gen/shoot2.sh`. Fonts are self hosted in each folder.
+Round 1 (A statement, B terminal, C lanes) was rejected as themed. These three are plain product consoles built from what well regarded payment and fintech dashboards do; see [research.md](../research.md). Same Northwind Hosting data and the same three pages in each. Regenerate with `bun gen/d.ts` (and `e`, `f`) from `docs/design/directions`, then `sh gen/shoot2.sh`. Fonts are self hosted in each folder.
 
 Screenshots: `{d,e,f}-{overview,payments,payment}-{1440,390}.png` in this folder.
 
