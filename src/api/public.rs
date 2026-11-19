@@ -19,20 +19,6 @@ use std::convert::Infallible;
 use tokio_stream::wrappers::BroadcastStream;
 
 
-const TOKENS_CSS: &str = include_str!("../../web/src/tokens.css");
-
-fn asset(body: &'static str, content_type: &'static str) -> Response {
-    (
-        [
-            (header::CONTENT_TYPE, content_type),
-            (header::CACHE_CONTROL, "no-cache"),
-            (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
-        ],
-        body,
-    )
-        .into_response()
-}
-
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/pay/{id}", get(pay_page))
@@ -42,10 +28,6 @@ pub fn router() -> Router<AppState> {
         .route("/pay/{id}/attempts", post(create_attempt))
         .route("/pay/{id}/events", get(events))
         .route("/pay/{id}/qr/{attempt}", get(qr))
-        .route(
-            "/assets/tokens.css",
-            get(|| async { asset(TOKENS_CSS, "text/css") }),
-        )
         .route("/static/{*path}", get(crate::web::static_file))
         .route("/favicon.ico", get(|| async { crate::web::favicon() }))
         .route("/favicon.svg", get(|| async { crate::web::favicon() }))

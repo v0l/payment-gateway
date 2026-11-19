@@ -112,8 +112,15 @@ async fn docs_page_is_self_contained_and_csp_safe() {
     assert!(csp.contains("script-src 'self'") && !csp.contains("unsafe"));
     assert!(!page.text.contains("http://") && !page.text.contains("https://"));
     assert!(!page.text.contains("<script>") && !page.text.contains("style="));
-    for asset in ["/docs/docs.js", "/docs/docs.css"] {
-        let a = send(&h.app, "GET", asset, None, &[], Value::Null).await;
+    assert!(page.text.contains("<script type=\"module\" src=\"/static/"));
+    for ext in [".js", ".css"] {
+        let asset = page
+            .text
+            .split('"')
+            .find(|s| s.starts_with("/static/assets/docs-") && s.ends_with(ext))
+            .unwrap()
+            .to_string();
+        let a = send(&h.app, "GET", &asset, None, &[], Value::Null).await;
         assert_eq!(a.status, StatusCode::OK, "{asset}");
     }
 }

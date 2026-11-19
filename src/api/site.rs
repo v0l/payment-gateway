@@ -5,36 +5,17 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 
-const LANDING: &str = include_str!("../../web/site/landing.html");
-const SITE_CSS: &str = include_str!("../../web/site.css");
-
-macro_rules! pages {
-    ($($section:literal => [$($slug:literal),*]),*) => {
-        const PAGES: &[(&str, &str, &str)] = &[
-            $($(($section, $slug, include_str!(concat!("../../web/site/", $section, "-", $slug, ".html"))),)*)*
-        ];
-    };
-}
-
-pages! {
-    "guide" => ["index", "concepts", "quickstart-api", "quickstart-hosted", "quickstart-iframe", "payment-methods", "webhooks", "going-live", "refunds-saved", "subscriptions", "custody", "console", "errors", "faq", "reference"],
-    "operator" => ["index", "deploy", "lnd", "providers", "shared-providers", "backups", "platform-billing", "treasury", "console", "monitoring", "runbooks"],
-    "legal" => ["index", "terms", "privacy", "acceptable-use", "custody"]
-}
+const SECTIONS: [&str; 3] = ["guide", "operator", "legal"];
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(|| async { html(LANDING) }))
-        .route(
-            "/assets/site.css",
-            get(|| async { with_headers(SITE_CSS, "text/css") }),
-        )
+        .route("/", get(|| async { page("landing") }))
         .route("/{section}", get(section_redirect))
         .route("/{section}/", get(section_index))
         .route("/{section}/{slug}", get(section_page))
 }
 
-fn with_headers(body: &'static str, content_type: &'static str) -> Response {
+fn with_headers(body: &'static [u8], content_type: &'static str) -> Response {
     let mut r = (StatusCode::OK, body).into_response();
     let h = r.headers_mut();
     h.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
@@ -57,15 +38,10 @@ fn with_headers(body: &'static str, content_type: &'static str) -> Response {
     r
 }
 
-fn html(body: &'static str) -> Response {
-    with_headers(body, "text/html; charset=utf-8")
-}
-
-fn find(section: &str, slug: &str) -> Option<&'static str> {
-    PAGES
-        .iter()
-        .find(|(s, p, _)| *s == section && *p == slug)
-        .map(|(_, _, body)| *body)
+fn page(name: &str) -> Response {
+    crate::web::site_page(name)
+        .map(|body| with_headers(body, "text/html; charset=utf-8"))
+        .unwrap_or_else(not_found)
 }
 
 fn not_found() -> Response {
@@ -73,7 +49,7 @@ fn not_found() -> Response {
 }
 
 async fn section_redirect(Path(section): Path<String>) -> Response {
-    if PAGES.iter().any(|(s, _, _)| *s == section) {
+    if SECTIONS.contains(&section.as_str()) {
         Redirect::permanent(&format!("/{section}/")).into_response()
     } else {
         not_found()
@@ -81,9 +57,9 @@ async fn section_redirect(Path(section): Path<String>) -> Response {
 }
 
 async fn section_index(Path(section): Path<String>) -> Response {
-    find(&section, "index").map(html).unwrap_or_else(not_found)
+    page(&format!("{section}-index"))
 }
 
 async fn section_page(Path((section, slug)): Path<(String, String)>) -> Response {
-    find(&section, &slug).map(html).unwrap_or_else(not_found)
+    page(&format!("{section}-{slug}"))
 }

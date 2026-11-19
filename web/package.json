@@ -4,13 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && bun scripts/budget.ts",
+    "build": "vite build && bun scripts/prerender.tsx && bun scripts/budget.ts",
     "check": "tsc --noEmit",
     "gen:api": "bun scripts/gen-api.ts"
   },
   "dependencies": {
     "preact": "^10.29.8",
-    "preact-iso": "2.12.2"
+    "preact-iso": "2.12.2",
+    "preact-render-to-string": "^6.8.3"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",

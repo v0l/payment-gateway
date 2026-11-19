@@ -130,21 +130,26 @@ async fn styleguide_and_design_tokens_are_served_and_csp_safe() {
     let h = harness().await;
     let page = send(&h.app, "GET", "/console/styleguide", None, &[], Value::Null).await;
     assert_eq!(page.status, StatusCode::OK);
-    assert!(page.text.contains("/console/styleguide.js"));
+    assert!(page.text.contains("/static/assets/styleguide-"));
     assert!(!page.text.contains("style=") && !page.text.contains("<style"));
-    for (path, ct) in [
-        ("/console/tokens.css", "text/css"),
-        ("/console/components.css", "text/css"),
-        ("/console/styleguide.js", "text/javascript"),
-    ] {
-        let r = send(&h.app, "GET", path, None, &[], Value::Null).await;
-        assert_eq!(r.status, StatusCode::OK, "{path}");
-        assert_eq!(r.headers["content-type"], ct);
-    }
-    let tokens = send(&h.app, "GET", "/console/tokens.css", None, &[], Value::Null).await;
+    let tokens_href = console_asset_named(&page.text, "tokens-", ".css");
+    let tokens = send(&h.app, "GET", &tokens_href, None, &[], Value::Null).await;
+    assert_eq!(tokens.status, StatusCode::OK);
+    assert_eq!(tokens.headers["content-type"], "text/css");
     assert!(tokens.text.contains("--accent") && tokens.text.contains("prefers-reduced-motion"));
-    let js = include_str!("../web/styleguide.js");
-    assert!(!js.contains("style:") && !js.contains("cssText"));
+    let js_href = console_asset_named(&page.text, "styleguide-", ".js");
+    let js = send(&h.app, "GET", &js_href, None, &[], Value::Null).await;
+    assert_eq!(js.headers["content-type"], "text/javascript");
+    let source = include_str!("../web/src/styleguide/main.tsx");
+    assert!(!source.contains("style:") && !source.contains("cssText"));
+}
+
+fn console_asset_named(shell: &str, prefix: &str, ext: &str) -> String {
+    shell
+        .split('"')
+        .find(|s| s.starts_with(&format!("/static/assets/{prefix}")) && s.ends_with(ext))
+        .unwrap()
+        .to_string()
 }
 
 #[tokio::test]
@@ -1328,12 +1333,20 @@ fn signup_leaves_the_invite_url_so_the_used_invite_is_not_rechecked() {
 async fn console_shell_loads_the_built_bundle_and_its_styles() {
     let h = harness().await;
     let shell = send(&h.app, "GET", "/console", None, &[], Value::Null).await;
+    let mut seen = 0;
     for ext in [".js", ".css"] {
-        let path = console_asset(&shell.text, ext);
-        let r = send(&h.app, "GET", &path, None, &[], Value::Null).await;
-        assert_eq!(r.status, StatusCode::OK, "{path}");
-        assert!(!r.text.is_empty(), "{path}");
+        for path in shell
+            .text
+            .split('"')
+            .filter(|s| s.starts_with("/static/assets/") && s.ends_with(ext))
+        {
+            let r = send(&h.app, "GET", path, None, &[], Value::Null).await;
+            assert_eq!(r.status, StatusCode::OK, "{path}");
+            assert!(!r.text.is_empty(), "{path}");
+            seen += 1;
+        }
     }
+    assert!(seen >= 4, "{seen}");
 }
 
 #[tokio::test]

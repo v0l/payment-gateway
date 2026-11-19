@@ -64,23 +64,49 @@ async fn openapi_snapshot_used_for_the_reference_page_matches_the_served_spec() 
     let have = std::fs::read_to_string(&path).unwrap_or_default();
     assert_eq!(
         have, want,
-        "run UPDATE_DOCS=1 cargo test --test docs_site, then node docs-site/build.mjs"
+        "run UPDATE_DOCS=1 cargo test --test docs_site, then cd web && bun run build"
     );
 }
 
+fn nav_pages() -> Vec<(String, String)> {
+    let nav: Value =
+        serde_json::from_str(&std::fs::read_to_string(root().join("docs-site/nav.json")).unwrap())
+            .unwrap();
+    let mut out = Vec::new();
+    for section in nav["sections"].as_array().unwrap() {
+        for p in section["pages"].as_array().unwrap() {
+            out.push((
+                section["id"].as_str().unwrap().to_string(),
+                p["slug"].as_str().unwrap().to_string(),
+            ));
+        }
+    }
+    out
+}
+
 #[test]
-fn generated_pages_are_up_to_date() {
-    let out = std::process::Command::new("node")
-        .arg("docs-site/build.mjs")
-        .arg("--check")
-        .current_dir(root())
-        .output()
-        .expect("node is needed to build the docs");
-    assert!(
-        out.status.success(),
-        "run node docs-site/build.mjs\n{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+fn every_markdown_page_is_prerendered_into_the_embedded_bundle() {
+    let listed: HashSet<String> = nav_pages()
+        .into_iter()
+        .map(|(s, p)| format!("{s}/{p}.md"))
+        .collect();
+    for f in markdown_files() {
+        let dir = f.parent().unwrap().file_name().unwrap().to_string_lossy();
+        let rel = format!("{dir}/{}", f.file_name().unwrap().to_string_lossy());
+        assert!(listed.contains(&rel), "{rel} is not in nav.json");
+    }
+    for (section, slug) in nav_pages() {
+        let page = payment_gateway::web::site_page(&format!("{section}-{slug}"))
+            .unwrap_or_else(|| panic!("{section}-{slug} missing, run bun run build in web/"));
+        let html = String::from_utf8(page.to_vec()).unwrap();
+        let md_path = root().join("docs-site").join(&section).join(format!("{slug}.md"));
+        if md_path.exists() {
+            let md = std::fs::read_to_string(md_path).unwrap();
+            let title = md.lines().next().unwrap().trim_start_matches("# ");
+            let escaped = title.replace('&', "&amp;").replace('<', "&lt;");
+            assert!(html.contains(&escaped), "{section}/{slug} is stale: {title}");
+        }
+    }
 }
 
 #[test]
@@ -99,7 +125,7 @@ fn docs_use_no_em_or_en_dashes() {
 async fn every_internal_link_resolves() {
     let h = harness().await;
     let mut checked = HashSet::new();
-    let mut sources = vec![std::fs::read_to_string(root().join("web/site/landing.html")).unwrap()];
+    let mut sources = vec![String::from_utf8(payment_gateway::web::site_page("landing").unwrap().to_vec()).unwrap()];
     for f in markdown_files() {
         sources.push(std::fs::read_to_string(f).unwrap());
     }
@@ -395,7 +421,7 @@ fn webhook_page_contains_the_verified_samples_verbatim() {
             "{file}"
         );
     }
-    let html = std::fs::read_to_string(root().join("web/site/guide-webhooks.html")).unwrap();
+    let html = String::from_utf8(payment_gateway::web::site_page("guide-webhooks").unwrap().to_vec()).unwrap();
     let js = std::fs::read_to_string(root().join("docs-site/samples/verify.js")).unwrap();
     assert!(html.contains("timingSafeEqual"));
     assert!(js.contains("timingSafeEqual"));
@@ -519,7 +545,13 @@ async fn landing_page_is_accessible_csp_safe_and_links_to_the_essentials() {
     assert!(!csp.contains("unsafe"));
     assert_eq!(r.headers["x-content-type-options"], "nosniff");
     assert_eq!(r.headers["x-frame-options"], "DENY");
-    let css = send(&h.app, "GET", "/assets/site.css", None, &[], Value::Null).await;
+    let css_href = r
+        .text
+        .split('"')
+        .find(|s| s.starts_with("/static/assets/site-") && s.ends_with(".css"))
+        .unwrap()
+        .to_string();
+    let css = send(&h.app, "GET", &css_href, None, &[], Value::Null).await;
     assert_eq!(css.status, StatusCode::OK);
 }
 
@@ -626,27 +658,32 @@ fn colour_literals(text: &str) -> Vec<String> {
     out
 }
 
-#[test]
-fn colour_literals_live_only_in_the_token_file() {
-    let mut checked = 0;
-    for entry in std::fs::read_dir(root().join("web")).unwrap() {
+fn style_sources(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
         let name = path.file_name().unwrap().to_string_lossy().to_string();
-        let ext = path.extension().map(|e| e.to_string_lossy().to_string());
-        if name == "tokens.css" || !matches!(ext.as_deref(), Some("css") | Some("html")) {
+        if path.is_dir() {
+            if name != "node_modules" && name != "dist" {
+                style_sources(&path, out);
+            }
             continue;
         }
-        let text = std::fs::read_to_string(&path).unwrap();
-        assert_eq!(colour_literals(&text), Vec::<String>::new(), "{name}");
-        checked += 1;
+        let ext = path.extension().map(|e| e.to_string_lossy().to_string());
+        if name != "tokens.css" && matches!(ext.as_deref(), Some("css") | Some("html")) {
+            out.push(path);
+        }
     }
-    for entry in std::fs::read_dir(root().join("web/site")).unwrap() {
-        let path = entry.unwrap().path();
-        let text = std::fs::read_to_string(&path).unwrap();
+}
+
+#[test]
+fn colour_literals_live_only_in_the_token_file() {
+    let mut files = Vec::new();
+    style_sources(&root().join("web"), &mut files);
+    for path in &files {
+        let text = std::fs::read_to_string(path).unwrap();
         assert_eq!(colour_literals(&text), Vec::<String>::new(), "{path:?}");
-        checked += 1;
     }
-    assert!(checked > 40, "{checked}");
+    assert!(files.len() >= 8, "{files:?}");
 }
 
 #[tokio::test]
@@ -664,10 +701,17 @@ async fn every_public_page_allows_fonts_from_its_own_origin_and_loads_the_shared
         assert_eq!(r.status, StatusCode::OK, "{uri}");
         let csp = r.headers["content-security-policy"].to_str().unwrap();
         assert!(csp.contains("font-src 'self'"), "{uri}: {csp}");
-        assert!(r.text.contains("/assets/tokens.css"), "{uri}");
+        assert!(r.text.contains("/static/assets/site-"), "{uri}");
         assert!(r.text.contains("class=\"top\""), "{uri}: top bar");
     }
-    let tokens = send(&h.app, "GET", "/assets/tokens.css", None, &[], Value::Null).await;
+    let landing = send(&h.app, "GET", "/", None, &[], Value::Null).await;
+    let css_href = landing
+        .text
+        .split('"')
+        .find(|s| s.starts_with("/static/assets/tokens-") && s.ends_with(".css"))
+        .unwrap()
+        .to_string();
+    let tokens = send(&h.app, "GET", &css_href, None, &[], Value::Null).await;
     assert!(tokens.text.contains("/console/fonts/plex-sans-400.woff2"));
     let font = send(
         &h.app,

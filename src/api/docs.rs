@@ -4,21 +4,8 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
-const HTML: &str = include_str!("../../web/docs.html");
-const JS: &str = include_str!("../../web/docs.js");
-const CSS: &str = include_str!("../../web/docs.css");
-
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/docs",
-            get(|| async { asset(HTML, "text/html; charset=utf-8") }),
-        )
-        .route(
-            "/docs/docs.js",
-            get(|| async { asset(JS, "text/javascript") }),
-        )
-        .route("/docs/docs.css", get(|| async { asset(CSS, "text/css") }))
+    Router::new().route("/docs", get(|| async { asset(crate::web::site_page("docs").unwrap_or(b""), "text/html; charset=utf-8") }))
 }
 
 pub async fn openapi_json() -> Response {
@@ -30,7 +17,7 @@ pub async fn openapi_json() -> Response {
     r
 }
 
-fn asset(body: &'static str, content_type: &'static str) -> Response {
+fn asset(body: &'static [u8], content_type: &'static str) -> Response {
     let mut r = (StatusCode::OK, body).into_response();
     let h = r.headers_mut();
     h.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));

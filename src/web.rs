@@ -41,12 +41,22 @@ pub fn entry(name: &str) -> EntryAssets {
 }
 
 pub fn page(name: &str) -> &'static [u8] {
-    match Dist::get(&format!("{name}.html")) {
+    leak(&format!("{name}.html"))
+}
+
+pub fn site_page(name: &str) -> Option<&'static [u8]> {
+    let path = format!("site/{name}.html");
+    Dist::get(&path)?;
+    Some(leak(&path))
+}
+
+fn leak(path: &str) -> &'static [u8] {
+    match Dist::get(path) {
         Some(f) => match f.data {
             std::borrow::Cow::Borrowed(b) => b,
             std::borrow::Cow::Owned(v) => Vec::leak(v),
         },
-        None => panic!("web page {name} missing from dist"),
+        None => panic!("web page {path} missing from dist"),
     }
 }
 
@@ -85,7 +95,7 @@ fn respond(path: &str, cache: &'static str) -> Response {
 const IMMUTABLE: &str = "public, max-age=31536000, immutable";
 
 pub async fn static_file(Path(path): Path<String>) -> Response {
-    if path == "manifest.json" || path.ends_with(".html") {
+    if path == "manifest.json" || path.ends_with(".html") || path.starts_with("site/") {
         return StatusCode::NOT_FOUND.into_response();
     }
     let hashed = path.starts_with("assets/") || path.starts_with("fonts/");

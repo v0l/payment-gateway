@@ -1,0 +1,41 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Quickstart: API only | Payment Gateway</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"/><link rel="stylesheet" href="/static/assets/site-Bhenw7yT.css"/><link rel="stylesheet" href="/static/assets/tokens-BoNFgtfW.css"/><link rel="stylesheet" href="/static/assets/shell-CJAASVfc.css"/></head><body><a class="skip" href="#content">Skip to content</a><header class="top"><div class="top-in"><a class="brand" href="/"><span class="mark"></span><span class="name">Payment Gateway</span></a><nav class="tabs" aria-label="Primary"><a href="/guide/" aria-current="page">Guide</a><a href="/operator/">Operators</a><a href="/docs">API reference</a><a href="/legal/">Legal</a></nav><a class="btn primary" href="/console">Sign in</a></div></header><nav class="subtabs" aria-label="Guide pages"><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api" aria-current="page">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/payment-methods">Payment methods</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/console">Using the console</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul></nav><div class="layout"><nav class="side" aria-label="Documentation"><h2>Guide</h2><ul><li><a href="/guide/">Overview</a></li><li><a href="/guide/concepts">Concepts</a></li><li><a href="/guide/quickstart-api" aria-current="page">Quickstart: API only</a></li><li><a href="/guide/quickstart-hosted">Quickstart: hosted page</a></li><li><a href="/guide/quickstart-iframe">Quickstart: iframe</a></li><li><a href="/guide/payment-methods">Payment methods</a></li><li><a href="/guide/webhooks">Webhooks</a></li><li><a href="/guide/going-live">Going live checklist</a></li><li><a href="/guide/refunds-saved">Refunds and saved methods</a></li><li><a href="/guide/subscriptions">Subscriptions and recurring billing</a></li><li><a href="/guide/custody">Custody and payouts</a></li><li><a href="/guide/console">Using the console</a></li><li><a href="/guide/errors">Error reference</a></li><li><a href="/guide/faq">FAQ</a></li><li><a href="/guide/reference">API reference</a></li></ul><h2>Operator guide</h2><ul><li><a href="/operator/">Overview</a></li><li><a href="/operator/deploy">Deploying</a></li><li><a href="/operator/lnd">LND and macaroons</a></li><li><a href="/operator/providers">Stripe, Revolut and PayPal</a></li><li><a href="/operator/shared-providers">Shared platform providers</a></li><li><a href="/operator/backups">Backups and key rotation</a></li><li><a href="/operator/platform-billing">Platform billing</a></li><li><a href="/operator/treasury">Treasury and reconciliation</a></li><li><a href="/operator/console">Console tools</a></li><li><a href="/operator/monitoring">Monitoring and alerts</a></li><li><a href="/operator/runbooks">Runbooks</a></li></ul><h2>Legal (drafts)</h2><ul><li><a href="/legal/">Overview</a></li><li><a href="/legal/terms">Terms of service</a></li><li><a href="/legal/privacy">Privacy policy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav><main id="content"><article class="doc"><h1 id="quickstart-api-only">Quickstart: API only</h1>
+<p>You create the payment, ask for an attempt, show the invoice or address yourself, and learn the result from a <a href="/guide/webhooks">webhook</a> or by polling.</p>
+<p>Create a project and an API key in the <a href="/console">console</a>, add a provider, and export the key:</p>
+<pre><code class="language-sh">export GW=https://pay.example.com
+export KEY=pgw_test_replace_me</code></pre>
+<h2 id="1-create-a-payment">1. Create a payment</h2>
+<p>Send an <code>Idempotency-Key</code> so a retry never creates a second payment. Amounts are minor units: 1500 is 15.00 EUR.</p>
+<pre><code class="language-sh">PAYMENT=$(curl -sf -X POST &quot;$GW/v1/payments&quot; \
+  -H &quot;Authorization: Bearer $KEY&quot; \
+  -H &quot;Idempotency-Key: quickstart-api-1&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;reference&quot;:&quot;quickstart-api-1&quot;,&quot;amount&quot;:1500,&quot;currency&quot;:&quot;EUR&quot;,&quot;expires_in&quot;:3600,&quot;customer_ref&quot;:&quot;user-9&quot;}')
+ID=$(echo &quot;$PAYMENT&quot; | jq -r .id)
+echo &quot;$PAYMENT&quot; | jq '{id, status, pay_url}'</code></pre>
+<h2 id="2-create-an-attempt">2. Create an attempt</h2>
+<pre><code class="language-sh">ATTEMPT=$(curl -sf -X POST &quot;$GW/v1/payments/$ID/attempts&quot; \
+  -H &quot;Authorization: Bearer $KEY&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;method&quot;:&quot;lightning&quot;}')
+echo &quot;$ATTEMPT&quot; | jq -r '.attempts[0].details.bolt11'</code></pre>
+<p>Show the <code>bolt11</code> as a QR code. Other methods return their own <code>details</code>, see <a href="/guide/concepts">concepts</a>.</p>
+<h2 id="3-learn-the-result">3. Learn the result</h2>
+<p>Wait for the <code>payment.paid</code> webhook, or poll:</p>
+<pre><code class="language-sh">curl -sf &quot;$GW/v1/payments/$ID&quot; -H &quot;Authorization: Bearer $KEY&quot; | jq -r .status</code></pre>
+<p>The status is <code>pending</code> until the payment settles, then <code>paid</code>. Do not fulfil an order on anything but the webhook or a <code>GET</code> that says <code>paid</code>.</p>
+<h2 id="using-the-javascript-client">Using the JavaScript client</h2>
+<p>The same flow with the JavaScript client (<code>clients/js</code> in the repository), which also retries 429 and 5xx responses and reuses the idempotency key across retries. There are matching Rust (<code>clients/rust</code>) and Python (<code>clients/python</code>) clients.</p>
+<pre><code class="language-js">import { Gateway } from &quot;@payment-gateway/client&quot;;
+
+const gw = new Gateway({ baseUrl: process.env.GW, apiKey: process.env.KEY });
+const payment = await gw.createPayment(
+  { reference: &quot;quickstart-js-1&quot;, amount: 1500, currency: &quot;EUR&quot; },
+  { idempotencyKey: &quot;quickstart-js-1&quot; },
+);
+const withAttempt = await gw.createAttempt(payment.id, { method: &quot;lightning&quot; });
+console.log(withAttempt.attempts[0].details.bolt11);
+const current = await gw.getPayment(payment.id);
+if (current.status !== &quot;pending&quot;) throw new Error(current.status);</code></pre>
+<h2 id="4-cancel">4. Cancel</h2>
+<p>A pending payment can be cancelled:</p>
+<pre><code class="language-sh">curl -sf -X POST &quot;$GW/v1/payments/$ID/cancel&quot; -H &quot;Authorization: Bearer $KEY&quot; | jq -r .status</code></pre></article></main></div><footer><div class="foot-in"><span>Payment Gateway</span><nav aria-label="Legal"><ul><li><a href="/legal/terms">Terms</a></li><li><a href="/legal/privacy">Privacy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav></div></footer></body></html>

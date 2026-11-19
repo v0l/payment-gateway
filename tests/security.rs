@@ -1402,7 +1402,7 @@ async fn send_test_event_cannot_probe_internal_addresses() {
 #[tokio::test]
 async fn docs_page_forbids_framing_and_scripts_from_elsewhere() {
     let h = harness().await;
-    for uri in ["/docs", "/docs/docs.js", "/docs/docs.css"] {
+    for uri in ["/docs"] {
         let r = send(&h.app, "GET", uri, None, &[], Value::Null).await;
         assert_eq!(r.status, StatusCode::OK, "{uri}");
         let csp = r
