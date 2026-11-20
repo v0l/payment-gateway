@@ -43,8 +43,46 @@ async fn pay_page_is_served_with_a_locked_down_csp_and_no_framing() {
         csp.contains("frame-src https://merchant.revolut.com"),
         "{csp}"
     );
+    assert!(
+        csp.contains(
+            "connect-src 'self' https://merchant.revolut.com https://sandbox-merchant.revolut.com"
+        ),
+        "{csp}"
+    );
+    assert!(!csp.contains("*") && !csp.contains("unsafe-eval"), "{csp}");
     assert!(r.text.contains("/static/assets/pay-"));
     assert!(!r.text.contains("<script>"));
+}
+
+#[tokio::test]
+async fn revolut_origins_are_allowed_on_the_pay_page_and_embed_only() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let p = new_payment(&h, &t, eur("o", 100)).await;
+    let id = p["id"].as_str().unwrap();
+    for path in [format!("/pay/{id}"), format!("/embed/{id}")] {
+        let r = send(&h.app, "GET", &path, None, &[], Value::Null).await;
+        let csp = r.headers["content-security-policy"].to_str().unwrap();
+        assert!(
+            csp.contains("connect-src 'self' https://merchant.revolut.com"),
+            "{path} {csp}"
+        );
+    }
+    let r = send(
+        &h.app,
+        "GET",
+        &format!("/receipt/{id}"),
+        None,
+        &[],
+        Value::Null,
+    )
+    .await;
+    let csp = r
+        .headers
+        .get("content-security-policy")
+        .map(|v| v.to_str().unwrap().to_string())
+        .unwrap_or_default();
+    assert!(!csp.contains("revolut"), "{csp}");
 }
 
 #[tokio::test]

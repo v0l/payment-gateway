@@ -10,6 +10,8 @@ export interface Widget {
   mode: string;
   token: string;
   email?: string;
+  save_method?: boolean;
+  checkout_url?: string;
 }
 
 export interface AttemptDetails {
@@ -75,6 +77,7 @@ export interface PayState {
   return_url?: string;
   receipt_url?: string;
   allowed_origins?: string[];
+  can_save_card?: boolean;
   tenant: { name: string; logo_url?: string; accent_color?: string };
   branding?: Branding;
   attempts?: Attempt[];

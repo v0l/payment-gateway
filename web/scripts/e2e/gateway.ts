@@ -33,9 +33,12 @@ export interface Running {
   stop(): void;
 }
 
+export let databaseName = '';
+
 export async function startGateway(): Promise<ChildProcess> {
   const bin = join(process.env.CARGO_TARGET_DIR ?? join(root, 'target'), 'debug');
   const databaseUrl = execSync(join(bin, 'examples', 'test_database'), { env: { ...process.env, TEST_DATABASE_URL: database } }).toString().trim();
+  databaseName = databaseUrl.replace(/^.*\//, '').replace(/\?.*$/, '');
   const child = spawn(join(bin, 'payment-gateway'), [], {
     env: {
       ...process.env,

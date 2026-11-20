@@ -55,8 +55,13 @@ fn pay_headers(frame_ancestors: &str) -> HeaderMap {
 
 fn page_headers_with(frame_ancestors: &str, script_src: &str, frame_src: &str) -> HeaderMap {
     let mut h = HeaderMap::new();
+    let connect_src = if frame_src.is_empty() {
+        "'self'".to_string()
+    } else {
+        format!("'self' {REVOLUT_HOSTS}")
+    };
     let csp = format!(
-        "default-src 'none'; {script_src}; style-src 'self'; font-src 'self'; img-src 'self' https: data:; connect-src 'self'; {frame_src}base-uri 'none'; form-action 'none'; frame-ancestors {frame_ancestors}"
+        "default-src 'none'; {script_src}; style-src 'self'; font-src 'self'; img-src 'self' https: data:; connect-src {connect_src}; {frame_src}base-uri 'none'; form-action 'none'; frame-ancestors {frame_ancestors}"
     );
     h.insert(header::CONTENT_SECURITY_POLICY, csp.parse().unwrap());
     h.insert(
@@ -136,6 +141,7 @@ struct PublicState {
     expires: chrono::DateTime<chrono::Utc>,
     tenant: PublicTenant,
     allowed_origins: Vec<String>,
+    can_save_card: bool,
     line_items: Vec<crate::invoice::LineView>,
     subtotal: Option<u64>,
     discount: Option<crate::invoice::DiscountView>,
@@ -244,6 +250,7 @@ async fn build_state(
             accent_color: tenant.accent_color.clone(),
         },
         allowed_origins: tenant.origins(),
+        can_save_card: p.customer_ref.is_some() && p.customer_email.is_some(),
         methods,
         attempts: shown,
         return_url: s.service.signed_return_url(tenant, p),
@@ -287,6 +294,8 @@ async fn state(State(s): State<AppState>, Path(id): Path<String>) -> Result<Resp
 struct PublicAttempt {
     provider_id: u64,
     option: Option<String>,
+    #[serde(default)]
+    save_method: bool,
 }
 
 async fn create_attempt(
@@ -307,6 +316,7 @@ async fn create_attempt(
                 method: cfg.method,
                 provider_id: Some(cfg.id),
                 option: input.option,
+                save_method: input.save_method,
                 ..Default::default()
             },
         )

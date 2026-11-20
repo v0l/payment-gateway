@@ -3,7 +3,7 @@ import type { ComponentChildren } from 'preact';
 import { NAMES, LANGUAGES, formatCountdown, type Language } from './format';
 import { ApiError, api, applyLanguage, chooseLanguage, isOk, lastEnded, loadDict, money, pendingAttempt, progressOf, translate, type Dict } from './api';
 import { applyBranding, isDark } from './branding';
-import { revolutCardButton } from './revolut';
+import { RevolutCard } from './revolut';
 import type { Attempt, Method, PayState } from './types';
 
 const parts = location.pathname.split('/').filter(Boolean);
@@ -99,15 +99,18 @@ function AttemptView(props: { a: Attempt; state: PayState; skew: number; lang: s
   const { a, state, lang, t } = props;
   const d = a.details ?? {};
   const qr = `/pay/${id}/qr/${a.id}`;
+  const inline = d.widget?.provider === 'revolut';
   return (
     <>
-      {d.checkout_url && (
+      {inline && d.widget && (
+        <RevolutCard w={{ ...d.widget, checkout_url: d.checkout_url }} locale={lang} dark={isDark(state)} t={t} onPaid={props.onExpired} />
+      )}
+      {!inline && d.checkout_url && (
         <>
           <a class="primary" href={d.checkout_url} target={embed ? '_top' : '_self'} rel="noopener" data-focus="primary">{t('continue_to_provider')}</a>
           <p class="muted">{t('provider_redirect')}</p>
         </>
       )}
-      {d.widget?.provider === 'revolut' && revolutCardButton(d.widget, t)}
       {d.bolt11 && (
         <>
           <img class="qr" src={qr} alt={t('qr_lightning')} />
@@ -141,10 +144,13 @@ function AttemptView(props: { a: Attempt; state: PayState; skew: number; lang: s
   );
 }
 
-function MethodList(props: { methods: Method[]; busy: boolean; lang: string; t: T; onChoose: (m: Method, option?: string) => void }) {
+function MethodList(props: { methods: Method[]; busy: boolean; lang: string; t: T; onChoose: (m: Method, option?: string, save?: boolean) => void; canSave?: boolean }) {
   const { t } = props;
   const [chosen, setChosen] = useState<Record<number, string>>({});
+  const [save, setSave] = useState(false);
+  const hasCard = props.methods.some(m => m.method === 'revolut');
   return (
+    <>
     <ul class="methods">
       {props.methods.map(m => {
         const label = t(`method.${m.method}`);
@@ -165,7 +171,7 @@ function MethodList(props: { methods: Method[]; busy: boolean; lang: string; t: 
         }
         return (
           <li key={m.provider_id}>
-            <button class="method" type="button" disabled={props.busy} onClick={() => props.onChoose(m)}>
+            <button class="method" type="button" disabled={props.busy} onClick={() => props.onChoose(m, undefined, props.canSave && m.method === 'revolut' ? save : undefined)}>
               <span>{label}</span>
               {m.fee > 0 && <span class="fee">{t('fee', { amount: money(m.fee, m.currency, props.lang) })}</span>}
             </button>
@@ -173,6 +179,13 @@ function MethodList(props: { methods: Method[]; busy: boolean; lang: string; t: 
         );
       })}
     </ul>
+    {props.canSave && hasCard && (
+      <label class="check save-card">
+        <input type="checkbox" checked={save} onChange={e => setSave(e.currentTarget.checked)} />
+        {t('save_card')}
+      </label>
+    )}
+    </>
   );
 }
 
@@ -430,7 +443,7 @@ export function App() {
     return () => clearTimeout(h);
   }, [shown?.status]);
 
-  const choose = async (m: Method, option?: string) => {
+  const choose = async (m: Method, option?: string, save?: boolean) => {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
@@ -439,7 +452,7 @@ export function App() {
       const s = await api<PayState>(`/pay/${id}/attempts`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ provider_id: m.provider_id, option: option ?? null }),
+        body: JSON.stringify({ provider_id: m.provider_id, option: option ?? null, save_method: save === true }),
       });
       setDismissed(null);
       adopt(s);
@@ -506,7 +519,7 @@ export function App() {
           <>
             {ended && <p class="notice warn">{t(ended.status === 'failed' ? 'attempt_failed' : 'attempt_expired')}</p>}
             <h2 class="muted choose" tabIndex={-1} data-focus="methods">{ended ? t('new_request') : t('choose_method')}</h2>
-            <MethodList methods={s.methods} busy={busy} lang={lang} t={t} onChoose={choose} />
+            <MethodList methods={s.methods} busy={busy} lang={lang} t={t} onChoose={choose} canSave={s.can_save_card} />
           </>
         ) : (
           <p class="error">{t('no_methods')}</p>

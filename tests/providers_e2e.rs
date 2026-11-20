@@ -232,7 +232,7 @@ async fn stripe_declined_off_session_charge_is_an_error() {
 }
 
 #[tokio::test]
-async fn revolut_save_method_attempt_exposes_widget_details_and_plain_attempt_does_not() {
+async fn every_revolut_attempt_carries_the_widget_token_and_save_method_sets_the_flag() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/api/orders"))
@@ -244,7 +244,14 @@ async fn revolut_save_method_attempt_exposes_widget_details_and_plain_attempt_do
     let p = revolut(&server.uri(), "tok_fixture");
 
     let plain = p.create(request(2500)).await.unwrap();
-    assert!(plain.details.get("widget").is_none());
+    assert_eq!(plain.details["widget"]["provider"], "revolut");
+    assert_eq!(
+        plain.details["widget"]["token"],
+        "eb78ecc2-d65f-4ace-acbd-e55253e7ea0f"
+    );
+    assert_eq!(plain.details["widget"]["mode"], "prod");
+    assert_eq!(plain.details["widget"]["save_method"], false);
+    assert!(plain.details["checkout_url"].as_str().is_some());
 
     let mut req = request(2500);
     req.save_method = true;
@@ -253,6 +260,7 @@ async fn revolut_save_method_attempt_exposes_widget_details_and_plain_attempt_do
     assert_eq!(widget["provider"], "revolut");
     assert_eq!(widget["token"], "eb78ecc2-d65f-4ace-acbd-e55253e7ea0f");
     assert_eq!(widget["email"], "a@b.c");
+    assert_eq!(widget["save_method"], true);
     assert!(saved.details["checkout_url"].as_str().is_some());
 }
 

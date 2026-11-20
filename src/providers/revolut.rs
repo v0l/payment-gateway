@@ -270,20 +270,21 @@ impl Provider for RevolutProvider {
             .checkout_url
             .clone()
             .context("revolut returned no checkout_url")?;
-        let mut details = json!({"checkout_url": url});
-        if req.save_method {
-            let mode = if self.base.contains("sandbox") {
-                "sandbox"
-            } else {
-                "prod"
-            };
-            details["widget"] = json!({
+        let mode = if self.base.contains("sandbox") {
+            "sandbox"
+        } else {
+            "prod"
+        };
+        let details = json!({
+            "checkout_url": url,
+            "widget": {
                 "provider": "revolut",
                 "token": order.token,
                 "mode": mode,
                 "email": req.customer_email,
-            });
-        }
+                "save_method": req.save_method,
+            },
+        });
         Ok(CreatedAttempt {
             lookup: order.id.clone(),
             external_id: Some(order.id),

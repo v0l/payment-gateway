@@ -171,3 +171,35 @@ details.summary table { inline-size: 100%; border-collapse: collapse; }
 details.summary td { padding-block: var(--space-1); border-block-end: 1px solid var(--line); overflow-wrap: anywhere; }
 details.summary td.num { text-align: end; font-variant-numeric: tabular-nums; }
 details.summary tr.total td { font-weight: 700; border-block-end: 0; }
+
+.revolut-card .field { margin-block: 12px 0; }
+.revolut-card .field label, .revolut-card .field .label { display: block; font-size: 0.85rem; color: var(--muted); margin-block-end: 4px; }
+.revolut-card input[type="text"], .revolut-card input[type="email"] {
+  font: inherit;
+  inline-size: 100%;
+  min-block-size: 48px;
+  padding-inline: 12px;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+}
+.rc-host {
+  min-block-size: 48px;
+  padding-inline: 12px;
+  display: flex;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.rc-host > div { inline-size: 100%; }
+.rc-host.focus { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }
+.rc-host.invalid { border-color: var(--bad); }
+.check { display: flex; gap: 10px; align-items: center; margin-block-start: 14px; min-block-size: 44px; font-size: 0.9rem; }
+.check input { inline-size: 18px; block-size: 18px; accent-color: var(--accent); }
+.revolut-card button.primary { margin-block-start: 16px; }
+.revolut-card .trouble { text-align: center; margin-block: 14px 0; }
+.revolut-card .trouble a { color: var(--muted); }
+.check.save-card { margin-block-start: 12px; }
