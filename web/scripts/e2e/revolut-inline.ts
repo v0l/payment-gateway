@@ -17,7 +17,7 @@ const shots = process.env.SHOT_DIR ?? join(os.tmpdir(), 'revolut-inline');
 mkdirSync(shots, { recursive: true });
 
 const SECRET = 'x'.repeat(16);
-const PLAIN_CARD = '4929420573595709';
+const PLAIN_CARD = process.env.REVOLUT_PLAIN_CARD ?? '4929420573595709';
 const THREE_DS_CARD = process.env.REVOLUT_3DS_CARD ?? '5555550079553105';
 
 async function cancelOrder(id: string): Promise<void> {
@@ -78,7 +78,9 @@ try {
   await admin('POST', `/admin/tenants/${tenant.id}/settings`, { allowed_origins: [] });
   const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
 
+  const only = (process.env.CASES ?? 'plain,3ds,save,mobile').split(',');
   const run = async (name: string, card: string, opts: { save?: boolean; viewport?: { width: number; height: number };  }) => {
+    if (!only.includes(name)) return;
     const ref = `${name}-${Date.now()}`;
     const payment = await call<{ id: string }>(tenant.api_key, 'POST', '/v1/payments', {
       reference: ref,
@@ -91,6 +93,16 @@ try {
     page.on('framenavigated', f => {
       if (f === page.mainFrame()) urls.add(f.url());
     });
+    if (process.env.E2E_TRACE) {
+      page.on('console', m => console.log(name, 'console', m.type(), m.text().slice(0, 300)));
+      page.on('pageerror', e => console.log(name, 'pageerror', e.message));
+      page.on('response', async r => {
+        if (!r.url().includes('revolut.com') || r.request().method() === 'GET') return;
+        const body = await r.text().catch(() => '');
+        console.log(name, 'response', r.request().method(), r.status(), r.url().slice(0, 120), body.slice(0, 400));
+        if (r.url().endsWith('/payments')) console.log(name, 'request', (r.request().postData() ?? '').replace(/"(number|cvv|code|encrypted\w*)":"[^"]*"/g, '"$1":"*"').slice(0, 1500));
+      });
+    }
     await page.goto(`${gateway}/pay/${payment.id}`);
     if (opts.save !== false) await page.getByLabel('Save this card for future payments').check();
     await page.locator('button.method').first().click();
@@ -99,8 +111,23 @@ try {
     await frame.locator('input[name="number"]').fill(card);
     await frame.locator('input[name="expiry"]').fill('12/30');
     await frame.locator('input[name="code"]').fill('123');
-    await frame.locator('input[name="postcode"]').fill('SW1A 1AA');
+    const postcodeInput = frame.locator('input[name="postcode"]');
+    await page.waitForTimeout(1000);
+    if (await postcodeInput.isVisible()) await postcodeInput.fill('SW1A 1AA');
     await page.screenshot({ path: join(shots, `${name}-filled.png`), fullPage: true });
+    if (opts.viewport) {
+      const clipped = await frame.locator('input').evaluateAll(els =>
+        els.filter(e => (e as HTMLInputElement).type !== 'hidden').map(e => {
+          const i = e as HTMLInputElement;
+          const r = i.getBoundingClientRect();
+          return { name: i.name, width: Math.round(r.width), right: Math.round(r.right), view: document.documentElement.clientWidth, scroll: i.scrollWidth > i.clientWidth + 1 };
+        }),
+      );
+      if (process.env.E2E_TRACE) console.log(name, 'inputs', JSON.stringify(clipped));
+      const postcode = clipped.find(c => c.name === 'postcode');
+      const shown = await postcodeInput.isVisible();
+      check(`${name} postcode input is hidden or fully visible`, !postcode || !shown || (postcode.right <= postcode.view && postcode.width >= 70), JSON.stringify(postcode));
+    }
     await page.waitForTimeout(1500);
     orders.push(latestOrder());
     await page.getByRole('button', { name: 'Pay by card' }).click();

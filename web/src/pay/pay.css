@@ -203,3 +203,7 @@ details.summary tr.total td { font-weight: 700; border-block-end: 0; }
 .revolut-card .trouble { text-align: center; margin-block: 14px 0; }
 .revolut-card .trouble a { color: var(--muted); }
 .check.save-card { margin-block-start: 12px; }
+@media (max-width: 420px) {
+  .card { padding: var(--space-4); }
+  .rc-host { padding-inline: var(--space-1); }
+}
