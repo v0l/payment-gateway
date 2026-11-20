@@ -2,7 +2,7 @@
 
 Production runs beside the sandbox in its own namespace `payment-gateway-prod` on axst-k8s. The sandbox (`payment-gateway`, `pay-sandbox.apexstrata.ie`) is not touched. The first tenant is YALR (issue #854).
 
-Manifests live in `v0l-k8s/payment-gateway-prod/` (branch `payment-gateway-prod`). Scripts live in `scripts/prod/` and every one of them is a dry run unless called with `--apply`.
+Manifests live in `payment-gateway-prod/` of the private manifests repo (branch `payment-gateway-prod`), checked out at `$K8S_DIR`. Scripts live in `scripts/prod/` and every one of them is a dry run unless called with `--apply`.
 
 ## What runs
 
@@ -19,7 +19,7 @@ Manifests live in `v0l-k8s/payment-gateway-prod/` (branch `payment-gateway-prod`
 
 ## Secrets
 
-Generated locally by `scripts/prod/create-secrets.sh --apply` into `~/.config/payment-gateway-prod/` (mode 700, files 600, never overwritten once present), then created in the cluster. Nothing secret is in git. `deploy/prod-secrets.example` and `v0l-k8s/payment-gateway-prod/secrets.example` show the shape.
+Generated locally by `scripts/prod/create-secrets.sh --apply` into `~/.config/payment-gateway-prod/` (mode 700, files 600, never overwritten once present), then created in the cluster. Nothing secret is in git. `deploy/prod-secrets.example` and `$K8S_DIR/payment-gateway-prod/secrets.example` show the shape.
 
 | Where | What |
 | --- | --- |
@@ -51,7 +51,7 @@ Every step below changes the cluster. Run from this repo with `kubectl` context 
 2. Namespace and workloads:
 
 ```sh
-cd ~/git/v0l-k8s && git checkout payment-gateway-prod
+cd "$K8S_DIR" && git checkout payment-gateway-prod
 kubectl --context axst-k8s apply -f payment-gateway-prod/00-namespace.yml
 scripts/prod/create-secrets.sh            # dry run
 scripts/prod/create-secrets.sh --apply
@@ -73,8 +73,8 @@ scripts/prod/bake-lnd-macaroon.sh --apply
 6. Workloads, ingress and backup:
 
 ```sh
-kubectl --context axst-k8s apply -f ~/git/v0l-k8s/payment-gateway-prod/payment-gateway-prod.yml
-kubectl --context axst-k8s apply -f ~/git/v0l-k8s/payment-gateway-prod/backup.yml
+kubectl --context axst-k8s apply -f "$K8S_DIR"/payment-gateway-prod/payment-gateway-prod.yml
+kubectl --context axst-k8s apply -f "$K8S_DIR"/payment-gateway-prod/backup.yml
 kubectl --context axst-k8s -n payment-gateway-prod rollout status deploy/mysql deploy/payment-gateway
 kubectl --context axst-k8s -n payment-gateway-prod get certificate
 curl -fsS https://pay.apexstrata.ie/ready
@@ -141,7 +141,7 @@ Restore drill (never over the live database): Job `restore-drill-job.yml` restor
 
 ```sh
 kubectl --context axst-k8s -n payment-gateway-prod create job pgw-backup-now --from=cronjob/payment-gateway-backup
-kubectl --context axst-k8s -n payment-gateway-prod apply -f ~/git/v0l-k8s/payment-gateway-prod/restore-drill-job.yml
+kubectl --context axst-k8s -n payment-gateway-prod apply -f "$K8S_DIR"/payment-gateway-prod/restore-drill-job.yml
 kubectl --context axst-k8s -n payment-gateway-prod logs job/payment-gateway-restore-drill
 ```
 

@@ -14,7 +14,7 @@ wallet_file="${NWC_WALLET_FILE:-$HOME/.agents/memory/wallet.json}"
 check_file="$secrets_dir/tenant-golive-check.json"
 backup_job="payment-gateway-golive-$(date -u +%Y%m%d%H%M%S)"
 drill_job="payment-gateway-restore-drill"
-k8s_dir="${V0L_K8S_DIR:-$HOME/git/v0l-k8s}/payment-gateway-prod"
+k8s_dir="${K8S_DIR:-}/payment-gateway-prod"
 
 if [ "${1:-}" != "--apply" ]; then
     cat <<EOF
@@ -128,6 +128,7 @@ kc create job "$backup_job" --from=cronjob/payment-gateway-backup
 kc wait --for=condition=complete "job/$backup_job" --timeout=900s || { kc logs "job/$backup_job" || true; fail "backup job failed"; }
 ok "backup job $backup_job"
 kc delete job "$drill_job" --ignore-not-found
+[ -n "${K8S_DIR:-}" ] || fail "set K8S_DIR to the manifests checkout"
 kc apply -f "$k8s_dir/restore-drill-job.yml"
 kc wait --for=condition=complete "job/$drill_job" --timeout=900s || { kc logs "job/$drill_job" || true; fail "restore drill failed"; }
 kc logs "job/$drill_job" | tail -3
