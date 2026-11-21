@@ -15,6 +15,13 @@ The dump contains sealed values as ciphertext. It is useless without the encrypt
 
 ## Restore drill
 
+The drill runs from the backup image, which copies `payment-gateway` from the gateway image. Pass the commit tag that prod runs (the deploy script pushes `:<commit>`, there is no `:prod` tag). Without `GATEWAY_IMAGE` the script uses the short sha of HEAD. The dry run prints the resolved image:
+
+```
+GATEWAY_IMAGE=registry.v0l.io/payment-gateway:bdd51e1 scripts/prod/build-backup-image.sh
+GATEWAY_IMAGE=registry.v0l.io/payment-gateway:bdd51e1 scripts/prod/build-backup-image.sh --apply
+```
+
 Run monthly and after every rotation. Never restore over the live database.
 
 ```

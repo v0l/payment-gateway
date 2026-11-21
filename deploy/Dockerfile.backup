@@ -1,4 +1,4 @@
-ARG GATEWAY_IMAGE=registry.v0l.io/payment-gateway:prod
+ARG GATEWAY_IMAGE
 FROM ${GATEWAY_IMAGE} AS gateway
 
 FROM debian:bookworm-slim

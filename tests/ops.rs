@@ -864,6 +864,50 @@ async fn restore_drill_requiring_integrity_fails_without_binary_or_with_wrong_ke
         .unwrap();
 }
 
+#[test]
+fn restore_backup_image_script_resolves_gateway_image_without_a_prod_tag() {
+    let root = env!("CARGO_MANIFEST_DIR");
+    let script = format!("{root}/scripts/prod/build-backup-image.sh");
+    let run = |script: &str, image: Option<&str>| {
+        let mut c = std::process::Command::new(script);
+        c.env_remove("GATEWAY_IMAGE");
+        if let Some(i) = image {
+            c.env("GATEWAY_IMAGE", i);
+        }
+        c.output().unwrap()
+    };
+
+    let explicit = run(&script, Some("registry.v0l.io/payment-gateway:abc1234"));
+    assert!(explicit.status.success());
+    assert!(
+        String::from_utf8_lossy(&explicit.stdout)
+            .contains("gateway image: registry.v0l.io/payment-gateway:abc1234")
+    );
+
+    let head = std::process::Command::new("git")
+        .args(["-C", root, "rev-parse", "--short", "HEAD"])
+        .output()
+        .unwrap();
+    let head = String::from_utf8(head.stdout).unwrap().trim().to_string();
+    let default = run(&script, None);
+    let stdout = String::from_utf8_lossy(&default.stdout);
+    assert!(default.status.success());
+    assert!(stdout.contains(&format!(
+        "gateway image: registry.v0l.io/payment-gateway:{head}"
+    )));
+    assert!(!stdout.contains("payment-gateway:prod"));
+
+    let bare = std::env::temp_dir().join(unique("pgwbare"));
+    std::fs::create_dir_all(bare.join("scripts/prod")).unwrap();
+    let copy = bare.join("scripts/prod/build-backup-image.sh");
+    std::fs::copy(&script, &copy).unwrap();
+    let out = run(copy.to_str().unwrap(), None);
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("set GATEWAY_IMAGE"));
+    assert!(!String::from_utf8_lossy(&out.stdout).contains("payment-gateway:prod"));
+    let _ = std::fs::remove_dir_all(&bare);
+}
+
 async fn audit_rows(pool: &MySqlPool, action: &str) -> Vec<(String, Option<u64>, Option<String>)> {
     sqlx::query_as(
         "select actor_kind, tenant_id, details from audit_event where action = ? order by id",
