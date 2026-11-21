@@ -214,3 +214,170 @@ async fn real_lnd_pays_out_over_lightning_and_on_chain() {
             .is_empty()
     );
 }
+
+fn unroutable_invoice(amount_msat: u64) -> String {
+    use bitcoin::hashes::{Hash, sha256};
+    use lightning_invoice::{Currency, InvoiceBuilder, PaymentSecret};
+    let secret: [u8; 32] = rand::random();
+    let key = bitcoin::secp256k1::SecretKey::from_slice(&[0xcd; 32]).unwrap();
+    InvoiceBuilder::new(Currency::Regtest)
+        .description("nowhere".into())
+        .payment_hash(sha256::Hash::from_slice(&secret).unwrap())
+        .payment_secret(PaymentSecret(secret))
+        .current_timestamp()
+        .min_final_cltv_expiry_delta(144)
+        .amount_milli_satoshis(amount_msat)
+        .build_signed(|m| bitcoin::secp256k1::Secp256k1::new().sign_ecdsa_recoverable(m, &key))
+        .unwrap()
+        .to_string()
+}
+
+async fn balance_of(h: &Harness, tenant: u64, kind: &str) -> i64 {
+    payment_gateway::ledger::balances(&h.pool, tenant)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|b| b.kind == kind)
+        .map(|b| b.balance)
+        .unwrap_or(0)
+}
+
+#[tokio::test]
+async fn real_lnd_pays_a_tenant_wallet_withdrawal_and_reports_failures() {
+    if !enabled() {
+        eprintln!("skipped: set REGTEST=1 with `docker compose -f regtest/compose.yaml up -d`");
+        return;
+    }
+    let h = harness().await;
+    let cfg = config();
+    let sb = Sandbox::from_config(cfg.clone(), h.service.clone()).unwrap();
+    sb.bootstrap().await.expect("bootstrap regtest");
+    h.service
+        .payouts
+        .set_tenant_nodes(Some(Arc::new(payment_gateway::payouts::LndTenantNodes {
+            sat_per_vbyte: 2,
+        })));
+    h.service.payouts.set_policy(PayoutPolicy {
+        network: bitcoin::Network::Regtest,
+        min_amount: 1_000_000,
+        sending_lease: chrono::Duration::seconds(30),
+        retry_delay: chrono::Duration::zero(),
+        max_attempts: 1,
+        ..PayoutPolicy::default()
+    });
+
+    setup_crypto_provider();
+    let customer = LndNode::new(
+        &cfg.customer.url,
+        Path::new(&cfg.customer.cert_path),
+        Path::new(&cfg.customer.macaroon_path),
+    )
+    .await
+    .unwrap();
+
+    let t = tenant(&h).await;
+    let sealed = h
+        .service
+        .sealer
+        .seal(
+            serde_json::json!({
+                "url": cfg.gateway.url,
+                "cert_path": cfg.gateway.cert_path,
+                "macaroon_path": cfg.gateway.macaroon_path,
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap();
+    let provider_id = db::insert_provider_config(
+        &h.pool,
+        db::NewProviderConfig {
+            tenant_id: t.id,
+            method: "lightning",
+            provider_type: "lnd",
+            name: "own lnd",
+            sealed_config: &sealed,
+            fee_rate: None,
+            fee_base: None,
+            fee_currency: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let invoice = customer
+        .add_invoice(AddInvoiceRequest {
+            amount: 20_000_000,
+            memo: Some("wallet payout".into()),
+            expire: Some(600),
+        })
+        .await
+        .unwrap();
+    let created = common::send(
+        &h.app,
+        "POST",
+        "/v1/withdrawals",
+        Some(&t.key),
+        &[("idempotency-key", "wallet-1")],
+        serde_json::json!({"amount": 20_000_000, "destination": invoice.pr(), "provider_id": provider_id}),
+    )
+    .await;
+    assert_eq!(created.status, 201, "{}", created.text);
+    h.service.run_payouts().await.unwrap();
+    let id = created.json["id"].as_u64().unwrap();
+    let done = db::get_withdrawal(&h.pool, id).await.unwrap().unwrap();
+    assert_eq!(done.status, "completed", "{:?}", done.error);
+    assert_eq!(
+        done.external_id.as_deref(),
+        Some(invoice.payment_hash().as_str())
+    );
+    assert_eq!(balance_of(&h, t.id, "tenant_balance").await, 0);
+    assert_eq!(balance_of(&h, t.id, "pending_payout").await, 0);
+
+    h.service.deliver_due().await.unwrap();
+    let delivered = t.receiver.got.lock().unwrap().clone();
+    let paid: Vec<_> = delivered
+        .iter()
+        .filter(|(_, b)| b.contains("\"withdrawal.paid\""))
+        .collect();
+    assert_eq!(paid.len(), 1);
+    let (headers, body) = paid[0];
+    let sig = headers["x-gateway-signature"].to_str().unwrap();
+    let (ts, v1) = sig.strip_prefix("t=").unwrap().split_once(",v1=").unwrap();
+    assert_eq!(
+        v1,
+        payment_gateway::service::webhook_signature(&t.webhook_secret, ts.parse().unwrap(), body)
+    );
+
+    let bad = common::send(
+        &h.app,
+        "POST",
+        "/v1/withdrawals",
+        Some(&t.key),
+        &[("idempotency-key", "wallet-2")],
+        serde_json::json!({"amount": 20_000_000, "destination": unroutable_invoice(20_000_000), "provider_id": provider_id}),
+    )
+    .await;
+    assert_eq!(bad.status, 201, "{}", bad.text);
+    h.service.run_payouts().await.unwrap();
+    let failed_id = bad.json["id"].as_u64().unwrap();
+    let failed = db::get_withdrawal(&h.pool, failed_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(failed.status, "failed", "{:?}", failed.error);
+    assert_eq!(balance_of(&h, t.id, "tenant_balance").await, 0);
+    assert_eq!(balance_of(&h, t.id, "pending_payout").await, 0);
+    h.service.deliver_due().await.unwrap();
+    assert!(
+        t.receiver
+            .types()
+            .contains(&"withdrawal.failed".to_string())
+    );
+    assert!(
+        payment_gateway::ledger::reconcile(&h.pool)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
