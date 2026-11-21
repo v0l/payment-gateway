@@ -13,6 +13,21 @@ fn fixture(name: &str) -> String {
     std::fs::read_to_string(format!("tests/fixtures/{name}")).unwrap()
 }
 
+fn live_secret(name: &str) -> Result<String, ()> {
+    non_empty(std::env::var(name).ok())
+}
+
+fn non_empty(value: Option<String>) -> Result<String, ()> {
+    value.filter(|v| !v.trim().is_empty()).ok_or(())
+}
+
+#[test]
+fn an_empty_live_secret_counts_as_unset() {
+    assert!(non_empty(Some(String::new())).is_err());
+    assert!(non_empty(None).is_err());
+    assert_eq!(non_empty(Some("sk_test_x".into())), Ok("sk_test_x".into()));
+}
+
 fn fixture_json(name: &str) -> Value {
     serde_json::from_str(&fixture(name)).unwrap()
 }
@@ -340,7 +355,7 @@ async fn stripe_form(key: &str, path: &str, form: &[(&str, &str)]) -> Value {
 
 #[tokio::test]
 async fn stripe_test_mode_live_suite() {
-    let Ok(key) = std::env::var("STRIPE_TEST_KEY") else {
+    let Ok(key) = live_secret("STRIPE_TEST_KEY") else {
         eprintln!("skipped: STRIPE_TEST_KEY not set");
         return;
     };
@@ -443,7 +458,7 @@ async fn revolut_pay_with_test_card(token: &str, order_id: &str, save: bool) -> 
 
 #[tokio::test]
 async fn revolut_sandbox_live_suite() {
-    let Ok(token) = std::env::var("REVOLUT_SANDBOX_TOKEN") else {
+    let Ok(token) = live_secret("REVOLUT_SANDBOX_TOKEN") else {
         eprintln!("skipped: REVOLUT_SANDBOX_TOKEN not set");
         return;
     };
@@ -544,7 +559,7 @@ async fn revolut_recorded_saved_methods_are_listed_with_card_details() {
 
 #[tokio::test]
 async fn revolut_sandbox_live_test_connection_saved_methods_and_removal() {
-    let Ok(token) = std::env::var("REVOLUT_SANDBOX_TOKEN") else {
+    let Ok(token) = live_secret("REVOLUT_SANDBOX_TOKEN") else {
         eprintln!("skipped: REVOLUT_SANDBOX_TOKEN not set");
         return;
     };
