@@ -20,7 +20,7 @@ Withdrawal events carry `data.withdrawal` instead of `data.payment`. Subscriptio
 
 ## Events
 
-`payment.paid`, `payment.expired`, `payment.cancelled`, `payment.late_payment`, `payment.disputed`, `payment.dispute_closed`, `attempt.failed`, `refund.completed`, `refund.failed`, `withdrawal.requested`, `withdrawal.completed`, `withdrawal.failed`, `subscription.created`, `invoice.paid`, `invoice.failed`, `invoice.payment_required`, `subscription.past_due`, `subscription.cancelled`, `subscription.paused`, `subscription.resumed`, `subscription.updated`, `platform.invoice.created`, `platform.invoice.paid`, `platform.invoice.past_due`, `platform.invoice.waived`. `payment.disputed` fires when a card or PayPal dispute opens and `payment.dispute_closed` when it is decided. The payment carries `disputed` and `dispute_status` (`open`, `won` or `lost`). Ignore event types you do not know, new ones can be added.
+`payment.paid`, `payment.expired`, `payment.cancelled`, `payment.late_payment`, `payment.disputed`, `payment.dispute_closed`, `attempt.failed`, `refund.completed`, `refund.failed`, `withdrawal.requested`, `withdrawal.completed`, `withdrawal.paid`, `withdrawal.failed`, `subscription.created`, `invoice.paid`, `invoice.failed`, `invoice.payment_required`, `subscription.past_due`, `subscription.cancelled`, `subscription.paused`, `subscription.resumed`, `subscription.updated`, `platform.invoice.created`, `platform.invoice.paid`, `platform.invoice.past_due`, `platform.invoice.waived`. `payment.disputed` fires when a card or PayPal dispute opens and `payment.dispute_closed` when it is decided. The payment carries `disputed` and `dispute_status` (`open`, `won` or `lost`). Ignore event types you do not know, new ones can be added.
 
 ## Delivery and retries
 

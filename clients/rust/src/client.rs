@@ -328,6 +328,34 @@ impl Gateway {
         Pager::new(self.clone(), "/v1/payments", filter.query())
     }
 
+    pub async fn create_withdrawal(&self, input: &CreateWithdrawal) -> Result<Withdrawal, Error> {
+        self.create_withdrawal_with_key(input, &new_idempotency_key())
+            .await
+    }
+
+    pub async fn create_withdrawal_with_key(
+        &self,
+        input: &CreateWithdrawal,
+        key: &str,
+    ) -> Result<Withdrawal, Error> {
+        self.call(Method::POST, "/v1/withdrawals", Some(input), Some(key))
+            .await
+    }
+
+    pub async fn get_withdrawal(&self, id: u64) -> Result<Withdrawal, Error> {
+        self.call(
+            Method::GET,
+            &format!("/v1/withdrawals/{id}"),
+            None::<&()>,
+            None,
+        )
+        .await
+    }
+
+    pub fn list_withdrawals(&self) -> Pager<Withdrawal> {
+        Pager::new(self.clone(), "/v1/withdrawals", vec![])
+    }
+
     pub fn list_refunds(&self) -> Pager<Refund> {
         Pager::new(self.clone(), "/v1/refunds", vec![])
     }

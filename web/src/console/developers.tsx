@@ -16,7 +16,7 @@ interface KeyRow {
   revoked_at?: string | null;
 }
 
-const SCOPES = ['payments:read', 'payments:write', 'refunds:write', 'saved:write', 'admin'];
+const SCOPES = ['payments:read', 'payments:write', 'refunds:write', 'saved:write', 'withdrawals:read', 'withdrawals:write', 'admin'];
 
 function KeysBody(props: { pid: string; p: Project }) {
   const { pid, p } = props;

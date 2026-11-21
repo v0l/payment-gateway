@@ -137,6 +137,41 @@ impl CreateAttempt {
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
+pub struct CreateWithdrawal {
+    pub amount: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<u64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Withdrawal {
+    pub id: u64,
+    pub amount: u64,
+    pub currency: String,
+    pub status: String,
+    #[serde(default)]
+    pub fee: Option<u64>,
+    #[serde(default)]
+    pub external_id: Option<String>,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub destination_kind: String,
+    #[serde(default)]
+    pub destination_label: String,
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+    #[serde(default)]
+    pub provider_id: Option<u64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct RefundInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub amount: Option<u64>,

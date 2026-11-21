@@ -101,6 +101,7 @@ fn event_item(e: &db::EventRow) -> Option<FeedItem> {
     }
     if let Some(w) = data.get("withdrawal").filter(|w| w.is_object()) {
         let (tone, title) = match e.event_type.as_str() {
+            "withdrawal.paid" => return None,
             "withdrawal.completed" => ("ok", "Payout sent"),
             "withdrawal.failed" => ("bad", "Payout failed"),
             "withdrawal.rejected" => ("bad", "Payout rejected"),

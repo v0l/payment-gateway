@@ -27,4 +27,19 @@ A project owner withdraws its balance (BTC, in msats) in the console to a destin
 - Daily maximums apply, lower for untrusted projects.
 - Outcomes are sent as `withdrawal.requested`, `withdrawal.completed` and `withdrawal.failed` events. They never include the destination.
 
+## Withdrawals through the API
+
+`POST /v1/withdrawals` pays out from your code. It needs the `withdrawals:write` key scope and an `Idempotency-Key` header. `GET /v1/withdrawals/{id}` and `GET /v1/withdrawals` need `withdrawals:read`.
+
+```json
+{"amount": 5000000, "currency": "BTC", "destination": "lnbc...", "provider_id": 12}
+```
+
+- With `provider_id`, one of your own LND providers (see `GET /v1/methods`), the payment is sent from that node. Nothing moves in the custody ledger and the custody limits do not apply. `destination` may be a bolt11 invoice, a Lightning address, an LNURL-pay or an on-chain address.
+- Without `provider_id` the payout comes from your custody balance under the rules above. `destination` must be a bolt11 invoice, or send `destination_id` of a verified saved destination. A failed payment releases the reserved amount back to the balance.
+- Replaying a key with the same body returns the same withdrawal with 200. A different body under the same key is 409.
+- Amounts are msats in whole sats. Only BTC is supported.
+
+Status moves `requested` (custody withdrawals waiting for operator review), `approved`, `sending`, then `completed` or `failed`. Webhooks `withdrawal.paid` and `withdrawal.failed` carry the withdrawal in `data.withdrawal`, signed like payment events. `withdrawal.completed` is sent with `withdrawal.paid` for older integrations.
+
 See the [custodial and non-custodial statement](/legal/custody) for what that means legally. It is a draft and needs review.

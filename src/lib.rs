@@ -1,3 +1,4 @@
+#![recursion_limit = "512"]
 pub mod account_tokens;
 pub mod accounts;
 pub mod api;

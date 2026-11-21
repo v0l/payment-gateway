@@ -200,6 +200,37 @@
         ],
         "type": "object"
       },
+      "CreateWithdrawal": {
+        "description": "Send the Idempotency-Key header (required). With provider_id the payout is paid from that project LND wallet to destination (bolt11 invoice, lightning address, lnurl or on-chain address) and does not touch the custody balance. Without it the payout is paid from the custody balance under the payout limits and approval rules, and destination must be a bolt11 invoice (or send destination_id of a verified saved destination).",
+        "properties": {
+          "amount": {
+            "description": "Msats, a whole number of sats.",
+            "type": "integer"
+          },
+          "currency": {
+            "default": "BTC",
+            "enum": [
+              "BTC"
+            ],
+            "type": "string"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "destination_id": {
+            "description": "Custody only: a verified saved destination.",
+            "type": "integer"
+          },
+          "provider_id": {
+            "description": "One of the project's own LND providers, from GET /methods.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "amount"
+        ],
+        "type": "object"
+      },
       "DiscountInput": {
         "description": "Exactly one of amount or percent.",
         "properties": {
@@ -262,7 +293,8 @@
           "payment.dispute_closed",
           "withdrawal.requested",
           "withdrawal.completed",
-          "withdrawal.failed"
+          "withdrawal.failed",
+          "withdrawal.paid"
         ],
         "type": "string"
       },
@@ -519,11 +551,88 @@
           }
         },
         "type": "object"
+      },
+      "Withdrawal": {
+        "description": "Withdrawal view, also the webhook data.withdrawal object.",
+        "properties": {
+          "amount": {
+            "type": "integer"
+          },
+          "created": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "destination_kind": {
+            "type": "string"
+          },
+          "destination_label": {
+            "description": "Masked destination.",
+            "type": "string"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "external_id": {
+            "description": "Payment hash or txid once paid.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fee": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_fee": {
+            "type": "integer"
+          },
+          "provider_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "requested",
+              "approved",
+              "sending",
+              "completed",
+              "failed",
+              "rejected",
+              "cancelled"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
       }
     },
     "securitySchemes": {
       "bearerAuth": {
-        "description": "Project API key. Keys carry scopes: payments:write, payments:read, refunds:write, saved:write, admin.",
+        "description": "Project API key. Keys carry scopes: payments:write, payments:read, refunds:write, saved:write, withdrawals:read, withdrawals:write, admin.",
         "scheme": "bearer",
         "type": "http"
       }
@@ -2841,6 +2950,287 @@
         ],
         "summary": "Resume a subscription",
         "x-required-scope": "payments:write"
+      }
+    },
+    "/withdrawals": {
+      "get": {
+        "description": "Requires scope: withdrawals:read.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Withdrawal"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "X-Next-Cursor": {
+                "description": "Pass as cursor to fetch the next page. Absent on the last page.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Missing, unknown, revoked or expired key"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Key lacks the required scope, or a limit was hit"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Rate limited"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List withdrawals",
+        "x-required-scope": "withdrawals:read"
+      },
+      "post": {
+        "description": "Requires scope: withdrawals:write.",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWithdrawal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Withdrawal"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Missing, unknown, revoked or expired key"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Key lacks the required scope, or a limit was hit"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Rate limited"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create a withdrawal (payout)",
+        "x-required-scope": "withdrawals:write"
+      }
+    },
+    "/withdrawals/{id}": {
+      "get": {
+        "description": "Requires scope: withdrawals:read.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Withdrawal"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Missing, unknown, revoked or expired key"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Key lacks the required scope, or a limit was hit"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Rate limited"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Get a withdrawal",
+        "x-required-scope": "withdrawals:read"
       }
     }
   },

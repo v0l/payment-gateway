@@ -245,7 +245,7 @@ Subscription events (`data.subscription` is always present, `data.payment` is nu
 - OpenAPI 3.1 at `GET /v1/openapi.json` (no auth), rendered at `/docs`. Versioning rule and history in `docs/CHANGELOG.md`: `/v1` only changes additively.
 - Errors: `{"error": "message", "error_detail": {"code": "invalid_request", "message": "...", "field": "limit"}}`. `error` stays a string for existing clients.
 - Lists return bare arrays. Pass `limit` (1 to 100, default 50) and `cursor`; when more rows exist the response carries `X-Next-Cursor`. Lists: `/v1/payments` (filters `status`, `reference`, `customer_ref`, `created_from`, `created_to`), `/v1/refunds`, `/v1/events`, `/v1/saved-methods`, `/v1/methods`.
-- API keys are created in the console (API keys tab) with a name, scopes (`payments:read`, `payments:write`, `refunds:write`, `saved:write`, `admin`) and optional expiry. The secret is shown once and stored as a hash. Keys are `pgw_test_...` for projects under test limits and `pgw_live_...` for trusted ones. A key without the needed scope gets 403 `insufficient_scope`. Expired and revoked keys get 401. The original project key is the `default` key with every scope.
+- API keys are created in the console (API keys tab) with a name, scopes (`payments:read`, `payments:write`, `refunds:write`, `saved:write`, `withdrawals:read`, `withdrawals:write`, `admin`) and optional expiry. The secret is shown once and stored as a hash. Keys are `pgw_test_...` for projects under test limits and `pgw_live_...` for trusted ones. A key without the needed scope gets 403 `insufficient_scope`. Expired and revoked keys get 401. The original project key is the `default` key with every scope.
 
 ## Other endpoints
 

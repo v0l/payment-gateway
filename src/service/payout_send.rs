@@ -14,12 +14,29 @@ enum Outcome {
 
 impl Service {
     pub async fn run_payouts(&self) -> Result<usize> {
-        let Some(node) = self.payouts.node() else {
-            return Ok(0);
-        };
+        let node = self.payouts.node();
         let handled = self.run_payouts_with(node).await;
         self.publish_payout_gauges().await;
         handled
+    }
+
+    async fn node_for(
+        &self,
+        w: &WithdrawalRow,
+        platform: &Option<Arc<dyn PayoutNode>>,
+    ) -> anyhow::Result<Option<Arc<dyn PayoutNode>>> {
+        let Some(config_id) = w.provider_config_id else {
+            return Ok(platform.clone());
+        };
+        let Some(factory) = self.payouts.tenant_nodes() else {
+            return Ok(None);
+        };
+        let row = db::get_provider_config(&self.pool, config_id)
+            .await?
+            .filter(|r| r.tenant_id == w.tenant_id)
+            .ok_or_else(|| anyhow!("wallet provider is gone"))?;
+        let config = self.registry.open_config(&row)?;
+        Ok(Some(factory.connect(&config).await?))
     }
 
     async fn publish_payout_gauges(&self) {
@@ -33,12 +50,16 @@ impl Service {
             .set("gateway_payout_oldest_sending_age_seconds", &[], age);
     }
 
-    async fn run_payouts_with(&self, node: Arc<dyn PayoutNode>) -> Result<usize> {
+    async fn run_payouts_with(&self, platform: Option<Arc<dyn PayoutNode>>) -> Result<usize> {
         let policy = self.payout_policy();
         let now = Utc::now();
         let mut handled = 0;
         let stale = db::stale_sending(&self.pool, now - policy.sending_lease, 50).await?;
         for w in stale {
+            let node = match self.node_for(&w, &platform).await {
+                Ok(Some(n)) => n,
+                _ => continue,
+            };
             if !db::reclaim_stale(&self.pool, w.id, now - policy.sending_lease, now).await? {
                 continue;
             }
@@ -51,6 +72,23 @@ impl Service {
             handled += 1;
         }
         for w in db::due_withdrawals(&self.pool, now - policy.retry_delay, 50).await? {
+            let node = match self.node_for(&w, &platform).await {
+                Ok(Some(n)) => n,
+                Ok(None) => continue,
+                Err(e) => {
+                    if !db::claim_withdrawal(&self.pool, w.id, Utc::now()).await? {
+                        continue;
+                    }
+                    let w = WithdrawalRow {
+                        attempts: w.attempts + 1,
+                        ..w
+                    };
+                    self.apply_outcome(&w, Outcome::Retry(format!("{e:#}")))
+                        .await?;
+                    handled += 1;
+                    continue;
+                }
+            };
             if !db::claim_withdrawal(&self.pool, w.id, Utc::now()).await? {
                 continue;
             }
@@ -253,6 +291,24 @@ impl Service {
             return Err(Error::Conflict(format!("withdrawal is {}", w.status)));
         }
         let fee = fee.min(w.max_fee);
+        if w.provider_config_id.is_some() {
+            db::finish_withdrawal(
+                &mut *tx,
+                id,
+                "completed",
+                Some(fee),
+                Some(external_id),
+                None,
+                Utc::now(),
+            )
+            .await?;
+            self.emit_withdrawal(&mut tx, tenant, "withdrawal.completed", id)
+                .await?;
+            self.emit_withdrawal(&mut tx, tenant, "withdrawal.paid", id)
+                .await?;
+            tx.commit().await?;
+            return Ok(());
+        }
         let reserve = (w.amount + w.max_fee) as i64;
         let mut entries = vec![
             Entry::new(
@@ -289,6 +345,8 @@ impl Service {
         }
         if w.purpose == "payout" {
             self.emit_withdrawal(&mut tx, tenant, "withdrawal.completed", id)
+                .await?;
+            self.emit_withdrawal(&mut tx, tenant, "withdrawal.paid", id)
                 .await?;
         }
         tx.commit().await?;

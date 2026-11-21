@@ -108,6 +108,11 @@ class Conformance(unittest.TestCase):
         self.assertEqual(refund["status"], "completed")
         self.assertEqual([p["id"] for p in gw.list_payments(reference=reference, limit=1)], [created["id"]])
 
+        with self.assertRaises(GatewayError) as bad:
+            gw.create_withdrawal(amount=5000000, destination="not-an-invoice")
+        self.assertEqual(bad.exception.status, 400)
+        self.assertEqual(list(gw.list_withdrawals()), [])
+
 
 if __name__ == "__main__":
     unittest.main()

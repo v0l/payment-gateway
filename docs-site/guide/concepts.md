@@ -34,4 +34,4 @@ A paid payment has a public receipt at `/receipt/{payment_id}`, linked from the 
 
 ## Scopes
 
-API keys carry scopes: `payments:write`, `payments:read`, `refunds:write`, `saved:write` and `admin`. A call without the needed scope returns 403 `insufficient_scope`.
+API keys carry scopes: `payments:write`, `payments:read`, `refunds:write`, `saved:write`, `withdrawals:read`, `withdrawals:write` and `admin`. A call without the needed scope returns 403 `insufficient_scope`.

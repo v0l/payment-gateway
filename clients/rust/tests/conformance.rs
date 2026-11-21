@@ -171,4 +171,15 @@ async fn conformance() {
         .unwrap();
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].id, created.id);
+
+    let rejected = gw
+        .create_withdrawal(&CreateWithdrawal {
+            amount: 5_000_000,
+            destination: Some("not-an-invoice".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap_err();
+    assert!(matches!(rejected, Error::Api { status: 400, .. }));
+    assert!(gw.list_withdrawals().collect().await.unwrap().is_empty());
 }
