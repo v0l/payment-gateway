@@ -658,6 +658,10 @@ fn have(bin: &str) -> bool {
 #[tokio::test]
 async fn restore_drill_backs_up_restores_into_a_scratch_database_and_passes_integrity() {
     if !(have("mariadb-dump") || have("mysqldump")) || !(have("mariadb") || have("mysql")) {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "restore drill needs mysql client tools in CI"
+        );
         eprintln!("skipping restore drill: no mysql client tools");
         return;
     }
