@@ -7,13 +7,18 @@ DB_PORT="${DB_PORT:-3306}"
 DB_USER="${DB_USER:-root}"
 export MYSQL_PWD="${DB_PASSWORD:-${MYSQL_PWD:-}}"
 
-dump_bin="$(command -v mariadb-dump || command -v mysqldump || true)"
+dump_bin="${DUMP_BIN:-$(command -v mariadb-dump || command -v mysqldump || true)}"
 [ -n "$dump_bin" ] || { echo "mariadb-dump or mysqldump not found" >&2; exit 1; }
+dump_extra=()
+dump_help="$("$dump_bin" --help 2>/dev/null || true)"
+if [[ "$dump_help" == *--column-statistics* ]]; then
+    dump_extra+=(--column-statistics=0)
+fi
 
 dump() {
     "$dump_bin" --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" \
         --single-transaction --quick --routines --triggers --hex-blob \
-        --default-character-set=utf8mb4 --databases "$DB_NAME"
+        --default-character-set=utf8mb4 "${dump_extra[@]}" --databases "$DB_NAME"
 }
 
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
