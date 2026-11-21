@@ -49,7 +49,7 @@ const CHECKS: &[(&str, &str)] = &[
     ),
     (
         "pending_payout_differs_from_open_withdrawals",
-        "select count(*) from (select a.tenant_id, a.balance, cast(coalesce((select sum(w.amount + w.max_fee) from withdrawal w where w.tenant_id = a.tenant_id and w.status in ('requested', 'approved', 'sending')), 0) as signed) as reserved from ledger_account a where a.kind = 'pending_payout' and a.tenant_id is not null) x where x.balance <> x.reserved",
+        "select count(*) from (select a.tenant_id, a.balance, cast(coalesce((select sum(w.amount + w.max_fee) from withdrawal w where w.tenant_id = a.tenant_id and w.provider_config_id is null and w.status in ('requested', 'approved', 'sending')), 0) as signed) as reserved from ledger_account a where a.kind = 'pending_payout' and a.tenant_id is not null) x where x.balance <> x.reserved",
     ),
     (
         "payment_without_tenant",

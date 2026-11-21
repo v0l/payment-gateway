@@ -1,4 +1,4 @@
-use super::{OnchainState, PaymentState, PayoutNode};
+use super::{OnchainState, PaymentState, PayoutNode, TenantNodes};
 use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use fedimint_tonic_lnd::Client;
@@ -29,6 +29,24 @@ impl LndPayoutNode {
             sat_per_vbyte,
             timeout_seconds: 60,
         })
+    }
+}
+
+pub struct LndTenantNodes {
+    pub sat_per_vbyte: u64,
+}
+
+#[async_trait]
+impl TenantNodes for LndTenantNodes {
+    async fn connect(&self, config: &serde_json::Value) -> Result<std::sync::Arc<dyn PayoutNode>> {
+        let url = config
+            .get("url")
+            .and_then(serde_json::Value::as_str)
+            .context("lnd config needs url")?;
+        let creds = crate::providers::creds::lnd_creds(config)?;
+        let node =
+            LndPayoutNode::connect(url, &creds.cert, &creds.macaroon, self.sat_per_vbyte).await?;
+        Ok(std::sync::Arc::new(node))
     }
 }
 

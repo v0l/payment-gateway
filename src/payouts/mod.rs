@@ -5,7 +5,7 @@ mod policy;
 mod view;
 
 pub use destination::{Destination, DestinationKind, mask, normalize, signed_by_address};
-pub use lnd::LndPayoutNode;
+pub use lnd::{LndPayoutNode, LndTenantNodes};
 pub use lnurl::check_invoice_amount;
 pub use lnurl::resolve_invoice;
 pub use policy::PayoutPolicy;
@@ -38,6 +38,11 @@ pub trait PayoutNode: Send + Sync {
     async fn onchain_state(&self, label: &str) -> Result<OnchainState>;
 }
 
+#[async_trait]
+pub trait TenantNodes: Send + Sync {
+    async fn connect(&self, config: &serde_json::Value) -> Result<std::sync::Arc<dyn PayoutNode>>;
+}
+
 pub fn onchain_label(withdrawal_id: u64) -> String {
     format!("pgw-withdrawal-{withdrawal_id}")
 }
@@ -45,6 +50,7 @@ pub fn onchain_label(withdrawal_id: u64) -> String {
 pub struct Runtime {
     node: std::sync::RwLock<Option<std::sync::Arc<dyn PayoutNode>>>,
     policy: std::sync::RwLock<PayoutPolicy>,
+    tenant_nodes: std::sync::RwLock<Option<std::sync::Arc<dyn TenantNodes>>>,
 }
 
 impl Default for Runtime {
@@ -52,6 +58,7 @@ impl Default for Runtime {
         Self {
             node: Default::default(),
             policy: std::sync::RwLock::new(PayoutPolicy::default()),
+            tenant_nodes: Default::default(),
         }
     }
 }
@@ -63,6 +70,14 @@ impl Runtime {
 
     pub fn set_node(&self, node: Option<std::sync::Arc<dyn PayoutNode>>) {
         *self.node.write().unwrap() = node;
+    }
+
+    pub fn tenant_nodes(&self) -> Option<std::sync::Arc<dyn TenantNodes>> {
+        self.tenant_nodes.read().unwrap().clone()
+    }
+
+    pub fn set_tenant_nodes(&self, nodes: Option<std::sync::Arc<dyn TenantNodes>>) {
+        *self.tenant_nodes.write().unwrap() = nodes;
     }
 
     pub fn policy(&self) -> PayoutPolicy {

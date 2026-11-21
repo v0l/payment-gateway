@@ -6,6 +6,8 @@ The API is versioned by path prefix. Inside `/v1` changes are additive only: new
 
 ## v1 (current)
 
+- Tenant withdrawals: `POST /v1/withdrawals` (required `Idempotency-Key`), `GET /v1/withdrawals/{id}` and `GET /v1/withdrawals`, new scopes `withdrawals:write` and `withdrawals:read`, and the event `withdrawal.paid` (sent together with `withdrawal.completed`). `provider_id` pays from the project's own LND. The withdrawal view gains `idempotency_key` and `provider_id`. Purely additive.
+
 - Platform billing events `platform.invoice.created`, `platform.invoice.paid`, `platform.invoice.past_due` and `platform.invoice.waived`, carrying `data.invoice` and a null payment. Additive; endpoint filters such as `platform.*` work.
 - Landing page at `/`, documentation at `/guide/`, operator guide at `/operator/` and draft legal templates at `/legal/`, all static and served from the binary. No API change.
 - Recurring billing: `/v1/plans` and `/v1/subscriptions` (create, list, get, pause, resume, cancel, change plan with optional proration) and the events `subscription.created`, `invoice.paid`, `invoice.failed`, `invoice.payment_required`, `subscription.past_due`, `subscription.cancelled`, `subscription.paused`, `subscription.resumed`, `subscription.updated`. Subscription events carry `data.subscription` and a null `data.payment` when there is no payment. Purely additive.

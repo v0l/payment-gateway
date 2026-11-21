@@ -415,7 +415,11 @@ async fn worker_sends_approved_lightning_withdrawal_once_and_posts_to_wallet() {
     h.service.deliver_due().await.unwrap();
     assert_eq!(
         t.receiver.types(),
-        vec!["withdrawal.requested", "withdrawal.completed"]
+        vec![
+            "withdrawal.requested",
+            "withdrawal.completed",
+            "withdrawal.paid"
+        ]
     );
     let body = &t.receiver.events()[1];
     assert_eq!(body["data"]["withdrawal"]["status"], "completed");

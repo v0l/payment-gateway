@@ -2105,6 +2105,254 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/withdrawals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List withdrawals
+         * @description Requires scope: withdrawals:read.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    cursor?: string;
+                    status?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        /** @description Pass as cursor to fetch the next page. Absent on the last page. */
+                        "X-Next-Cursor"?: string;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Withdrawal"][];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Missing, unknown, revoked or expired key */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Key lacks the required scope, or a limit was hit */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create a withdrawal (payout)
+         * @description Requires scope: withdrawals:write.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateWithdrawal"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Withdrawal"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Missing, unknown, revoked or expired key */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Key lacks the required scope, or a limit was hit */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/withdrawals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a withdrawal
+         * @description Requires scope: withdrawals:read.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Withdrawal"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Missing, unknown, revoked or expired key */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Key lacks the required scope, or a limit was hit */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2183,6 +2431,21 @@ export interface components {
             /** @description Omit to get a first payment (payment_id, pay_url) that saves the card and activates the subscription when it settles. */
             saved_method_id?: number;
         };
+        /** @description Send the Idempotency-Key header (required). With provider_id the payout is paid from that project LND wallet to destination (bolt11 invoice, lightning address, lnurl or on-chain address) and does not touch the custody balance. Without it the payout is paid from the custody balance under the payout limits and approval rules, and destination must be a bolt11 invoice (or send destination_id of a verified saved destination). */
+        CreateWithdrawal: {
+            /** @description Msats, a whole number of sats. */
+            amount: number;
+            /**
+             * @default BTC
+             * @enum {string}
+             */
+            currency: "BTC";
+            destination?: string;
+            /** @description Custody only: a verified saved destination. */
+            destination_id?: number;
+            /** @description One of the project's own LND providers, from GET /methods. */
+            provider_id?: number;
+        };
         /** @description Exactly one of amount or percent. */
         DiscountInput: {
             /** @description Minor units */
@@ -2204,7 +2467,7 @@ export interface components {
          * @description Webhook and /v1/events types. Endpoint filters accept these, a prefix wildcard such as withdrawal.*, or *. withdrawal.* events carry data.withdrawal instead of data.payment.
          * @enum {string}
          */
-        EventType: "payment.paid" | "payment.expired" | "payment.cancelled" | "payment.late_payment" | "attempt.failed" | "refund.completed" | "refund.failed" | "payment.disputed" | "payment.dispute_closed" | "withdrawal.requested" | "withdrawal.completed" | "withdrawal.failed";
+        EventType: "payment.paid" | "payment.expired" | "payment.cancelled" | "payment.late_payment" | "attempt.failed" | "refund.completed" | "refund.failed" | "payment.disputed" | "payment.dispute_closed" | "withdrawal.requested" | "withdrawal.completed" | "withdrawal.failed" | "withdrawal.paid";
         LineItem: {
             /** @description quantity times unit_amount */
             amount?: number;
@@ -2289,6 +2552,26 @@ export interface components {
             /** @description Minor units. Omit for the full remaining amount. */
             amount?: number;
             destination?: string;
+        };
+        /** @description Withdrawal view, also the webhook data.withdrawal object. */
+        Withdrawal: {
+            amount?: number;
+            created?: string;
+            currency?: string;
+            destination_kind?: string;
+            /** @description Masked destination. */
+            destination_label?: string;
+            error?: string | null;
+            /** @description Payment hash or txid once paid. */
+            external_id?: string | null;
+            fee?: number | null;
+            finished_at?: string | null;
+            id?: number;
+            idempotency_key?: string | null;
+            max_fee?: number;
+            provider_id?: number | null;
+            /** @enum {string} */
+            status?: "requested" | "approved" | "sending" | "completed" | "failed" | "rejected" | "cancelled";
         };
     };
     responses: never;

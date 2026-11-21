@@ -25,6 +25,29 @@ export interface Refund {
   payment_id?: string;
 }
 
+export interface CreateWithdrawalInput {
+  amount: number;
+  currency?: string;
+  destination?: string;
+  destination_id?: number;
+  provider_id?: number;
+}
+
+export interface Withdrawal {
+  id: number;
+  amount: number;
+  currency: string;
+  status: string;
+  fee: number | null;
+  external_id: string | null;
+  error: string | null;
+  destination_kind: string;
+  destination_label: string;
+  idempotency_key: string | null;
+  provider_id: number | null;
+  [key: string]: unknown;
+}
+
 export interface Payment {
   id: string;
   reference: string;
@@ -281,6 +304,19 @@ export class Gateway {
 
   listPayments(params: ListPaymentsParams = {}): AsyncGenerator<Payment, void, undefined> {
     return this.iterate("/v1/payments", { ...params });
+  }
+
+  async createWithdrawal(input: CreateWithdrawalInput, options: RequestOptions = {}): Promise<Withdrawal> {
+    const key = options.idempotencyKey ?? newIdempotencyKey();
+    return (await this.send("POST", "/v1/withdrawals", input, { ...options, idempotencyKey: key })).json;
+  }
+
+  async getWithdrawal(id: number): Promise<Withdrawal> {
+    return (await this.send("GET", `/v1/withdrawals/${id}`, undefined)).json;
+  }
+
+  listWithdrawals(params: { status?: string; limit?: number } = {}): AsyncGenerator<Withdrawal, void, undefined> {
+    return this.iterate("/v1/withdrawals", { ...params });
   }
 
   listRefunds(params: { payment_id?: string; status?: string; limit?: number } = {}): AsyncGenerator<Refund, void, undefined> {

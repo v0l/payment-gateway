@@ -186,6 +186,11 @@ async fn serve() -> Result<()> {
     service
         .treasury
         .set_tolerance_msat(config.solvency_tolerance_sats * 1000);
+    service
+        .payouts
+        .set_tenant_nodes(Some(Arc::new(payment_gateway::payouts::LndTenantNodes {
+            sat_per_vbyte,
+        })));
     if let Some(lnd) = &config.payout_lnd {
         let node = payment_gateway::payouts::LndPayoutNode::connect(
             &lnd.url,

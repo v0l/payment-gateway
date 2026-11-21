@@ -150,6 +150,7 @@ pub(super) async fn request_withdrawal(
                 destination_id: i.destination_id,
                 invoice: i.invoice,
                 requested_by: Some(sess.account.id),
+                ..Default::default()
             },
         )
         .await?;

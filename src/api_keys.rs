@@ -4,9 +4,13 @@ pub const SCOPE_PAYMENTS_WRITE: &str = "payments:write";
 pub const SCOPE_PAYMENTS_READ: &str = "payments:read";
 pub const SCOPE_REFUNDS_WRITE: &str = "refunds:write";
 pub const SCOPE_SAVED_WRITE: &str = "saved:write";
+pub const SCOPE_WITHDRAWALS_WRITE: &str = "withdrawals:write";
+pub const SCOPE_WITHDRAWALS_READ: &str = "withdrawals:read";
 pub const SCOPE_ADMIN: &str = "admin";
 
-pub const SCOPES: [&str; 5] = [
+pub const SCOPES: [&str; 7] = [
+    SCOPE_WITHDRAWALS_WRITE,
+    SCOPE_WITHDRAWALS_READ,
     SCOPE_PAYMENTS_WRITE,
     SCOPE_PAYMENTS_READ,
     SCOPE_REFUNDS_WRITE,

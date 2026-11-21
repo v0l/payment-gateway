@@ -72,6 +72,15 @@ pub fn router() -> Router<AppState> {
         .route("/payments/{id}/cancel", post(cancel_payment))
         .route("/payments/{id}/refund", post(refund_payment))
         .route("/refunds", get(list_refunds))
+        .route(
+            "/withdrawals",
+            post(super::tenant_withdrawals::create_withdrawal)
+                .get(super::tenant_withdrawals::list_withdrawals),
+        )
+        .route(
+            "/withdrawals/{id}",
+            get(super::tenant_withdrawals::get_withdrawal),
+        )
         .route("/events", get(list_events))
         .route("/saved-methods", get(list_saved))
         .route("/saved-methods/{id}", delete(delete_saved))

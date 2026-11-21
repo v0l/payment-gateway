@@ -99,6 +99,33 @@ const OPS: &[Op] = &[
         params: &["payment_id", "status"],
     },
     Op {
+        method: "post",
+        path: "/withdrawals",
+        summary: "Create a withdrawal (payout)",
+        scope: "withdrawals:write",
+        list: false,
+        body: Some("CreateWithdrawal"),
+        params: &[],
+    },
+    Op {
+        method: "get",
+        path: "/withdrawals",
+        summary: "List withdrawals",
+        scope: "withdrawals:read",
+        list: true,
+        body: None,
+        params: &["status"],
+    },
+    Op {
+        method: "get",
+        path: "/withdrawals/{id}",
+        summary: "Get a withdrawal",
+        scope: "withdrawals:read",
+        list: false,
+        body: None,
+        params: &[],
+    },
+    Op {
         method: "get",
         path: "/events",
         summary: "Pull the event feed, oldest first",
@@ -266,7 +293,10 @@ fn operation(op: &Op) -> Value {
         o.insert("requestBody".into(), json!({"required": true, "content": {"application/json": {"schema": {"$ref": format!("#/components/schemas/{schema}")}}}}));
     }
     let payment_op = op.path.starts_with("/payments") && !op.path.ends_with("/refund");
-    let item = if payment_op {
+    let withdrawal_op = op.path.starts_with("/withdrawals");
+    let item = if withdrawal_op {
+        json!({"$ref": "#/components/schemas/Withdrawal"})
+    } else if payment_op {
         json!({"$ref": "#/components/schemas/Payment"})
     } else if op.path == "/methods" {
         json!({"$ref": "#/components/schemas/Method"})
@@ -305,6 +335,7 @@ pub const EVENT_TYPES: &[&str] = &[
     "withdrawal.requested",
     "withdrawal.completed",
     "withdrawal.failed",
+    "withdrawal.paid",
 ];
 
 pub const PROVIDER_TYPES: &[&str] = &[
@@ -341,7 +372,7 @@ pub fn spec() -> Value {
         "paths": Value::Object(paths),
         "x-console": {"POST /console/api/projects/{id}/providers/{pid}/test": {"summary": "Test a provider's credentials without creating a payment", "auth": "console session, project admin", "response": {"$ref": "#/components/schemas/ProviderTestResult"}}},
         "components": {
-            "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "description": "Project API key. Keys carry scopes: payments:write, payments:read, refunds:write, saved:write, admin."}},
+            "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "description": "Project API key. Keys carry scopes: payments:write, payments:read, refunds:write, saved:write, withdrawals:read, withdrawals:write, admin."}},
             "schemas": {
                 "Error": {
                     "type": "object",
@@ -442,6 +473,25 @@ pub fn spec() -> Value {
                 }},
                 "CancelSubscription": {"type": "object", "properties": {"at_period_end": {"type": "boolean", "default": false}}},
                 "ChangePlan": {"type": "object", "required": ["plan_id"], "properties": {"plan_id": {"type": "integer"}, "proration": {"type": "string", "enum": ["none", "prorate"], "default": "none"}}},
+                "CreateWithdrawal": {"type": "object", "required": ["amount"], "description": "Send the Idempotency-Key header (required). With provider_id the payout is paid from that project LND wallet to destination (bolt11 invoice, lightning address, lnurl or on-chain address) and does not touch the custody balance. Without it the payout is paid from the custody balance under the payout limits and approval rules, and destination must be a bolt11 invoice (or send destination_id of a verified saved destination).", "properties": {
+                    "amount": {"type": "integer", "description": "Msats, a whole number of sats."},
+                    "currency": {"type": "string", "enum": ["BTC"], "default": "BTC"},
+                    "destination": {"type": "string"},
+                    "destination_id": {"type": "integer", "description": "Custody only: a verified saved destination."},
+                    "provider_id": {"type": "integer", "description": "One of the project's own LND providers, from GET /methods."}
+                }},
+                "Withdrawal": {"type": "object", "description": "Withdrawal view, also the webhook data.withdrawal object.", "properties": {
+                    "id": {"type": "integer"},
+                    "amount": {"type": "integer"}, "currency": {"type": "string"},
+                    "status": {"type": "string", "enum": ["requested", "approved", "sending", "completed", "failed", "rejected", "cancelled"]},
+                    "destination_kind": {"type": "string"}, "destination_label": {"type": "string", "description": "Masked destination."},
+                    "fee": {"type": ["integer", "null"]}, "max_fee": {"type": "integer"},
+                    "external_id": {"type": ["string", "null"], "description": "Payment hash or txid once paid."},
+                    "error": {"type": ["string", "null"]},
+                    "idempotency_key": {"type": ["string", "null"]},
+                    "provider_id": {"type": ["integer", "null"]},
+                    "created": {"type": "string"}, "finished_at": {"type": ["string", "null"]}
+                }},
                 "RefundInput": {"type": "object", "properties": {"amount": {"type": "integer", "description": "Minor units. Omit for the full remaining amount."}, "destination": {"type": "string"}}}
             }
         }

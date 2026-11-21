@@ -157,6 +157,16 @@ class Gateway:
     def list_payments(self, **params) -> Iterator[dict]:
         return self._iterate("/v1/payments", params)
 
+    def create_withdrawal(self, idempotency_key: Optional[str] = None, **fields) -> dict:
+        key = idempotency_key or new_idempotency_key()
+        return self._send("POST", "/v1/withdrawals", fields, key)[0]
+
+    def get_withdrawal(self, withdrawal_id: int) -> dict:
+        return self._send("GET", f"/v1/withdrawals/{int(withdrawal_id)}")[0]
+
+    def list_withdrawals(self, **params) -> Iterator[dict]:
+        return self._iterate("/v1/withdrawals", params)
+
     def list_refunds(self, **params) -> Iterator[dict]:
         return self._iterate("/v1/refunds", params)
 
