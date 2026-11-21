@@ -18,6 +18,7 @@ const MIN_NODE_FUNDS: u64 = 2_000_000;
 const NODE_FUNDING: u64 = 10_000_000;
 const CHANNEL_SATS: u64 = 5_000_000;
 const CHANNEL_PUSH_SATS: u64 = 1_000_000;
+const ROUTE_PROBE_SATS: u64 = 100_000;
 const MAX_HOOKS: usize = 50;
 
 #[async_trait]
@@ -56,6 +57,7 @@ pub trait LnNode: Send + Sync {
     async fn connect(&self, pubkey: &str, host: &str) -> Result<()>;
     async fn open_channel(&self, pubkey: &str, sats: u64, push_sats: u64) -> Result<()>;
     async fn channels(&self) -> Result<Vec<ChannelInfo>>;
+    async fn can_route(&self, pubkey: &str, sats: u64) -> Result<bool>;
     async fn pay_invoice(&self, bolt11: &str) -> Result<String>;
     async fn send_coins(&self, address: &str, sats: u64) -> Result<String>;
 }
@@ -369,6 +371,13 @@ impl Sandbox {
         })
         .await?;
         log.push("channel active".to_string());
+        self.wait("a payable route to the gateway", || async {
+            self.customer
+                .can_route(&gateway_key, ROUTE_PROBE_SATS)
+                .await
+        })
+        .await?;
+        log.push("route to gateway ready".to_string());
 
         let created = self.ensure_tenant().await?;
         match created {

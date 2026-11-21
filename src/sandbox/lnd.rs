@@ -166,6 +166,21 @@ impl LnNode for LndRpc {
         .await
     }
 
+    async fn can_route(&self, pubkey: &str, sats: u64) -> Result<bool> {
+        let pub_key = pubkey.to_string();
+        let mut c = self.client().await?;
+        let found = c
+            .lightning()
+            .query_routes(lnrpc::QueryRoutesRequest {
+                pub_key,
+                amt: sats as i64,
+                ..Default::default()
+            })
+            .await
+            .is_ok_and(|r| !r.into_inner().routes.is_empty());
+        Ok(found)
+    }
+
     async fn pay_invoice(&self, bolt11: &str) -> Result<String> {
         let invoice = bolt11.trim().trim_start_matches("lightning:").to_string();
         let node = self.node().await?;
