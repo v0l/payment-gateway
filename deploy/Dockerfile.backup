@@ -1,5 +1,10 @@
+ARG GATEWAY_IMAGE=registry.v0l.io/payment-gateway:prod
+FROM ${GATEWAY_IMAGE} AS gateway
+
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends mariadb-client restic gzip ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+COPY --from=gateway /usr/local/bin/payment-gateway /usr/local/bin/payment-gateway
 COPY scripts /opt/pgw/scripts
+ENV GATEWAY_BIN=/usr/local/bin/payment-gateway
 USER 10001

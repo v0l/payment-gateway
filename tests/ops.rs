@@ -778,6 +778,92 @@ async fn restore_drill_backs_up_restores_into_a_scratch_database_and_passes_inte
         .unwrap();
 }
 
+#[tokio::test]
+async fn restore_drill_requiring_integrity_fails_without_binary_or_with_wrong_key_and_prints_counts()
+ {
+    if !(have("mariadb-dump") || have("mysqldump")) || !(have("mariadb") || have("mysql")) {
+        assert!(std::env::var_os("CI").is_none());
+        return;
+    }
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    seed_payments(&h, &t, ln).await;
+    seed_secrets(&h, &sealer(&[("k1", 1)]), 1).await;
+
+    let base = std::env::var("TEST_DATABASE_URL").unwrap();
+    let (host, port, user, pass) = db_parts(&base);
+    let source_db: String = sqlx::query_scalar("select database()")
+        .fetch_one(&h.pool)
+        .await
+        .unwrap();
+    let dir = std::env::temp_dir().join(unique("pgwbackup"));
+    let root = env!("CARGO_MANIFEST_DIR");
+    let out = std::process::Command::new(format!("{root}/scripts/backup.sh"))
+        .env("DB_NAME", &source_db)
+        .env("DB_HOST", &host)
+        .env("DB_PORT", &port)
+        .env("DB_USER", &user)
+        .env("DB_PASSWORD", &pass)
+        .env("BACKUP_DIR", &dir)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let dump = String::from_utf8(out.stdout).unwrap().trim().to_string();
+
+    let scratch = unique("restore_");
+    let run = |bin: bool, key_seed: Option<u8>| {
+        let mut c = std::process::Command::new(format!("{root}/scripts/restore.sh"));
+        c.arg(&dump)
+            .arg(&scratch)
+            .env("DB_HOST", &host)
+            .env("DB_PORT", &port)
+            .env("DB_USER", &user)
+            .env("DB_PASSWORD", &pass)
+            .env("RESTORE_OVERWRITE", "1")
+            .env("RESTORE_REQUIRE_INTEGRITY", "1");
+        if bin {
+            c.env("GATEWAY_BIN", env!("CARGO_BIN_EXE_payment-gateway"));
+        }
+        if let Some(s) = key_seed {
+            c.env(
+                "GATEWAY_ENCRYPTION_KEYS",
+                format!("k1:{}", hex::encode(key(s))),
+            );
+        }
+        c.output().unwrap()
+    };
+
+    let no_bin = run(false, Some(1));
+    assert!(!no_bin.status.success());
+    assert!(String::from_utf8_lossy(&no_bin.stderr).contains("GATEWAY_BIN"));
+
+    let no_key = run(true, None);
+    assert!(!no_key.status.success());
+    assert!(String::from_utf8_lossy(&no_key.stderr).contains("encryption key"));
+
+    let wrong_key = run(true, Some(2));
+    assert!(!wrong_key.status.success());
+    assert!(String::from_utf8_lossy(&wrong_key.stdout).contains("tenant: "));
+
+    let ok = run(true, Some(1));
+    let stdout = String::from_utf8_lossy(&ok.stdout);
+    assert!(
+        ok.status.success(),
+        "{stdout}{}",
+        String::from_utf8_lossy(&ok.stderr)
+    );
+    assert!(stdout.contains("tenant: "), "{stdout}");
+    assert!(stdout.contains("unreadable sealed values: 0"), "{stdout}");
+    assert!(stdout.contains("migrations: "), "{stdout}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+    sqlx::query(&format!("drop database {scratch}"))
+        .execute(&h.pool)
+        .await
+        .unwrap();
+}
+
 async fn audit_rows(pool: &MySqlPool, action: &str) -> Vec<(String, Option<u64>, Option<String>)> {
     sqlx::query_as(
         "select actor_kind, tenant_id, details from audit_event where action = ? order by id",

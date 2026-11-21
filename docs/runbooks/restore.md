@@ -23,7 +23,7 @@ GATEWAY_BIN=payment-gateway GATEWAY_ENCRYPTION_KEYS=... \
 scripts/restore.sh /backups/gateway-<stamp>.sql.gz gateway_drill
 ```
 
-For restic use `restic:latest` and set `DB_SOURCE_NAME=gateway`. With `GATEWAY_BIN` set, the script runs `payment-gateway check-integrity` on the result. It checks that paid payments have a paid attempt, refunds do not exceed the paid amount, nothing is orphaned, and every sealed value opens with the configured keys. Drop the scratch database afterwards. The automated version of this drill is `restore_drill_*` in `tests/ops.rs`.
+For restic use `restic:latest` and set `DB_SOURCE_NAME=gateway`. With `GATEWAY_BIN` set, the script runs `payment-gateway check-integrity` on the result. With `RESTORE_REQUIRE_INTEGRITY=1` (set in the prod drill Job) it refuses to run without `GATEWAY_BIN` and an encryption key, prints table and migration counts, and exits non-zero on any finding or unreadable sealed value. It checks that paid payments have a paid attempt, refunds do not exceed the paid amount, nothing is orphaned, and every sealed value opens with the configured keys. Drop the scratch database afterwards. The automated version of this drill is `restore_drill_*` in `tests/ops.rs`.
 
 ## Disaster recovery
 
