@@ -133,6 +133,24 @@ async fn charges(f: &Fixture) -> usize {
 }
 
 #[tokio::test]
+async fn billing_run_metrics_move_after_a_run() {
+    let f = fixture((2030, 1, 31)).await;
+    let m = &f.h.service.metrics;
+    let p = plan(&f, monthly(1500)).await;
+    subscribe(&f, p, Some(f.saved)).await;
+    f.clock.advance_days(29);
+    let runs = m.counter("gateway_billing_runs_total", &[]);
+    let charged = m.counter("gateway_billing_charges_total", &[("outcome", "charged")]);
+    f.h.service.bill_due().await.unwrap();
+    assert_eq!(m.counter("gateway_billing_runs_total", &[]), runs + 1);
+    assert_eq!(
+        m.counter("gateway_billing_charges_total", &[("outcome", "charged")]),
+        charged + 1
+    );
+    assert!(m.counter("gateway_billing_charges_total", &[("outcome", "created")]) >= 1);
+}
+
+#[tokio::test]
 async fn saved_method_subscription_is_charged_at_once_and_each_period() {
     let f = fixture((2030, 1, 31)).await;
     let p = plan(&f, monthly(1500)).await;
