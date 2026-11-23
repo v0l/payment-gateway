@@ -1,7 +1,7 @@
 use crate::types::*;
 use reqwest::{Method, StatusCode};
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -286,6 +286,14 @@ impl Gateway {
             None,
         )
         .await
+    }
+
+    pub async fn import_saved_method(
+        &self,
+        input: &ImportSavedMethod,
+    ) -> Result<SavedMethod, Error> {
+        self.call(Method::POST, "/v1/saved-methods", Some(input), None)
+            .await
     }
 
     pub async fn delete_saved_method(&self, id: u64) -> Result<(), Error> {

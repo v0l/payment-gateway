@@ -298,6 +298,52 @@
         ],
         "type": "string"
       },
+      "ImportSavedMethod": {
+        "description": "Registers a card that already exists at the provider. Idempotent on provider_id and external_id: repeating the call returns the same saved method. The external ids are never returned.",
+        "properties": {
+          "brand": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "customer_ref": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "exp_month": {
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "exp_year": {
+            "type": "integer"
+          },
+          "external_customer_id": {
+            "description": "The provider's customer id",
+            "maxLength": 255,
+            "type": "string"
+          },
+          "external_id": {
+            "description": "The provider's payment method id",
+            "maxLength": 255,
+            "type": "string"
+          },
+          "last4": {
+            "maxLength": 8,
+            "type": "string"
+          },
+          "provider_id": {
+            "description": "One of your enabled card providers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "customer_ref",
+          "provider_id",
+          "external_customer_id",
+          "external_id"
+        ],
+        "type": "object"
+      },
       "LineItem": {
         "properties": {
           "amount": {
@@ -548,6 +594,44 @@
           },
           "destination": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SavedMethod": {
+        "properties": {
+          "brand": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customer_ref": {
+            "type": "string"
+          },
+          "exp_month": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "exp_year": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer"
+          },
+          "last4": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider_id": {
+            "type": "integer"
           }
         },
         "type": "object"
@@ -2053,7 +2137,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "type": "object"
+                    "$ref": "#/components/schemas/SavedMethod"
                   },
                   "type": "array"
                 }
@@ -2127,6 +2211,89 @@
         ],
         "summary": "List saved payment methods",
         "x-required-scope": "saved:write or payments:read"
+      },
+      "post": {
+        "description": "Requires scope: saved:write.",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSavedMethod"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedMethod"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Missing, unknown, revoked or expired key"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Key lacks the required scope, or a limit was hit"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Rate limited"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Import an existing provider saved card",
+        "x-required-scope": "saved:write"
       }
     },
     "/saved-methods/{id}": {

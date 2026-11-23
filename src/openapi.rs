@@ -144,6 +144,15 @@ const OPS: &[Op] = &[
         params: &["customer_ref"],
     },
     Op {
+        method: "post",
+        path: "/saved-methods",
+        summary: "Import an existing provider saved card",
+        scope: "saved:write",
+        list: false,
+        body: Some("ImportSavedMethod"),
+        params: &[],
+    },
+    Op {
         method: "delete",
         path: "/saved-methods/{id}",
         summary: "Delete a saved payment method",
@@ -298,6 +307,8 @@ fn operation(op: &Op) -> Value {
         json!({"$ref": "#/components/schemas/Withdrawal"})
     } else if payment_op {
         json!({"$ref": "#/components/schemas/Payment"})
+    } else if op.path == "/saved-methods" {
+        json!({"$ref": "#/components/schemas/SavedMethod"})
     } else if op.path == "/methods" {
         json!({"$ref": "#/components/schemas/Method"})
     } else {
@@ -412,6 +423,21 @@ pub fn spec() -> Value {
                     "tax_rate": {"type": "number", "description": "Percent, 0 to 100, at most 2 decimals. Exclusive with tax_amount."},
                     "tax_amount": {"type": "integer", "description": "Minor units. Exclusive with tax_rate."},
                     "sku": {"type": "string", "maxLength": 64}
+                }},
+                "ImportSavedMethod": {"type": "object", "required": ["customer_ref", "provider_id", "external_customer_id", "external_id"], "description": "Registers a card that already exists at the provider. Idempotent on provider_id and external_id: repeating the call returns the same saved method. The external ids are never returned.", "properties": {
+                    "customer_ref": {"type": "string", "maxLength": 128},
+                    "provider_id": {"type": "integer", "description": "One of your enabled card providers"},
+                    "external_customer_id": {"type": "string", "maxLength": 255, "description": "The provider's customer id"},
+                    "external_id": {"type": "string", "maxLength": 255, "description": "The provider's payment method id"},
+                    "brand": {"type": "string", "maxLength": 32},
+                    "last4": {"type": "string", "maxLength": 8},
+                    "exp_month": {"type": "integer", "minimum": 1, "maximum": 12},
+                    "exp_year": {"type": "integer"}
+                }},
+                "SavedMethod": {"type": "object", "properties": {
+                    "id": {"type": "integer"}, "customer_ref": {"type": "string"}, "provider_id": {"type": "integer"},
+                    "brand": {"type": ["string", "null"]}, "last4": {"type": ["string", "null"]},
+                    "exp_month": {"type": ["integer", "null"]}, "exp_year": {"type": ["integer", "null"]}
                 }},
                 "DiscountInput": {"type": "object", "description": "Exactly one of amount or percent.", "properties": {
                     "amount": {"type": "integer", "description": "Minor units"},

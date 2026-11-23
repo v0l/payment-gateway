@@ -82,7 +82,7 @@ pub fn router() -> Router<AppState> {
             get(super::tenant_withdrawals::get_withdrawal),
         )
         .route("/events", get(list_events))
-        .route("/saved-methods", get(list_saved))
+        .route("/saved-methods", get(list_saved).post(import_saved))
         .route("/saved-methods/{id}", delete(delete_saved))
         .route("/saved-methods/{id}/charge", post(charge_saved))
         .route(
@@ -414,6 +414,27 @@ async fn list_saved(
     })
     .collect();
     Ok(Page::cut(rows, limit, |m| m.id.to_string()))
+}
+
+async fn import_saved(
+    auth: TenantAuth,
+    State(s): State<AppState>,
+    Json(input): Json<crate::service::ImportSaved>,
+) -> Result<(StatusCode, Json<SavedView>), ApiError> {
+    let t = auth.require(SCOPE_SAVED_WRITE)?;
+    let m = s.service.import_saved(&t, input).await?;
+    Ok((
+        StatusCode::OK,
+        Json(SavedView {
+            id: m.id,
+            customer_ref: m.customer_ref,
+            provider_id: m.provider_config_id,
+            brand: m.brand,
+            last4: m.last4,
+            exp_month: m.exp_month,
+            exp_year: m.exp_year,
+        }),
+    ))
 }
 
 async fn delete_saved(

@@ -52,6 +52,10 @@
 <h2 id="get-saved-methods">GET /saved-methods</h2>
 <p>List saved payment methods. Required scope: <code>saved:write or payments:read</code>.</p>
 <table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>limit</code></td><td>query</td><td>no</td></tr><tr><td><code>cursor</code></td><td>query</td><td>no</td></tr><tr><td><code>customer_ref</code></td><td>query</td><td>no</td></tr></tbody></table>
+<h2 id="post-saved-methods">POST /saved-methods</h2>
+<p>Import an existing provider saved card. Required scope: <code>saved:write</code>.</p>
+<p>Request body <code>ImportSavedMethod</code>:</p>
+<table><thead><tr><th scope="col">Field</th><th scope="col">Type</th></tr></thead><tbody><tr><td><code>brand</code></td><td>string</td></tr><tr><td><code>customer_ref</code></td><td>string</td></tr><tr><td><code>exp_month</code></td><td>integer</td></tr><tr><td><code>exp_year</code></td><td>integer</td></tr><tr><td><code>external_customer_id</code></td><td>string</td></tr><tr><td><code>external_id</code></td><td>string</td></tr><tr><td><code>last4</code></td><td>string</td></tr><tr><td><code>provider_id</code></td><td>integer</td></tr></tbody></table>
 <h2 id="delete-saved-methods-id">DELETE /saved-methods/{id}</h2>
 <p>Delete a saved payment method. Required scope: <code>saved:write</code>.</p>
 <table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>

@@ -181,6 +181,47 @@ async fn pager_follows_next_cursor() {
 }
 
 #[tokio::test]
+async fn import_saved_method_posts_the_card_and_decodes_the_view() {
+    let reply = r#"{"id":9,"customer_ref":"c","provider_id":3,"brand":"visa","last4":"4242","exp_month":12,"exp_year":2030}"#;
+    let (url, server) = scripted_server(vec![(200, "", reply)]).await;
+    let g = fast(Gateway::new(&url, "k"));
+    let saved = g
+        .import_saved_method(&ImportSavedMethod {
+            customer_ref: "c".into(),
+            provider_id: 3,
+            external_customer_id: "cus_1".into(),
+            external_id: "pm_1".into(),
+            brand: Some("visa".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!((saved.id, saved.provider_id), (9, 3));
+    assert_eq!(saved.last4.as_deref(), Some("4242"));
+    let seen = server.await.unwrap();
+    assert!(seen[0].starts_with("POST /v1/saved-methods "));
+    let body: Value = serde_json::from_str(seen[0].split("\r\n\r\n").nth(1).unwrap()).unwrap();
+    assert_eq!(
+        body,
+        serde_json::json!({"customer_ref": "c", "provider_id": 3, "external_customer_id": "cus_1", "external_id": "pm_1", "brand": "visa"})
+    );
+}
+
+#[tokio::test]
+async fn import_saved_method_surfaces_a_forbidden_scope() {
+    let body = r#"{"error":"x","error_detail":{"code":"insufficient_scope","message":"x"}}"#;
+    let (url, server) = scripted_server(vec![(403, "", body)]).await;
+    let g = fast(Gateway::new(&url, "k"));
+    let err = g
+        .import_saved_method(&ImportSavedMethod::default())
+        .await
+        .unwrap_err();
+    assert_eq!(err.status(), Some(403));
+    assert_eq!(err.code(), Some("insufficient_scope"));
+    assert_eq!(server.await.unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn line_items_are_serialised_as_the_api_schema_says() {
     let stored = r#"{"id":"p1","reference":"r","amount":1230,"currency":"EUR","status":"pending","pay_url":"u","line_items":[{"name":"Widget","quantity":2,"unit_amount":500}]}"#;
     let (url, server) = scripted_server(vec![(201, "", stored)]).await;

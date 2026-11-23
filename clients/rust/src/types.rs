@@ -86,6 +86,22 @@ impl LineItemInput {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ImportSavedMethod {
+    pub customer_ref: String,
+    pub provider_id: u64,
+    pub external_customer_id: String,
+    pub external_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last4: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp_month: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp_year: Option<u16>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct SavedMethod {
     pub id: u64,

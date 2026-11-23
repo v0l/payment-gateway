@@ -1270,7 +1270,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": Record<string, never>[];
+                        "application/json": components["schemas"]["SavedMethod"][];
                     };
                 };
                 /** @description Invalid request */
@@ -1321,7 +1321,79 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /**
+         * Import an existing provider saved card
+         * @description Requires scope: saved:write.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ImportSavedMethod"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SavedMethod"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Missing, unknown, revoked or expired key */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Key lacks the required scope, or a limit was hit */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -2468,6 +2540,20 @@ export interface components {
          * @enum {string}
          */
         EventType: "payment.paid" | "payment.expired" | "payment.cancelled" | "payment.late_payment" | "attempt.failed" | "refund.completed" | "refund.failed" | "payment.disputed" | "payment.dispute_closed" | "withdrawal.requested" | "withdrawal.completed" | "withdrawal.failed" | "withdrawal.paid";
+        /** @description Registers a card that already exists at the provider. Idempotent on provider_id and external_id: repeating the call returns the same saved method. The external ids are never returned. */
+        ImportSavedMethod: {
+            brand?: string;
+            customer_ref: string;
+            exp_month?: number;
+            exp_year?: number;
+            /** @description The provider's customer id */
+            external_customer_id: string;
+            /** @description The provider's payment method id */
+            external_id: string;
+            last4?: string;
+            /** @description One of your enabled card providers */
+            provider_id: number;
+        };
         LineItem: {
             /** @description quantity times unit_amount */
             amount?: number;
@@ -2552,6 +2638,15 @@ export interface components {
             /** @description Minor units. Omit for the full remaining amount. */
             amount?: number;
             destination?: string;
+        };
+        SavedMethod: {
+            brand?: string | null;
+            customer_ref?: string;
+            exp_month?: number | null;
+            exp_year?: number | null;
+            id?: number;
+            last4?: string | null;
+            provider_id?: number;
         };
         /** @description Withdrawal view, also the webhook data.withdrawal object. */
         Withdrawal: {
