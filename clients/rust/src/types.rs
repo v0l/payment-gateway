@@ -51,11 +51,39 @@ pub struct Payment {
     pub metadata: Value,
     pub pay_url: String,
     #[serde(default)]
+    pub line_items: Vec<Value>,
+    #[serde(default)]
     pub attempts: Vec<Attempt>,
     #[serde(default)]
     pub refunds: Vec<Refund>,
     #[serde(default)]
     pub methods: Vec<Value>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LineItemInput {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quantity: Option<u64>,
+    pub unit_amount: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tax_rate: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tax_amount: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sku: Option<String>,
+}
+
+impl LineItemInput {
+    pub fn new(name: &str, unit_amount: u64) -> Self {
+        Self {
+            name: name.to_string(),
+            unit_amount,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -81,6 +109,8 @@ pub struct CreatePayment {
     pub currency: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tax: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_items: Option<Vec<LineItemInput>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_in: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]

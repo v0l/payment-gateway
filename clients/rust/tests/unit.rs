@@ -179,3 +179,37 @@ async fn pager_follows_next_cursor() {
     let seen = server.await.unwrap();
     assert!(seen[1].starts_with("GET /v1/payments?cursor=c1"));
 }
+
+#[tokio::test]
+async fn line_items_are_serialised_as_the_api_schema_says() {
+    let stored = r#"{"id":"p1","reference":"r","amount":1230,"currency":"EUR","status":"pending","pay_url":"u","line_items":[{"name":"Widget","quantity":2,"unit_amount":500}]}"#;
+    let (url, server) = scripted_server(vec![(201, "", stored)]).await;
+    let g = fast(Gateway::new(&url, "k"));
+    let mut input = CreatePayment::new(0, "EUR");
+    input.line_items = Some(vec![
+        LineItemInput {
+            quantity: Some(2),
+            tax_rate: Some(23.0),
+            sku: Some("sku-1".into()),
+            description: Some("d".into()),
+            ..LineItemInput::new("Widget", 500)
+        },
+        LineItemInput {
+            tax_amount: Some(7),
+            ..LineItemInput::new("Plain", 100)
+        },
+    ]);
+    let created = g.create_payment(&input).await.unwrap();
+    assert_eq!(created.line_items[0]["name"], "Widget");
+    let seen = server.await.unwrap();
+    let body: Value = serde_json::from_str(seen[0].split("\r\n\r\n").nth(1).unwrap()).unwrap();
+    assert_eq!(
+        body["line_items"],
+        serde_json::json!([
+            {"name": "Widget", "description": "d", "quantity": 2, "unit_amount": 500, "tax_rate": 23.0, "sku": "sku-1"},
+            {"name": "Plain", "unit_amount": 100, "tax_amount": 7}
+        ])
+    );
+    let plain = serde_json::to_value(CreatePayment::new(1, "EUR")).unwrap();
+    assert!(plain.get("line_items").is_none());
+}
