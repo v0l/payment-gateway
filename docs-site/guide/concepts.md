@@ -16,7 +16,17 @@ A payment id is 32 random bytes in hex. The hosted pay page uses it as the capab
 
 An attempt is one way of paying a payment: a Lightning invoice, an on-chain address, a card checkout, a bank or PayPal checkout. A payment can have several attempts, for example when the customer changes their mind. The first attempt that settles in full marks the payment paid and the others are cancelled.
 
-The attempt response carries `details`: `bolt11` for Lightning, `address`, `amount_sats` and `uri` for on-chain, `checkout_url` for Stripe, Revolut and PayPal.
+The attempt response carries `details`, and `details` is the whole contract for an integrator that only uses the API. The hosted pay page is optional: you never need to send the customer to it.
+
+| Method | `details` fields | What your client does |
+| --- | --- | --- |
+| Lightning | `bolt11` | Show the invoice as text and a QR code |
+| On-chain | `address`, `amount_sats`, `uri` | Show the address and amount, or the BIP21 `uri` as a QR code |
+| Stripe | `session_id`, `checkout_url` | Redirect to `checkout_url`. Stripe sends the customer back to the `success_url` and `cancel_url` you passed when creating the attempt, with no gateway page in between |
+| Revolut | `widget` (`provider`, `token`, `mode`, `email`), `checkout_url` | Open Revolut's embedded card widget in your own page with `widget.token` and `widget.mode` (`prod` or `sandbox`). `checkout_url` is Revolut's hosted page, for clients that prefer a redirect. The widget is present on every card attempt, with or without `save_method` |
+| PayPal | `checkout_url` | Redirect to `checkout_url` |
+
+Fields are only ever added, never renamed or removed. Settlement still arrives by webhook or by reading the payment.
 
 ## Methods
 

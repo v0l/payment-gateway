@@ -2432,6 +2432,26 @@ export interface components {
         Attempt: {
             /** @description Charged amount in minor units (msats for BTC). */
             amount?: number;
+            /** @description Everything an API only integrator needs to collect this attempt; the hosted pay page is optional. lightning: bolt11. onchain: address, amount_sats, uri. stripe: session_id and checkout_url (Stripe Checkout, returns to the success_url and cancel_url you supplied). revolut: widget {provider, token, mode, email} to open Revolut's embedded card widget, and checkout_url for Revolut's hosted page. paypal: checkout_url. Fields are only ever added. */
+            details?: {
+                address?: string;
+                amount_sats?: number;
+                bolt11?: string;
+                checkout_url?: string;
+                /** @description Stripe Checkout session id. */
+                session_id?: string;
+                uri?: string;
+                /** @description Revolut embedded card widget. */
+                widget?: {
+                    email?: string | null;
+                    /** @enum {string} */
+                    mode?: "prod" | "sandbox";
+                    /** @enum {string} */
+                    provider?: "revolut";
+                    /** @description Public order token for the widget. */
+                    token?: string;
+                };
+            };
             id?: number;
             method?: string;
             /** @description Msats credited to the project balance, set when a platform managed attempt is paid. Never more than was received. */

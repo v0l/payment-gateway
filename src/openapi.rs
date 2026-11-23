@@ -413,7 +413,21 @@ pub fn spec() -> Value {
                     "amount": {"type": "integer", "description": "Charged amount in minor units (msats for BTC)."},
                     "platform_managed": {"type": "boolean"},
                     "platform_fee": {"type": ["integer", "null"], "description": "Platform fee in msats, set when a platform managed attempt is paid. Rounded up."},
-                    "net_credited": {"type": ["integer", "null"], "description": "Msats credited to the project balance, set when a platform managed attempt is paid. Never more than was received."}
+                    "net_credited": {"type": ["integer", "null"], "description": "Msats credited to the project balance, set when a platform managed attempt is paid. Never more than was received."},
+                    "details": {"type": "object", "description": "Everything an API only integrator needs to collect this attempt; the hosted pay page is optional. lightning: bolt11. onchain: address, amount_sats, uri. stripe: session_id and checkout_url (Stripe Checkout, returns to the success_url and cancel_url you supplied). revolut: widget {provider, token, mode, email} to open Revolut's embedded card widget, and checkout_url for Revolut's hosted page. paypal: checkout_url. Fields are only ever added.", "properties": {
+                        "bolt11": {"type": "string"},
+                        "address": {"type": "string"},
+                        "amount_sats": {"type": "integer"},
+                        "uri": {"type": "string"},
+                        "checkout_url": {"type": "string"},
+                        "session_id": {"type": "string", "description": "Stripe Checkout session id."},
+                        "widget": {"type": "object", "description": "Revolut embedded card widget.", "properties": {
+                            "provider": {"type": "string", "enum": ["revolut"]},
+                            "token": {"type": "string", "description": "Public order token for the widget."},
+                            "mode": {"type": "string", "enum": ["prod", "sandbox"]},
+                            "email": {"type": ["string", "null"]}
+                        }}
+                    }}
                 }},
                 "LineItemInput": {"type": "object", "required": ["name", "unit_amount"], "properties": {
                     "name": {"type": "string", "maxLength": 127},
@@ -544,6 +558,34 @@ mod tests {
         for field in ["platform_managed", "platform_fee", "net_credited"] {
             assert!(attempt[field].is_object(), "{field}");
         }
+    }
+
+    #[test]
+    fn attempt_details_list_the_api_only_integrator_contract() {
+        let s = spec();
+        let details = &s["components"]["schemas"]["Attempt"]["properties"]["details"]["properties"];
+        for field in [
+            "bolt11",
+            "address",
+            "amount_sats",
+            "uri",
+            "checkout_url",
+            "session_id",
+            "widget",
+        ] {
+            assert!(details[field].is_object(), "{field}");
+        }
+        for field in ["provider", "token", "mode", "email"] {
+            assert!(
+                details["widget"]["properties"][field].is_object(),
+                "{field}"
+            );
+        }
+    }
+
+    #[test]
+    fn payment_schema_links_the_method_and_payment() {
+        let s = spec();
         assert!(s["components"]["schemas"]["Method"]["properties"]["platform_managed"].is_object());
         assert_eq!(
             s["paths"]["/payments/{id}"]["get"]["responses"]["200"]["content"]["application/json"]

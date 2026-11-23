@@ -238,7 +238,7 @@ impl Provider for StripeProvider {
         Ok(CreatedAttempt {
             lookup: id.clone(),
             external_id: Some(id),
-            details: json!({"checkout_url": url}),
+            details: json!({"checkout_url": url, "session_id": session["id"]}),
             expires: None,
             completed: false,
         })

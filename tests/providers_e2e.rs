@@ -247,7 +247,7 @@ async fn stripe_declined_off_session_charge_is_an_error() {
 }
 
 #[tokio::test]
-async fn revolut_save_method_attempt_exposes_widget_details_and_plain_attempt_does_not() {
+async fn revolut_attempts_always_expose_the_widget_with_or_without_save_method() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/api/orders"))
@@ -259,7 +259,13 @@ async fn revolut_save_method_attempt_exposes_widget_details_and_plain_attempt_do
     let p = revolut(&server.uri(), "tok_fixture");
 
     let plain = p.create(request(2500)).await.unwrap();
-    assert!(plain.details.get("widget").is_none());
+    assert_eq!(
+        plain.details["widget"]["token"],
+        "eb78ecc2-d65f-4ace-acbd-e55253e7ea0f"
+    );
+    assert_eq!(plain.details["widget"]["provider"], "revolut");
+    assert_eq!(plain.details["widget"]["mode"], "prod");
+    assert!(plain.details["checkout_url"].as_str().is_some());
 
     let mut req = request(2500);
     req.save_method = true;
@@ -267,8 +273,54 @@ async fn revolut_save_method_attempt_exposes_widget_details_and_plain_attempt_do
     let widget = &saved.details["widget"];
     assert_eq!(widget["provider"], "revolut");
     assert_eq!(widget["token"], "eb78ecc2-d65f-4ace-acbd-e55253e7ea0f");
+    assert_eq!(widget["mode"], "prod");
     assert_eq!(widget["email"], "a@b.c");
     assert!(saved.details["checkout_url"].as_str().is_some());
+}
+
+#[tokio::test]
+async fn revolut_order_without_a_checkout_url_fails_the_attempt() {
+    let server = MockServer::start().await;
+    let mut order = fixture_json("revolut/order_created.json");
+    order.as_object_mut().unwrap().remove("checkout_url");
+    Mock::given(method("POST"))
+        .and(path("/api/orders"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(order))
+        .mount(&server)
+        .await;
+    let p = revolut(&server.uri(), "tok_fixture");
+    assert!(p.create(request(2500)).await.is_err());
+}
+
+#[tokio::test]
+async fn stripe_attempt_returns_session_id_and_url_and_forwards_caller_redirects() {
+    let server = MockServer::start().await;
+    let session = fixture_json("stripe/checkout_session.json");
+    let session_id = session["id"].as_str().unwrap().to_string();
+    Mock::given(method("POST"))
+        .and(path("/v1/checkout/sessions"))
+        .and(body_string_contains(
+            "success_url=https%3A%2F%2Fshop.example%2Fok",
+        ))
+        .and(body_string_contains(
+            "cancel_url=https%3A%2F%2Fshop.example%2Fno",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(session))
+        .mount(&server)
+        .await;
+    let p = stripe(&server.uri(), "sk_test_fixture");
+    let created = p.create(request(2500)).await.unwrap();
+    assert_eq!(created.details["session_id"], session_id);
+    assert!(
+        created.details["checkout_url"]
+            .as_str()
+            .unwrap()
+            .starts_with("https://checkout.stripe.com/")
+    );
+
+    let mut missing = request(2500);
+    missing.success_url = None;
+    assert!(p.create(missing).await.is_err());
 }
 
 #[tokio::test]

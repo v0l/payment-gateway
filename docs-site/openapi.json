@@ -7,6 +7,60 @@
             "description": "Charged amount in minor units (msats for BTC).",
             "type": "integer"
           },
+          "details": {
+            "description": "Everything an API only integrator needs to collect this attempt; the hosted pay page is optional. lightning: bolt11. onchain: address, amount_sats, uri. stripe: session_id and checkout_url (Stripe Checkout, returns to the success_url and cancel_url you supplied). revolut: widget {provider, token, mode, email} to open Revolut's embedded card widget, and checkout_url for Revolut's hosted page. paypal: checkout_url. Fields are only ever added.",
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "amount_sats": {
+                "type": "integer"
+              },
+              "bolt11": {
+                "type": "string"
+              },
+              "checkout_url": {
+                "type": "string"
+              },
+              "session_id": {
+                "description": "Stripe Checkout session id.",
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              },
+              "widget": {
+                "description": "Revolut embedded card widget.",
+                "properties": {
+                  "email": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "mode": {
+                    "enum": [
+                      "prod",
+                      "sandbox"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "enum": [
+                      "revolut"
+                    ],
+                    "type": "string"
+                  },
+                  "token": {
+                    "description": "Public order token for the widget.",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
           "id": {
             "type": "integer"
           },
