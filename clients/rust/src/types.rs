@@ -18,6 +18,25 @@ pub struct Attempt {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ReceivedDeposit {
+    pub attempt_id: u64,
+    pub method: String,
+    pub txid: String,
+    pub reference: String,
+    #[serde(default)]
+    pub amount: u64,
+}
+
+impl ReceivedDeposit {
+    pub fn from_event(event: &Value) -> Option<Self> {
+        if event["type"] != "attempt.received" {
+            return None;
+        }
+        serde_json::from_value(event["data"]["detail"].clone()).ok()
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct Refund {
     pub id: u64,
     pub attempt_id: u64,

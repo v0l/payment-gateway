@@ -254,3 +254,30 @@ async fn line_items_are_serialised_as_the_api_schema_says() {
     let plain = serde_json::to_value(CreatePayment::new(1, "EUR")).unwrap();
     assert!(plain.get("line_items").is_none());
 }
+
+#[test]
+fn attempt_received_event_parses_into_a_deposit() {
+    let body = serde_json::json!({
+        "id": "evt_1",
+        "type": "attempt.received",
+        "created": 1_700_000_000,
+        "data": {
+            "payment": {"id": "abc", "status": "pending"},
+            "detail": {
+                "attempt_id": 7,
+                "method": "onchain",
+                "txid": "deadbeef",
+                "reference": "deadbeef:0",
+                "amount": 250_000
+            }
+        }
+    });
+    let deposit = ReceivedDeposit::from_event(&body).unwrap();
+    assert_eq!(deposit.attempt_id, 7);
+    assert_eq!(deposit.method, "onchain");
+    assert_eq!(deposit.txid, "deadbeef");
+    assert_eq!(deposit.reference, "deadbeef:0");
+    assert_eq!(deposit.amount, 250_000);
+    let paid = serde_json::json!({"type": "payment.paid", "data": {"detail": {}}});
+    assert!(ReceivedDeposit::from_event(&paid).is_none());
+}
