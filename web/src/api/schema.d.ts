@@ -2640,10 +2640,10 @@ export interface components {
             };
         };
         /**
-         * @description Webhook and /v1/events types. Endpoint filters accept these, a prefix wildcard such as withdrawal.*, or *. withdrawal.* events carry data.withdrawal instead of data.payment.
+         * @description Webhook and /v1/events types. Endpoint filters accept these, a prefix wildcard such as withdrawal.*, or *. withdrawal.* events carry data.withdrawal instead of data.payment. attempt.received carries data.detail with attempt_id, method, txid, reference (txid:vout) and amount in msats, sent once per on-chain output that is seen before it confirms.
          * @enum {string}
          */
-        EventType: "payment.paid" | "payment.expired" | "payment.cancelled" | "payment.late_payment" | "attempt.failed" | "refund.completed" | "refund.failed" | "payment.disputed" | "payment.dispute_closed" | "withdrawal.requested" | "withdrawal.completed" | "withdrawal.failed" | "withdrawal.paid";
+        EventType: "payment.paid" | "payment.expired" | "payment.cancelled" | "payment.late_payment" | "attempt.failed" | "attempt.received" | "refund.completed" | "refund.failed" | "payment.disputed" | "payment.dispute_closed" | "withdrawal.requested" | "withdrawal.completed" | "withdrawal.failed" | "withdrawal.paid";
         /** @description Registers a card that already exists at the provider. Idempotent on provider_id and external_id: repeating the call returns the same saved method. The external ids are never returned. */
         ImportSavedMethod: {
             brand?: string;

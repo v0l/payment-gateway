@@ -350,6 +350,7 @@ pub const EVENT_TYPES: &[&str] = &[
     "payment.cancelled",
     "payment.late_payment",
     "attempt.failed",
+    "attempt.received",
     "refund.completed",
     "refund.failed",
     "payment.disputed",
@@ -512,7 +513,7 @@ pub fn spec() -> Value {
                 }},
                 "ProviderType": {"type": "string", "enum": PROVIDER_TYPES, "description": "method/provider_type pairs a project can configure in the console. Config fields per type are in the README."},
                 "ProviderTestResult": {"type": "object", "required": ["ok", "message"], "properties": {"ok": {"type": "boolean"}, "message": {"type": "string", "description": "Fixed success text or a sanitized error. Never contains credentials."}}},
-                "EventType": {"type": "string", "enum": EVENT_TYPES, "description": "Webhook and /v1/events types. Endpoint filters accept these, a prefix wildcard such as withdrawal.*, or *. withdrawal.* events carry data.withdrawal instead of data.payment."},
+                "EventType": {"type": "string", "enum": EVENT_TYPES, "description": "Webhook and /v1/events types. Endpoint filters accept these, a prefix wildcard such as withdrawal.*, or *. withdrawal.* events carry data.withdrawal instead of data.payment. attempt.received carries data.detail with attempt_id, method, txid, reference (txid:vout) and amount in msats, sent once per on-chain output that is seen before it confirms."},
                 "CreateAttempt": {"type": "object", "properties": {"method": {"type": "string"}, "option": {"type": "string"}, "save_method": {"type": "boolean"}}},
                 "CreatePlan": {"type": "object", "required": ["name", "amount", "currency"], "properties": {
                     "name": {"type": "string"}, "description": {"type": "string"},
