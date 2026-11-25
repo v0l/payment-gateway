@@ -278,6 +278,60 @@ async fn onchain_pays_only_when_confirmed_and_sufficient() {
     );
 }
 
+async fn drain_types(h: &Harness, t: &TenantFixture) -> Vec<String> {
+    for _ in 0..5 {
+        h.service.deliver_due().await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    t.receiver.types()
+}
+
+#[tokio::test]
+async fn unconfirmed_deposit_emits_attempt_received_once_then_paid() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let oc = provider(&h, &t, "onchain", json!({}), None).await;
+    let (id, addr, required) = onchain_attempt(&h, &t, 5000).await;
+    let sink = sink_for(&h, oc).await;
+    sink.event(paid(&addr, "tx1:0", Some(required), false), None)
+        .await
+        .unwrap();
+    sink.event(paid(&addr, "tx1:0", Some(required), false), None)
+        .await
+        .unwrap();
+    assert_eq!(drain_types(&h, &t).await, vec!["attempt.received"]);
+    let events = t.receiver.events();
+    let detail = &events[0]["data"]["detail"];
+    assert_eq!(detail["txid"], "tx1");
+    assert_eq!(detail["reference"], "tx1:0");
+    assert_eq!(detail["method"], "onchain");
+    assert_eq!(detail["amount"], required);
+    assert_eq!(get_payment(&h, &t, &id).await["status"], "pending");
+
+    sink.event(paid(&addr, "tx1:0", Some(required), true), None)
+        .await
+        .unwrap();
+    assert_eq!(get_payment(&h, &t, &id).await["status"], "paid");
+    assert_eq!(
+        drain_types(&h, &t).await,
+        vec!["attempt.received", "payment.paid"]
+    );
+}
+
+#[tokio::test]
+async fn confirmed_first_deposit_emits_only_payment_paid() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let oc = provider(&h, &t, "onchain", json!({}), None).await;
+    let (_, addr, required) = onchain_attempt(&h, &t, 5000).await;
+    sink_for(&h, oc)
+        .await
+        .event(paid(&addr, "tx9:0", Some(required), true), None)
+        .await
+        .unwrap();
+    assert_eq!(drain_types(&h, &t).await, vec!["payment.paid"]);
+}
+
 #[tokio::test]
 async fn onchain_confirmation_of_the_same_output_is_not_double_counted() {
     let h = harness().await;

@@ -467,6 +467,43 @@ async fn feed_lists_paid_declined_and_failed_webhooks_newest_first() {
 }
 
 #[tokio::test]
+async fn feed_shows_an_unconfirmed_deposit_until_it_confirms() {
+    let h = harness().await;
+    let c = signed_in(&h, "a@example.com", false).await;
+    let s = shop(&h, &c, "shop").await;
+    let (id, lk, amount) = open(&h, &s, 1800, "onchain", "vps").await;
+    event(&h, s.oc, paid(&lk, Some(amount), false)).await;
+
+    let (st, r) = c
+        .req("GET", &format!("/projects/{}/feed", s.p.id), Value::Null)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{r}");
+    let items = r["items"].as_array().unwrap();
+    let seen = items
+        .iter()
+        .find(|i| i["title"] == "Deposit seen, waiting for confirmation")
+        .unwrap_or_else(|| panic!("{items:?}"));
+    assert_eq!(seen["payment_id"], id);
+    assert_eq!(seen["method"], "onchain");
+
+    event(&h, s.oc, paid(&lk, Some(amount), true)).await;
+    let (_, r) = c
+        .req(
+            "GET",
+            &format!("/projects/{}/payments/{id}", s.p.id),
+            Value::Null,
+        )
+        .await;
+    let events: Vec<&str> = r["events"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["type"].as_str().unwrap())
+        .collect();
+    assert_eq!(events, vec!["attempt.received", "payment.paid"]);
+}
+
+#[tokio::test]
 async fn payment_detail_has_events_deliveries_and_a_masked_email() {
     let h = harness().await;
     let c = signed_in(&h, "a@example.com", false).await;
