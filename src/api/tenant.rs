@@ -65,6 +65,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/openapi.json", get(super::docs::openapi_json))
         .route("/methods", get(list_methods))
+        .route("/project", get(get_project))
         .route("/rates", get(rates))
         .route("/payments", post(create_payment).get(find_payments))
         .route("/payments/{id}", get(get_payment))
@@ -153,6 +154,22 @@ async fn list_methods(
         .take(limit as usize + 1)
         .collect();
     Ok(Page::cut(rows, limit, |m| m.id.to_string()))
+}
+
+#[derive(Serialize)]
+struct ProjectObject {
+    id: u64,
+    name: String,
+    customer_receipts: bool,
+}
+
+async fn get_project(auth: TenantAuth) -> ApiResult<ProjectObject> {
+    let t = auth.require(SCOPE_PAYMENTS_READ)?;
+    Ok(Json(ProjectObject {
+        id: t.id,
+        name: t.name,
+        customer_receipts: t.customer_receipts,
+    }))
 }
 
 async fn rates(auth: TenantAuth, State(s): State<AppState>) -> ApiResult<Value> {

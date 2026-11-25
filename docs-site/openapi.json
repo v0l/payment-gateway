@@ -612,6 +612,21 @@
         },
         "type": "object"
       },
+      "Project": {
+        "properties": {
+          "customer_receipts": {
+            "description": "When false the gateway sends no email to customers for this project (receipts, payment failed or refund notices). Project owners are still notified of operational events. Set in the console project settings. Defaults to true.",
+            "type": "boolean"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ProviderTestResult": {
         "properties": {
           "message": {
@@ -1954,6 +1969,81 @@
         ],
         "summary": "Archive a billing plan",
         "x-required-scope": "payments:write"
+      }
+    },
+    "/project": {
+      "get": {
+        "description": "Requires scope: payments:read.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Missing, unknown, revoked or expired key"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Key lacks the required scope, or a limit was hit"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Rate limited"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Get the project this key belongs to",
+        "x-required-scope": "payments:read"
       }
     },
     "/rates": {

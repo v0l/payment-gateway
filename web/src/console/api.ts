@@ -17,6 +17,7 @@ export interface Project {
   address?: string | null;
   tax_id?: string | null;
   support_email?: string | null;
+  customer_receipts?: boolean;
   require_2fa?: boolean;
 }
 

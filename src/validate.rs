@@ -223,6 +223,7 @@ pub struct SettingsInput {
     pub address: Option<String>,
     pub tax_id: Option<String>,
     pub support_email: Option<String>,
+    pub customer_receipts: Option<bool>,
 }
 
 pub fn valid_url(url: &str) -> bool {
@@ -297,6 +298,7 @@ pub async fn settings(trusted: bool, input: SettingsInput) -> Result<TenantSetti
         address,
         tax_id,
         support_email,
+        customer_receipts: input.customer_receipts,
     })
 }
 

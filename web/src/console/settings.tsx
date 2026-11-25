@@ -366,6 +366,7 @@ function ProjectForm(props: { pid: string; p: Project }) {
     tax_id: p.tax_id || '',
     support_email: p.support_email || '',
   });
+  const [receipts, setReceipts] = useState(p.customer_receipts !== false);
   const [note, out] = useNote();
   const set = (k: string) => (v: string) => setF({ ...f, [k]: v });
   return (
@@ -381,6 +382,9 @@ function ProjectForm(props: { pid: string; p: Project }) {
       <AreaField label="Address (receipts)" placeholder="Seller address on receipts" value={f.address} onInput={set('address')} />
       <TextField label="Tax ID (receipts)" placeholder="VAT or tax ID" value={f.tax_id} onInput={set('tax_id')} />
       <TextField label="Support email (receipts)" placeholder="support@example.com" value={f.support_email} onInput={set('support_email')} />
+      <Check checked={receipts} onChange={setReceipts} disabled={p.role === 'viewer'}>
+        <span>Email receipts to customers. Turn off if your app sends its own. Owner notifications are not affected.</span>
+      </Check>
       <div class="row">
         <button
           class="primary"
@@ -389,6 +393,7 @@ function ProjectForm(props: { pid: string; p: Project }) {
             const payload: Record<string, unknown> = {};
             Object.keys(f).forEach(k => (payload[k] = f[k].trim() || null));
             payload.allowed_origins = f.allowed_origins.split(/\s+/).filter(Boolean);
+            payload.customer_receipts = receipts;
             try {
               await api('POST', `/projects/${pid}/settings`, payload);
               out('Saved.');

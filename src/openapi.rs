@@ -13,6 +13,15 @@ struct Op {
 const OPS: &[Op] = &[
     Op {
         method: "get",
+        path: "/project",
+        summary: "Get the project this key belongs to",
+        scope: "payments:read",
+        list: false,
+        body: None,
+        params: &[],
+    },
+    Op {
+        method: "get",
         path: "/methods",
         summary: "List enabled payment methods",
         scope: "payments:read",
@@ -309,6 +318,8 @@ fn operation(op: &Op) -> Value {
         json!({"$ref": "#/components/schemas/Payment"})
     } else if op.path == "/saved-methods" {
         json!({"$ref": "#/components/schemas/SavedMethod"})
+    } else if op.path == "/project" {
+        json!({"$ref": "#/components/schemas/Project"})
     } else if op.path == "/methods" {
         json!({"$ref": "#/components/schemas/Method"})
     } else {
@@ -385,6 +396,11 @@ pub fn spec() -> Value {
         "components": {
             "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "description": "Project API key. Keys carry scopes: payments:write, payments:read, refunds:write, saved:write, withdrawals:read, withdrawals:write, admin."}},
             "schemas": {
+                "Project": {"type": "object", "properties": {
+                    "id": {"type": "integer"},
+                    "name": {"type": "string"},
+                    "customer_receipts": {"type": "boolean", "description": "When false the gateway sends no email to customers for this project (receipts, payment failed or refund notices). Project owners are still notified of operational events. Set in the console project settings. Defaults to true."}
+                }},
                 "Error": {
                     "type": "object",
                     "required": ["error"],
