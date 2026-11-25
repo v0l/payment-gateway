@@ -18,6 +18,7 @@ const EVENT_WORDS: Record<string, string> = {
   'payment.marked_paid': 'Marked paid',
   'payment.note_added': 'Note added',
   'attempt.failed': 'Attempt declined',
+  'attempt.received': 'Deposit seen',
   'refund.requested': 'Refund requested',
   'refund.completed': 'Refund completed',
   'refund.failed': 'Refund failed',

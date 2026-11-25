@@ -67,6 +67,12 @@ fn event_item(e: &db::EventRow) -> Option<FeedItem> {
                     "Declined",
                     detail["reason"].as_str().map(str::to_string),
                 ),
+                "attempt.received" => (
+                    "payment",
+                    "warn",
+                    "Deposit seen, waiting for confirmation",
+                    detail["txid"].as_str().map(str::to_string),
+                ),
                 "refund.completed" => ("refund", "warn", "Refunded", None),
                 "refund.failed" => (
                     "refund",
