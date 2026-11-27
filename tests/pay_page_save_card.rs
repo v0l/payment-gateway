@@ -176,3 +176,91 @@ async fn saved_card_from_the_pay_page_is_not_visible_to_another_tenant() {
     .await;
     assert_eq!(mine.as_array().unwrap().len(), 1);
 }
+
+async fn settle_with_saved_card(h: &Harness, t: &TenantFixture, provider_id: u64, aid: u64) {
+    let lookup = db::get_attempt(&h.pool, aid).await.unwrap().unwrap().lookup;
+    let hook = send(
+        &h.app,
+        "POST",
+        &format!("/hook/{}/{provider_id}", t.id),
+        None,
+        &[("x-mock-secret", "mock-secret")],
+        json!({"lookup": lookup, "saved": "pm_card_rev"}),
+    )
+    .await;
+    assert_eq!(hook.status, StatusCode::OK, "{}", hook.text);
+}
+
+async fn saved_methods(h: &Harness, t: &TenantFixture, customer_ref: &str) -> Vec<Value> {
+    let (s, saved) = call(
+        &h.app,
+        "GET",
+        &format!("/v1/saved-methods?customer_ref={customer_ref}"),
+        Some(&t.key),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{saved}");
+    saved.as_array().unwrap().clone()
+}
+
+#[tokio::test]
+async fn card_paid_on_the_pay_page_with_the_box_ticked_is_saved_for_the_customer_ref() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let card = provider(&h, &t, "revolut", json!({}), None).await;
+    let p = new_payment(&h, &t, known_customer("rev")).await;
+    let id = p["id"].as_str().unwrap();
+    assert_eq!(state(&h, id).await["can_save_card"], true);
+
+    let (s, r) = page_attempt(&h, id, json!({"provider_id": card, "save_method": true})).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let aid = r["attempts"][0]["id"].as_u64().unwrap();
+    assert!(
+        db::get_attempt(&h.pool, aid)
+            .await
+            .unwrap()
+            .unwrap()
+            .save_method
+    );
+    settle_with_saved_card(&h, &t, card, aid).await;
+
+    let saved = saved_methods(&h, &t, "cust-rev").await;
+    assert_eq!(saved.len(), 1, "{saved:?}");
+    assert_eq!(saved[0]["provider_id"], card, "{saved:?}");
+}
+
+#[tokio::test]
+async fn card_paid_on_the_pay_page_without_a_customer_ref_has_no_checkbox_and_saves_nothing() {
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let card = provider(&h, &t, "revolut", json!({}), None).await;
+    let p = new_payment(
+        &h,
+        &t,
+        json!({"reference": "anon-rev", "amount": 1500, "currency": "EUR", "customer_email": "buyer@example.com"}),
+    )
+    .await;
+    let id = p["id"].as_str().unwrap();
+    assert_eq!(state(&h, id).await["can_save_card"], false);
+
+    let (s, _) = page_attempt(&h, id, json!({"provider_id": card, "save_method": true})).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    let (s, r) = page_attempt(&h, id, json!({"provider_id": card, "save_method": false})).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let aid = r["attempts"][0]["id"].as_u64().unwrap();
+    assert!(
+        !db::get_attempt(&h.pool, aid)
+            .await
+            .unwrap()
+            .unwrap()
+            .save_method
+    );
+    settle_with_saved_card(&h, &t, card, aid).await;
+
+    let all = db::list_saved_methods(&h.pool, t.id, None, None, 10)
+        .await
+        .unwrap();
+    assert!(all.is_empty());
+}
