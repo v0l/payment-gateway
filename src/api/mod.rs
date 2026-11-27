@@ -11,6 +11,7 @@ mod sandbox;
 mod shared;
 mod site;
 mod tenant;
+mod tenant_withdrawals;
 
 use crate::service::{Error, Service};
 use axum::Router;

@@ -67,6 +67,12 @@ fn event_item(e: &db::EventRow) -> Option<FeedItem> {
                     "Declined",
                     detail["reason"].as_str().map(str::to_string),
                 ),
+                "attempt.received" => (
+                    "payment",
+                    "warn",
+                    "Deposit seen, waiting for confirmation",
+                    detail["txid"].as_str().map(str::to_string),
+                ),
                 "refund.completed" => ("refund", "warn", "Refunded", None),
                 "refund.failed" => (
                     "refund",
@@ -101,6 +107,7 @@ fn event_item(e: &db::EventRow) -> Option<FeedItem> {
     }
     if let Some(w) = data.get("withdrawal").filter(|w| w.is_object()) {
         let (tone, title) = match e.event_type.as_str() {
+            "withdrawal.paid" => return None,
             "withdrawal.completed" => ("ok", "Payout sent"),
             "withdrawal.failed" => ("bad", "Payout failed"),
             "withdrawal.rejected" => ("bad", "Payout rejected"),

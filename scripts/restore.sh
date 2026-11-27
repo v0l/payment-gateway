@@ -38,6 +38,20 @@ read_dump \
     | sed -E 's/^(CREATE DATABASE|USE) .*$//I; s/^\/\*!40000 ALTER DATABASE.*$//' \
     | sql --database="$target"
 
+if [ "${RESTORE_REQUIRE_INTEGRITY:-}" = "1" ]; then
+    [ -n "${GATEWAY_BIN:-}" ] || { echo "RESTORE_REQUIRE_INTEGRITY is set but GATEWAY_BIN is not" >&2; exit 1; }
+    [ -n "${GATEWAY_ENCRYPTION_KEYS:-}${GATEWAY_ENCRYPTION_KEY:-}" ] || { echo "RESTORE_REQUIRE_INTEGRITY is set but no encryption key is available" >&2; exit 1; }
+fi
+
+print_counts() {
+    for table in tenant payment payment_attempt refund webhook_delivery; do
+        echo "$table: $(sql -N --database="$target" -e "select count(*) from \`$table\`")"
+    done
+    echo "migrations: $(sql -N --database="$target" -e 'select count(*) from _sqlx_migrations')"
+    echo "tables: $(sql -N -e "select count(*) from information_schema.tables where table_schema = '$target'")"
+}
+print_counts
+
 if [ -n "${GATEWAY_BIN:-}" ]; then
     DATABASE_URL="mysql://${DB_USER}:${MYSQL_PWD}@${DB_HOST}:${DB_PORT}/${target}" "$GATEWAY_BIN" check-integrity
 fi

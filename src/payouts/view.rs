@@ -25,6 +25,8 @@ pub struct WithdrawalView {
     pub created: DateTime<Utc>,
     pub approved_at: Option<DateTime<Utc>>,
     pub finished_at: Option<DateTime<Utc>>,
+    pub idempotency_key: Option<String>,
+    pub provider_id: Option<u64>,
 }
 
 impl From<&WithdrawalRow> for WithdrawalView {
@@ -49,6 +51,8 @@ impl From<&WithdrawalRow> for WithdrawalView {
             created: w.created,
             approved_at: w.approved_at,
             finished_at: w.finished_at,
+            idempotency_key: w.idempotency_key.clone(),
+            provider_id: w.provider_config_id,
         }
     }
 }

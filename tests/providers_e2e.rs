@@ -13,6 +13,21 @@ fn fixture(name: &str) -> String {
     std::fs::read_to_string(format!("tests/fixtures/{name}")).unwrap()
 }
 
+fn live_secret(name: &str) -> Result<String, ()> {
+    non_empty(std::env::var(name).ok())
+}
+
+fn non_empty(value: Option<String>) -> Result<String, ()> {
+    value.filter(|v| !v.trim().is_empty()).ok_or(())
+}
+
+#[test]
+fn an_empty_live_secret_counts_as_unset() {
+    assert!(non_empty(Some(String::new())).is_err());
+    assert!(non_empty(None).is_err());
+    assert_eq!(non_empty(Some("sk_test_x".into())), Ok("sk_test_x".into()));
+}
+
 fn fixture_json(name: &str) -> Value {
     serde_json::from_str(&fixture(name)).unwrap()
 }
@@ -232,7 +247,7 @@ async fn stripe_declined_off_session_charge_is_an_error() {
 }
 
 #[tokio::test]
-async fn every_revolut_attempt_carries_the_widget_token_and_save_method_sets_the_flag() {
+async fn revolut_attempts_always_expose_the_widget_with_or_without_save_method() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/api/orders"))
@@ -244,11 +259,11 @@ async fn every_revolut_attempt_carries_the_widget_token_and_save_method_sets_the
     let p = revolut(&server.uri(), "tok_fixture");
 
     let plain = p.create(request(2500)).await.unwrap();
-    assert_eq!(plain.details["widget"]["provider"], "revolut");
     assert_eq!(
         plain.details["widget"]["token"],
         "eb78ecc2-d65f-4ace-acbd-e55253e7ea0f"
     );
+    assert_eq!(plain.details["widget"]["provider"], "revolut");
     assert_eq!(plain.details["widget"]["mode"], "prod");
     assert_eq!(plain.details["widget"]["save_method"], false);
     assert!(plain.details["checkout_url"].as_str().is_some());
@@ -259,9 +274,55 @@ async fn every_revolut_attempt_carries_the_widget_token_and_save_method_sets_the
     let widget = &saved.details["widget"];
     assert_eq!(widget["provider"], "revolut");
     assert_eq!(widget["token"], "eb78ecc2-d65f-4ace-acbd-e55253e7ea0f");
+    assert_eq!(widget["mode"], "prod");
     assert_eq!(widget["email"], "a@b.c");
     assert_eq!(widget["save_method"], true);
     assert!(saved.details["checkout_url"].as_str().is_some());
+}
+
+#[tokio::test]
+async fn revolut_order_without_a_checkout_url_fails_the_attempt() {
+    let server = MockServer::start().await;
+    let mut order = fixture_json("revolut/order_created.json");
+    order.as_object_mut().unwrap().remove("checkout_url");
+    Mock::given(method("POST"))
+        .and(path("/api/orders"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(order))
+        .mount(&server)
+        .await;
+    let p = revolut(&server.uri(), "tok_fixture");
+    assert!(p.create(request(2500)).await.is_err());
+}
+
+#[tokio::test]
+async fn stripe_attempt_returns_session_id_and_url_and_forwards_caller_redirects() {
+    let server = MockServer::start().await;
+    let session = fixture_json("stripe/checkout_session.json");
+    let session_id = session["id"].as_str().unwrap().to_string();
+    Mock::given(method("POST"))
+        .and(path("/v1/checkout/sessions"))
+        .and(body_string_contains(
+            "success_url=https%3A%2F%2Fshop.example%2Fok",
+        ))
+        .and(body_string_contains(
+            "cancel_url=https%3A%2F%2Fshop.example%2Fno",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(session))
+        .mount(&server)
+        .await;
+    let p = stripe(&server.uri(), "sk_test_fixture");
+    let created = p.create(request(2500)).await.unwrap();
+    assert_eq!(created.details["session_id"], session_id);
+    assert!(
+        created.details["checkout_url"]
+            .as_str()
+            .unwrap()
+            .starts_with("https://checkout.stripe.com/")
+    );
+
+    let mut missing = request(2500);
+    missing.success_url = None;
+    assert!(p.create(missing).await.is_err());
 }
 
 #[tokio::test]
@@ -348,7 +409,7 @@ async fn stripe_form(key: &str, path: &str, form: &[(&str, &str)]) -> Value {
 
 #[tokio::test]
 async fn stripe_test_mode_live_suite() {
-    let Ok(key) = std::env::var("STRIPE_TEST_KEY") else {
+    let Ok(key) = live_secret("STRIPE_TEST_KEY") else {
         eprintln!("skipped: STRIPE_TEST_KEY not set");
         return;
     };
@@ -451,7 +512,7 @@ async fn revolut_pay_with_test_card(token: &str, order_id: &str, save: bool) -> 
 
 #[tokio::test]
 async fn revolut_sandbox_live_suite() {
-    let Ok(token) = std::env::var("REVOLUT_SANDBOX_TOKEN") else {
+    let Ok(token) = live_secret("REVOLUT_SANDBOX_TOKEN") else {
         eprintln!("skipped: REVOLUT_SANDBOX_TOKEN not set");
         return;
     };
@@ -552,7 +613,7 @@ async fn revolut_recorded_saved_methods_are_listed_with_card_details() {
 
 #[tokio::test]
 async fn revolut_sandbox_live_test_connection_saved_methods_and_removal() {
-    let Ok(token) = std::env::var("REVOLUT_SANDBOX_TOKEN") else {
+    let Ok(token) = live_secret("REVOLUT_SANDBOX_TOKEN") else {
         eprintln!("skipped: REVOLUT_SANDBOX_TOKEN not set");
         return;
     };

@@ -15,6 +15,13 @@ The dump contains sealed values as ciphertext. It is useless without the encrypt
 
 ## Restore drill
 
+The drill runs from the backup image, which copies `payment-gateway` from the gateway image. Pass the commit tag that prod runs (the deploy script pushes `:<commit>`, there is no `:prod` tag). Without `GATEWAY_IMAGE` the script uses the short sha of HEAD. The dry run prints the resolved image:
+
+```
+GATEWAY_IMAGE=registry.v0l.io/payment-gateway:bdd51e1 scripts/prod/build-backup-image.sh
+GATEWAY_IMAGE=registry.v0l.io/payment-gateway:bdd51e1 scripts/prod/build-backup-image.sh --apply
+```
+
 Run monthly and after every rotation. Never restore over the live database.
 
 ```
@@ -23,7 +30,7 @@ GATEWAY_BIN=payment-gateway GATEWAY_ENCRYPTION_KEYS=... \
 scripts/restore.sh /backups/gateway-<stamp>.sql.gz gateway_drill
 ```
 
-For restic use `restic:latest` and set `DB_SOURCE_NAME=gateway`. With `GATEWAY_BIN` set, the script runs `payment-gateway check-integrity` on the result. It checks that paid payments have a paid attempt, refunds do not exceed the paid amount, nothing is orphaned, and every sealed value opens with the configured keys. Drop the scratch database afterwards. The automated version of this drill is `restore_drill_*` in `tests/ops.rs`.
+For restic use `restic:latest` and set `DB_SOURCE_NAME=gateway`. With `GATEWAY_BIN` set, the script runs `payment-gateway check-integrity` on the result. With `RESTORE_REQUIRE_INTEGRITY=1` (set in the prod drill Job) it refuses to run without `GATEWAY_BIN` and an encryption key, prints table and migration counts, and exits non-zero on any finding or unreadable sealed value. It checks that paid payments have a paid attempt, refunds do not exceed the paid amount, nothing is orphaned, and every sealed value opens with the configured keys. Drop the scratch database afterwards. The automated version of this drill is `restore_drill_*` in `tests/ops.rs`.
 
 ## Disaster recovery
 

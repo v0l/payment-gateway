@@ -658,6 +658,10 @@ fn have(bin: &str) -> bool {
 #[tokio::test]
 async fn restore_drill_backs_up_restores_into_a_scratch_database_and_passes_integrity() {
     if !(have("mariadb-dump") || have("mysqldump")) || !(have("mariadb") || have("mysql")) {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "restore drill needs mysql client tools in CI"
+        );
         eprintln!("skipping restore drill: no mysql client tools");
         return;
     }
@@ -772,6 +776,136 @@ async fn restore_drill_backs_up_restores_into_a_scratch_database_and_passes_inte
         .execute(&h.pool)
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn restore_drill_requiring_integrity_fails_without_binary_or_with_wrong_key_and_prints_counts()
+ {
+    if !(have("mariadb-dump") || have("mysqldump")) || !(have("mariadb") || have("mysql")) {
+        assert!(std::env::var_os("CI").is_none());
+        return;
+    }
+    let h = harness().await;
+    let t = tenant(&h).await;
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    seed_payments(&h, &t, ln).await;
+    seed_secrets(&h, &sealer(&[("k1", 1)]), 1).await;
+
+    let base = std::env::var("TEST_DATABASE_URL").unwrap();
+    let (host, port, user, pass) = db_parts(&base);
+    let source_db: String = sqlx::query_scalar("select database()")
+        .fetch_one(&h.pool)
+        .await
+        .unwrap();
+    let dir = std::env::temp_dir().join(unique("pgwbackup"));
+    let root = env!("CARGO_MANIFEST_DIR");
+    let out = std::process::Command::new(format!("{root}/scripts/backup.sh"))
+        .env("DB_NAME", &source_db)
+        .env("DB_HOST", &host)
+        .env("DB_PORT", &port)
+        .env("DB_USER", &user)
+        .env("DB_PASSWORD", &pass)
+        .env("BACKUP_DIR", &dir)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let dump = String::from_utf8(out.stdout).unwrap().trim().to_string();
+
+    let scratch = unique("restore_");
+    let run = |bin: bool, key_seed: Option<u8>| {
+        let mut c = std::process::Command::new(format!("{root}/scripts/restore.sh"));
+        c.arg(&dump)
+            .arg(&scratch)
+            .env("DB_HOST", &host)
+            .env("DB_PORT", &port)
+            .env("DB_USER", &user)
+            .env("DB_PASSWORD", &pass)
+            .env("RESTORE_OVERWRITE", "1")
+            .env("RESTORE_REQUIRE_INTEGRITY", "1");
+        if bin {
+            c.env("GATEWAY_BIN", env!("CARGO_BIN_EXE_payment-gateway"));
+        }
+        if let Some(s) = key_seed {
+            c.env(
+                "GATEWAY_ENCRYPTION_KEYS",
+                format!("k1:{}", hex::encode(key(s))),
+            );
+        }
+        c.output().unwrap()
+    };
+
+    let no_bin = run(false, Some(1));
+    assert!(!no_bin.status.success());
+    assert!(String::from_utf8_lossy(&no_bin.stderr).contains("GATEWAY_BIN"));
+
+    let no_key = run(true, None);
+    assert!(!no_key.status.success());
+    assert!(String::from_utf8_lossy(&no_key.stderr).contains("encryption key"));
+
+    let wrong_key = run(true, Some(2));
+    assert!(!wrong_key.status.success());
+    assert!(String::from_utf8_lossy(&wrong_key.stdout).contains("tenant: "));
+
+    let ok = run(true, Some(1));
+    let stdout = String::from_utf8_lossy(&ok.stdout);
+    assert!(
+        ok.status.success(),
+        "{stdout}{}",
+        String::from_utf8_lossy(&ok.stderr)
+    );
+    assert!(stdout.contains("tenant: "), "{stdout}");
+    assert!(stdout.contains("unreadable sealed values: 0"), "{stdout}");
+    assert!(stdout.contains("migrations: "), "{stdout}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+    sqlx::query(&format!("drop database {scratch}"))
+        .execute(&h.pool)
+        .await
+        .unwrap();
+}
+
+#[test]
+fn restore_backup_image_script_resolves_gateway_image_without_a_prod_tag() {
+    let root = env!("CARGO_MANIFEST_DIR");
+    let script = format!("{root}/scripts/prod/build-backup-image.sh");
+    let run = |script: &str, image: Option<&str>| {
+        let mut c = std::process::Command::new(script);
+        c.env_remove("GATEWAY_IMAGE");
+        if let Some(i) = image {
+            c.env("GATEWAY_IMAGE", i);
+        }
+        c.output().unwrap()
+    };
+
+    let explicit = run(&script, Some("registry.v0l.io/payment-gateway:abc1234"));
+    assert!(explicit.status.success());
+    assert!(
+        String::from_utf8_lossy(&explicit.stdout)
+            .contains("gateway image: registry.v0l.io/payment-gateway:abc1234")
+    );
+
+    let head = std::process::Command::new("git")
+        .args(["-C", root, "rev-parse", "--short", "HEAD"])
+        .output()
+        .unwrap();
+    let head = String::from_utf8(head.stdout).unwrap().trim().to_string();
+    let default = run(&script, None);
+    let stdout = String::from_utf8_lossy(&default.stdout);
+    assert!(default.status.success());
+    assert!(stdout.contains(&format!(
+        "gateway image: registry.v0l.io/payment-gateway:{head}"
+    )));
+    assert!(!stdout.contains("payment-gateway:prod"));
+
+    let bare = std::env::temp_dir().join(unique("pgwbare"));
+    std::fs::create_dir_all(bare.join("scripts/prod")).unwrap();
+    let copy = bare.join("scripts/prod/build-backup-image.sh");
+    std::fs::copy(&script, &copy).unwrap();
+    let out = run(copy.to_str().unwrap(), None);
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("set GATEWAY_IMAGE"));
+    assert!(!String::from_utf8_lossy(&out.stdout).contains("payment-gateway:prod"));
+    let _ = std::fs::remove_dir_all(&bare);
 }
 
 async fn audit_rows(pool: &MySqlPool, action: &str) -> Vec<(String, Option<u64>, Option<String>)> {

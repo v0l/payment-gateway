@@ -53,6 +53,7 @@ struct Node {
     coins: Mutex<Vec<(String, u64)>>,
     connected: Mutex<Vec<(String, String)>>,
     counter: Mutex<u32>,
+    route_after_polls: Mutex<u32>,
 }
 
 impl Node {
@@ -66,6 +67,7 @@ impl Node {
             coins: Default::default(),
             connected: Default::default(),
             counter: Default::default(),
+            route_after_polls: Default::default(),
         })
     }
 }
@@ -119,6 +121,19 @@ impl LnNode for Node {
     }
     async fn channels(&self) -> anyhow::Result<Vec<ChannelInfo>> {
         Ok(self.channels.lock().unwrap().clone())
+    }
+    async fn can_route(&self, pubkey: &str, _sats: u64) -> anyhow::Result<bool> {
+        let mut wait = self.route_after_polls.lock().unwrap();
+        if *wait > 0 {
+            *wait -= 1;
+            return Ok(false);
+        }
+        Ok(self
+            .channels
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|c| c.remote_pubkey == pubkey && c.active))
     }
     async fn pay_invoice(&self, bolt11: &str) -> anyhow::Result<String> {
         self.paid.lock().unwrap().push(bolt11.into());
@@ -626,6 +641,9 @@ async fn status_reports_node_errors_without_failing_the_whole_call() {
         async fn channels(&self) -> anyhow::Result<Vec<ChannelInfo>> {
             anyhow::bail!("down")
         }
+        async fn can_route(&self, _: &str, _: u64) -> anyhow::Result<bool> {
+            anyhow::bail!("down")
+        }
         async fn pay_invoice(&self, _: &str) -> anyhow::Result<String> {
             anyhow::bail!("down")
         }
@@ -693,6 +711,9 @@ async fn bootstrap_reports_a_timeout_instead_of_hanging_when_a_node_never_syncs(
         async fn channels(&self) -> anyhow::Result<Vec<ChannelInfo>> {
             Ok(vec![])
         }
+        async fn can_route(&self, _: &str, _: u64) -> anyhow::Result<bool> {
+            Ok(false)
+        }
         async fn pay_invoice(&self, _: &str) -> anyhow::Result<String> {
             Ok(String::new())
         }
@@ -725,4 +746,27 @@ async fn bootstrap_reports_a_timeout_instead_of_hanging_when_a_node_never_syncs(
     assert_eq!(s, StatusCode::OK);
     assert_eq!(r["ok"], false);
     assert!(r["error"].as_str().unwrap().contains("timed out"), "{r}");
+}
+
+#[tokio::test]
+async fn bootstrap_waits_until_the_customer_can_route_to_the_gateway() {
+    let r = rig().await;
+    *r.customer.route_after_polls.lock().unwrap() = 3;
+    let (s, b) = admin(&r.app, "POST", "/sandbox/api/bootstrap", json!({})).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(b["ok"], true, "{b}");
+    assert!(
+        b["log"].to_string().contains("route to gateway ready"),
+        "{b}"
+    );
+    assert_eq!(*r.customer.route_after_polls.lock().unwrap(), 0);
+
+    let r = rig().await;
+    *r.customer.route_after_polls.lock().unwrap() = 1_000;
+    let (_, b) = admin(&r.app, "POST", "/sandbox/api/bootstrap", json!({})).await;
+    assert_eq!(b["ok"], false, "{b}");
+    assert!(
+        b["error"].as_str().unwrap().contains("payable route"),
+        "{b}"
+    );
 }

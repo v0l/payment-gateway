@@ -105,4 +105,12 @@ test("conformance", { skip }, async (t) => {
   const listed = [];
   for await (const p of gw.listPayments({ reference, limit: 1 })) listed.push(p.id);
   assert.deepEqual(listed, [created.id]);
+
+  await assert.rejects(
+    gw.createWithdrawal({ amount: 5000000, destination: "not-an-invoice" }),
+    (e) => e instanceof GatewayError && e.status === 400,
+  );
+  const withdrawals = [];
+  for await (const w of gw.listWithdrawals()) withdrawals.push(w.id);
+  assert.deepEqual(withdrawals, []);
 });

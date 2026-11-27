@@ -22,6 +22,9 @@ impl Service {
     }
 
     pub fn send_receipt_mail(&self, tenant: &Tenant, p: &PaymentRow) {
+        if !tenant.customer_receipts {
+            return;
+        }
         let Some(to) = p.customer_email.as_deref() else {
             return;
         };

@@ -18,6 +18,25 @@ pub struct Attempt {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ReceivedDeposit {
+    pub attempt_id: u64,
+    pub method: String,
+    pub txid: String,
+    pub reference: String,
+    #[serde(default)]
+    pub amount: u64,
+}
+
+impl ReceivedDeposit {
+    pub fn from_event(event: &Value) -> Option<Self> {
+        if event["type"] != "attempt.received" {
+            return None;
+        }
+        serde_json::from_value(event["data"]["detail"].clone()).ok()
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct Refund {
     pub id: u64,
     pub attempt_id: u64,
@@ -51,11 +70,55 @@ pub struct Payment {
     pub metadata: Value,
     pub pay_url: String,
     #[serde(default)]
+    pub line_items: Vec<Value>,
+    #[serde(default)]
     pub attempts: Vec<Attempt>,
     #[serde(default)]
     pub refunds: Vec<Refund>,
     #[serde(default)]
     pub methods: Vec<Value>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LineItemInput {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quantity: Option<u64>,
+    pub unit_amount: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tax_rate: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tax_amount: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sku: Option<String>,
+}
+
+impl LineItemInput {
+    pub fn new(name: &str, unit_amount: u64) -> Self {
+        Self {
+            name: name.to_string(),
+            unit_amount,
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ImportSavedMethod {
+    pub customer_ref: String,
+    pub provider_id: u64,
+    pub external_customer_id: String,
+    pub external_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last4: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp_month: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp_year: Option<u16>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -81,6 +144,8 @@ pub struct CreatePayment {
     pub currency: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tax: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_items: Option<Vec<LineItemInput>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_in: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -134,6 +199,41 @@ impl CreateAttempt {
             ..Default::default()
         }
     }
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct CreateWithdrawal {
+    pub amount: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<u64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Withdrawal {
+    pub id: u64,
+    pub amount: u64,
+    pub currency: String,
+    pub status: String,
+    #[serde(default)]
+    pub fee: Option<u64>,
+    #[serde(default)]
+    pub external_id: Option<String>,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub destination_kind: String,
+    #[serde(default)]
+    pub destination_label: String,
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+    #[serde(default)]
+    pub provider_id: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

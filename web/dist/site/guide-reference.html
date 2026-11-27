@@ -44,6 +44,8 @@
 <h2 id="post-plans-id-archive">POST /plans/{id}/archive</h2>
 <p>Archive a billing plan. Required scope: <code>payments:write</code>.</p>
 <table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
+<h2 id="get-project">GET /project</h2>
+<p>Get the project this key belongs to. Required scope: <code>payments:read</code>.</p>
 <h2 id="get-rates">GET /rates</h2>
 <p>Current BTC rates. Required scope: <code>payments:read</code>.</p>
 <h2 id="get-refunds">GET /refunds</h2>
@@ -52,6 +54,10 @@
 <h2 id="get-saved-methods">GET /saved-methods</h2>
 <p>List saved payment methods. Required scope: <code>saved:write or payments:read</code>.</p>
 <table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>limit</code></td><td>query</td><td>no</td></tr><tr><td><code>cursor</code></td><td>query</td><td>no</td></tr><tr><td><code>customer_ref</code></td><td>query</td><td>no</td></tr></tbody></table>
+<h2 id="post-saved-methods">POST /saved-methods</h2>
+<p>Import an existing provider saved card. Required scope: <code>saved:write</code>.</p>
+<p>Request body <code>ImportSavedMethod</code>:</p>
+<table><thead><tr><th scope="col">Field</th><th scope="col">Type</th></tr></thead><tbody><tr><td><code>brand</code></td><td>string</td></tr><tr><td><code>customer_ref</code></td><td>string</td></tr><tr><td><code>exp_month</code></td><td>integer</td></tr><tr><td><code>exp_year</code></td><td>integer</td></tr><tr><td><code>external_customer_id</code></td><td>string</td></tr><tr><td><code>external_id</code></td><td>string</td></tr><tr><td><code>last4</code></td><td>string</td></tr><tr><td><code>provider_id</code></td><td>integer</td></tr></tbody></table>
 <h2 id="delete-saved-methods-id">DELETE /saved-methods/{id}</h2>
 <p>Delete a saved payment method. Required scope: <code>saved:write</code>.</p>
 <table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
@@ -85,4 +91,14 @@
 <table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
 <h2 id="post-subscriptions-id-resume">POST /subscriptions/{id}/resume</h2>
 <p>Resume a subscription. Required scope: <code>payments:write</code>.</p>
+<table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table>
+<h2 id="get-withdrawals">GET /withdrawals</h2>
+<p>List withdrawals. Required scope: <code>withdrawals:read</code>.</p>
+<table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>limit</code></td><td>query</td><td>no</td></tr><tr><td><code>cursor</code></td><td>query</td><td>no</td></tr><tr><td><code>status</code></td><td>query</td><td>no</td></tr></tbody></table>
+<h2 id="post-withdrawals">POST /withdrawals</h2>
+<p>Create a withdrawal (payout). Required scope: <code>withdrawals:write</code>.</p>
+<p>Request body <code>CreateWithdrawal</code>:</p>
+<table><thead><tr><th scope="col">Field</th><th scope="col">Type</th></tr></thead><tbody><tr><td><code>amount</code></td><td>integer</td></tr><tr><td><code>currency</code></td><td>string</td></tr><tr><td><code>destination</code></td><td>string</td></tr><tr><td><code>destination_id</code></td><td>integer</td></tr><tr><td><code>provider_id</code></td><td>integer</td></tr></tbody></table>
+<h2 id="get-withdrawals-id">GET /withdrawals/{id}</h2>
+<p>Get a withdrawal. Required scope: <code>withdrawals:read</code>.</p>
 <table><thead><tr><th scope="col">Parameter</th><th scope="col">In</th><th scope="col">Required</th></tr></thead><tbody><tr><td><code>id</code></td><td>path</td><td>yes</td></tr></tbody></table></article></main></div><footer><div class="foot-in"><span>Payment Gateway</span><nav aria-label="Legal"><ul><li><a href="/legal/terms">Terms</a></li><li><a href="/legal/privacy">Privacy</a></li><li><a href="/legal/acceptable-use">Acceptable use</a></li><li><a href="/legal/custody">Custodial and non-custodial</a></li></ul></nav></div></footer></body></html>

@@ -57,6 +57,20 @@ pub async fn list_saved_methods(
     Ok(q.bind(limit + 1).fetch_all(pool).await?)
 }
 
+pub async fn get_saved_method_by_external(
+    pool: &MySqlPool,
+    provider_config_id: u64,
+    external_id: &str,
+) -> Result<Option<SavedMethodRow>> {
+    Ok(sqlx::query_as(&format!(
+        "select {SAVED_COLS} from saved_method where provider_config_id = ? and external_id = ?"
+    ))
+    .bind(provider_config_id)
+    .bind(external_id)
+    .fetch_optional(pool)
+    .await?)
+}
+
 pub async fn get_saved_method(
     pool: &MySqlPool,
     tenant_id: u64,

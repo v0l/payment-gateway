@@ -1,5 +1,14 @@
 use super::*;
 
+pub async fn set_tenant_customer_receipts(pool: &MySqlPool, id: u64, on: bool) -> Result<bool> {
+    let r = sqlx::query("update tenant set customer_receipts = ? where id = ?")
+        .bind(on)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(r.rows_affected() > 0)
+}
+
 pub async fn insert_tenant(
     pool: &MySqlPool,
     name: &str,
@@ -78,11 +87,12 @@ pub struct TenantSettings {
     pub address: Option<String>,
     pub tax_id: Option<String>,
     pub support_email: Option<String>,
+    pub customer_receipts: Option<bool>,
 }
 
 pub async fn update_tenant_settings(pool: &MySqlPool, id: u64, s: &TenantSettings) -> Result<bool> {
     let r = sqlx::query(
-        "update tenant set display_name = ?, logo_url = ?, accent_color = ?, allowed_origins = ?, default_success_url = ?, default_cancel_url = ?, legal_name = ?, address = ?, tax_id = ?, support_email = ? where id = ?",
+        "update tenant set display_name = ?, logo_url = ?, accent_color = ?, allowed_origins = ?, default_success_url = ?, default_cancel_url = ?, legal_name = ?, address = ?, tax_id = ?, support_email = ?, customer_receipts = coalesce(?, customer_receipts) where id = ?",
     )
     .bind(&s.display_name)
     .bind(&s.logo_url)
@@ -94,6 +104,7 @@ pub async fn update_tenant_settings(pool: &MySqlPool, id: u64, s: &TenantSetting
     .bind(&s.address)
     .bind(&s.tax_id)
     .bind(&s.support_email)
+    .bind(s.customer_receipts)
     .bind(id)
     .execute(pool)
     .await?;

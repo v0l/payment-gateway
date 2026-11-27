@@ -62,13 +62,38 @@ impl Service {
         let now = self.clock.now();
         let due = db::due_subscriptions(&self.pool, now, 50).await?;
         let mut done = 0;
+        let before = self.billing_tally();
         for (tenant_id, id) in due {
             match self.bill_subscription(tenant_id, id).await {
                 Ok(()) => done += 1,
                 Err(e) => log::warn!("billing subscription {id} failed: {e:?}"),
             }
         }
+        self.metrics.inc("gateway_billing_runs_total", &[]);
+        let after = self.billing_tally();
+        if after != before {
+            log::info!(
+                "billing run: {} subscriptions due, payments created {}, charged {}, failed {}, cancelled {}",
+                done,
+                after[0] - before[0],
+                after[1] - before[1],
+                after[2] - before[2],
+                after[3] - before[3],
+            );
+        }
         Ok(done)
+    }
+
+    fn billing_tally(&self) -> [u64; 4] {
+        ["created", "charged", "failed", "cancelled"].map(|o| {
+            self.metrics
+                .counter("gateway_billing_charges_total", &[("outcome", o)])
+        })
+    }
+
+    fn count_charge(&self, outcome: &str) {
+        self.metrics
+            .inc("gateway_billing_charges_total", &[("outcome", outcome)]);
     }
 
     pub async fn bill_subscription(&self, tenant_id: u64, id: u64) -> Result<()> {
@@ -145,6 +170,7 @@ impl Service {
         self.cancel_in_tx(&mut tx, tenant, &mut sub, open, reason, now, &mut to_void)
             .await?;
         tx.commit().await?;
+        self.count_charge("cancelled");
         self.void_payments(tenant, to_void).await;
         Ok(())
     }
@@ -307,6 +333,7 @@ impl Service {
                 saved.is_none(),
             )
             .await?;
+        self.count_charge("created");
         let pid = payment.pid();
         period.attempts = attempt_no;
         period.payment_id = Some(pid.to_vec());
@@ -338,6 +365,7 @@ impl Service {
                     .await?
                     .ok_or(Error::NotFound)?;
                 if fresh.status == "paid" {
+                    self.count_charge("charged");
                     self.after_payment_paid(&pid).await?;
                     db::release_subscription_claim(&self.pool, sub.id).await?;
                     Ok(())
@@ -402,6 +430,7 @@ impl Service {
         let pid = payment.pid();
         match payment.status.as_str() {
             "paid" => {
+                self.count_charge("charged");
                 self.after_payment_paid(&pid).await?;
                 db::release_subscription_claim(&self.pool, sub.id).await?;
                 Ok(())
@@ -511,6 +540,7 @@ impl Service {
             }
         }
         tx.commit().await?;
+        self.count_charge("failed");
         Ok(())
     }
 

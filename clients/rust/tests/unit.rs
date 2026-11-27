@@ -179,3 +179,105 @@ async fn pager_follows_next_cursor() {
     let seen = server.await.unwrap();
     assert!(seen[1].starts_with("GET /v1/payments?cursor=c1"));
 }
+
+#[tokio::test]
+async fn import_saved_method_posts_the_card_and_decodes_the_view() {
+    let reply = r#"{"id":9,"customer_ref":"c","provider_id":3,"brand":"visa","last4":"4242","exp_month":12,"exp_year":2030}"#;
+    let (url, server) = scripted_server(vec![(200, "", reply)]).await;
+    let g = fast(Gateway::new(&url, "k"));
+    let saved = g
+        .import_saved_method(&ImportSavedMethod {
+            customer_ref: "c".into(),
+            provider_id: 3,
+            external_customer_id: "cus_1".into(),
+            external_id: "pm_1".into(),
+            brand: Some("visa".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!((saved.id, saved.provider_id), (9, 3));
+    assert_eq!(saved.last4.as_deref(), Some("4242"));
+    let seen = server.await.unwrap();
+    assert!(seen[0].starts_with("POST /v1/saved-methods "));
+    let body: Value = serde_json::from_str(seen[0].split("\r\n\r\n").nth(1).unwrap()).unwrap();
+    assert_eq!(
+        body,
+        serde_json::json!({"customer_ref": "c", "provider_id": 3, "external_customer_id": "cus_1", "external_id": "pm_1", "brand": "visa"})
+    );
+}
+
+#[tokio::test]
+async fn import_saved_method_surfaces_a_forbidden_scope() {
+    let body = r#"{"error":"x","error_detail":{"code":"insufficient_scope","message":"x"}}"#;
+    let (url, server) = scripted_server(vec![(403, "", body)]).await;
+    let g = fast(Gateway::new(&url, "k"));
+    let err = g
+        .import_saved_method(&ImportSavedMethod::default())
+        .await
+        .unwrap_err();
+    assert_eq!(err.status(), Some(403));
+    assert_eq!(err.code(), Some("insufficient_scope"));
+    assert_eq!(server.await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn line_items_are_serialised_as_the_api_schema_says() {
+    let stored = r#"{"id":"p1","reference":"r","amount":1230,"currency":"EUR","status":"pending","pay_url":"u","line_items":[{"name":"Widget","quantity":2,"unit_amount":500}]}"#;
+    let (url, server) = scripted_server(vec![(201, "", stored)]).await;
+    let g = fast(Gateway::new(&url, "k"));
+    let mut input = CreatePayment::new(0, "EUR");
+    input.line_items = Some(vec![
+        LineItemInput {
+            quantity: Some(2),
+            tax_rate: Some(23.0),
+            sku: Some("sku-1".into()),
+            description: Some("d".into()),
+            ..LineItemInput::new("Widget", 500)
+        },
+        LineItemInput {
+            tax_amount: Some(7),
+            ..LineItemInput::new("Plain", 100)
+        },
+    ]);
+    let created = g.create_payment(&input).await.unwrap();
+    assert_eq!(created.line_items[0]["name"], "Widget");
+    let seen = server.await.unwrap();
+    let body: Value = serde_json::from_str(seen[0].split("\r\n\r\n").nth(1).unwrap()).unwrap();
+    assert_eq!(
+        body["line_items"],
+        serde_json::json!([
+            {"name": "Widget", "description": "d", "quantity": 2, "unit_amount": 500, "tax_rate": 23.0, "sku": "sku-1"},
+            {"name": "Plain", "unit_amount": 100, "tax_amount": 7}
+        ])
+    );
+    let plain = serde_json::to_value(CreatePayment::new(1, "EUR")).unwrap();
+    assert!(plain.get("line_items").is_none());
+}
+
+#[test]
+fn attempt_received_event_parses_into_a_deposit() {
+    let body = serde_json::json!({
+        "id": "evt_1",
+        "type": "attempt.received",
+        "created": 1_700_000_000,
+        "data": {
+            "payment": {"id": "abc", "status": "pending"},
+            "detail": {
+                "attempt_id": 7,
+                "method": "onchain",
+                "txid": "deadbeef",
+                "reference": "deadbeef:0",
+                "amount": 250_000
+            }
+        }
+    });
+    let deposit = ReceivedDeposit::from_event(&body).unwrap();
+    assert_eq!(deposit.attempt_id, 7);
+    assert_eq!(deposit.method, "onchain");
+    assert_eq!(deposit.txid, "deadbeef");
+    assert_eq!(deposit.reference, "deadbeef:0");
+    assert_eq!(deposit.amount, 250_000);
+    let paid = serde_json::json!({"type": "payment.paid", "data": {"detail": {}}});
+    assert!(ReceivedDeposit::from_event(&paid).is_none());
+}

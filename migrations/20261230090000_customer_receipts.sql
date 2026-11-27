@@ -1,0 +1,1 @@
+ALTER TABLE tenant ADD COLUMN customer_receipts BIT(1) NOT NULL DEFAULT 1;

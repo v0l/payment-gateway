@@ -1,12 +1,15 @@
 use super::*;
 
-const WITHDRAWAL_COLS: &str = "id, tenant_id, amount, currency, purpose, max_fee, fee, destination_kind, destination_id, destination, destination_label, invoice, payment_hash, status, external_id, error, attempts, requested_by, approved_by, auto_approved, created, approved_at, claimed_at, finished_at";
+const WITHDRAWAL_COLS: &str = "id, tenant_id, idempotency_key, request_hash, provider_config_id, amount, currency, purpose, max_fee, fee, destination_kind, destination_id, destination, destination_label, invoice, payment_hash, status, external_id, error, attempts, requested_by, approved_by, auto_approved, created, approved_at, claimed_at, finished_at";
 const DESTINATION_COLS: &str = "id, tenant_id, kind, label, value, verified, created_by, usable_from, verified_at, disabled, created";
 
 #[derive(Clone, Debug, FromRow)]
 pub struct WithdrawalRow {
     pub id: u64,
     pub tenant_id: u64,
+    pub idempotency_key: Option<String>,
+    pub request_hash: Option<String>,
+    pub provider_config_id: Option<u64>,
     pub amount: u64,
     pub currency: String,
     pub purpose: String,
@@ -59,6 +62,9 @@ pub struct NewDestination<'a> {
 
 pub struct NewWithdrawal<'a> {
     pub tenant_id: u64,
+    pub idempotency_key: Option<&'a str>,
+    pub request_hash: Option<&'a str>,
+    pub provider_config_id: Option<u64>,
     pub amount: u64,
     pub currency: &'a str,
     pub purpose: &'a str,
@@ -157,9 +163,12 @@ pub async fn insert_withdrawal<'e, E: Executor<'e, Database = MySql>>(
 ) -> Result<u64> {
     let now = Utc::now();
     let r = sqlx::query(
-        "insert into withdrawal (tenant_id, amount, currency, purpose, max_fee, destination_kind, destination_id, destination, destination_label, invoice, payment_hash, status, requested_by, approved_by, auto_approved, created, approved_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "insert into withdrawal (tenant_id, idempotency_key, request_hash, provider_config_id, amount, currency, purpose, max_fee, destination_kind, destination_id, destination, destination_label, invoice, payment_hash, status, requested_by, approved_by, auto_approved, created, approved_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(w.tenant_id)
+    .bind(w.idempotency_key)
+    .bind(w.request_hash)
+    .bind(w.provider_config_id)
     .bind(w.amount)
     .bind(w.currency)
     .bind(w.purpose)
@@ -265,7 +274,7 @@ pub async fn sum_recent_withdrawals<'e, E: Executor<'e, Database = MySql>>(
     since: DateTime<Utc>,
 ) -> Result<u64> {
     let v: i64 = sqlx::query_scalar(
-        "select cast(coalesce(sum(amount), 0) as signed) from withdrawal where tenant_id = ? and currency = ? and purpose = 'payout' and created >= ? and status in ('requested', 'approved', 'sending', 'completed')",
+        "select cast(coalesce(sum(amount), 0) as signed) from withdrawal where tenant_id = ? and currency = ? and purpose = 'payout' and provider_config_id is null and created >= ? and status in ('requested', 'approved', 'sending', 'completed')",
     )
     .bind(tenant_id)
     .bind(currency)
@@ -449,4 +458,52 @@ pub async fn oldest_sending(pool: &MySqlPool) -> Result<Option<DateTime<Utc>>> {
             .fetch_one(pool)
             .await?,
     )
+}
+
+pub async fn withdrawal_by_idempotency(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    key: &str,
+) -> Result<Option<WithdrawalRow>> {
+    Ok(sqlx::query_as(&format!(
+        "select {WITHDRAWAL_COLS} from withdrawal where tenant_id = ? and idempotency_key = ?"
+    ))
+    .bind(tenant_id)
+    .bind(key)
+    .fetch_optional(pool)
+    .await?)
+}
+
+pub async fn withdrawals_page(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    before: Option<u64>,
+    status: Option<&str>,
+    limit: u32,
+) -> Result<Vec<WithdrawalRow>> {
+    Ok(sqlx::query_as(&format!(
+        "select {WITHDRAWAL_COLS} from withdrawal where tenant_id = ? and purpose = 'payout' and (? is null or id < ?) and (? is null or status = ?) order by id desc limit ?"
+    ))
+    .bind(tenant_id)
+    .bind(before)
+    .bind(before)
+    .bind(status)
+    .bind(status)
+    .bind(limit + 1)
+    .fetch_all(pool)
+    .await?)
+}
+
+pub async fn destination_by_hash(
+    pool: &MySqlPool,
+    tenant_id: u64,
+    value_hash: &str,
+) -> Result<Option<DestinationRow>> {
+    Ok(sqlx::query_as(&format!(
+        "select {DESTINATION_COLS} from payout_destination where tenant_id = ? and value_hash = ? and disabled = 0"
+    ))
+    .bind(tenant_id)
+    .bind(value_hash)
+    .fetch_optional(pool)
+    .await?)
 }

@@ -18,6 +18,7 @@ pub(super) struct ProjectView {
     address: Option<String>,
     tax_id: Option<String>,
     support_email: Option<String>,
+    customer_receipts: bool,
     enabled: bool,
 }
 
@@ -40,11 +41,12 @@ pub(super) fn project_view(t: Tenant, role: Role) -> ProjectView {
         address: t.address,
         tax_id: t.tax_id,
         support_email: t.support_email,
+        customer_receipts: t.customer_receipts,
         enabled: t.enabled,
     }
 }
 
-pub(crate) fn settings_diff(before: &Tenant, after: &Tenant) -> [(&'static str, bool); 11] {
+pub(crate) fn settings_diff(before: &Tenant, after: &Tenant) -> [(&'static str, bool); 12] {
     [
         ("webhook_url", before.webhook_url != after.webhook_url),
         ("display_name", before.display_name != after.display_name),
@@ -66,6 +68,10 @@ pub(crate) fn settings_diff(before: &Tenant, after: &Tenant) -> [(&'static str, 
         ("address", before.address != after.address),
         ("tax_id", before.tax_id != after.tax_id),
         ("support_email", before.support_email != after.support_email),
+        (
+            "customer_receipts",
+            before.customer_receipts != after.customer_receipts,
+        ),
     ]
 }
 

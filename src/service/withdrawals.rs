@@ -13,6 +13,10 @@ pub struct WithdrawalRequest {
     pub destination_id: Option<u64>,
     pub invoice: Option<String>,
     pub requested_by: Option<u64>,
+    pub idempotency_key: Option<String>,
+    pub request_hash: Option<String>,
+    pub wallet_provider_id: Option<u64>,
+    pub raw_destination: Option<(DestinationKind, String)>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -198,6 +202,9 @@ impl Service {
                     status: "approved",
                     requested_by,
                     auto: true,
+                    idempotency_key: None,
+                    request_hash: None,
+                    provider_config_id: None,
                 },
             )
             .await?;
@@ -211,6 +218,7 @@ impl Service {
         req: WithdrawalRequest,
     ) -> Result<WithdrawalRow> {
         let policy = self.payout_policy();
+        let from_wallet = req.wallet_provider_id.is_some();
         if !tenant.enabled {
             return Err(Error::Conflict("project is disabled".into()));
         }
@@ -237,60 +245,80 @@ impl Service {
             Utc::now() - Duration::hours(24),
         )
         .await?;
-        if used + req.amount > daily_max {
+        if !from_wallet && used + req.amount > daily_max {
             return Err(Error::LimitExceeded(crate::limits::LimitHit::new(
                 "payout_daily_max",
                 used + req.amount,
                 daily_max,
             )));
         }
-        let resolved = match (req.destination_id, req.invoice.as_deref()) {
-            (Some(_), Some(_)) | (None, None) => {
-                return invalid("give either destination_id or invoice");
-            }
-            (Some(did), None) => {
-                let d = db::get_destination(&mut *tx, tenant.id, did)
-                    .await?
-                    .ok_or(Error::NotFound)?;
-                if !d.verified {
-                    return Err(Error::Conflict("destination is not verified yet".into()));
-                }
-                if d.usable_from > Utc::now() {
-                    return Err(Error::Conflict(format!(
-                        "destination can be used from {}",
-                        d.usable_from.to_rfc3339()
-                    )));
-                }
-                let kind = DestinationKind::parse(&d.kind)
-                    .ok_or_else(|| Error::Invalid("unknown destination kind".into()))?;
-                (kind, Some(d.id), d.value, d.label, None, None)
-            }
-            (None, Some(inv)) => {
-                let invoice = inv.trim().trim_start_matches("lightning:").to_string();
-                let parsed = crate::providers::lightning::parse_invoice(&invoice)
-                    .map_err(|e| Error::Invalid(format!("invalid invoice: {e}")))?;
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default();
-                if parsed.parsed_invoice.expires_at().is_none_or(|e| e <= now) {
-                    return invalid("invoice has expired");
-                }
-                payouts::check_invoice_amount(&invoice, req.amount)
+        let raw = match &req.raw_destination {
+            Some((kind, value)) if from_wallet && kind.storable() => {
+                let dest = payouts::normalize(*kind, value, policy.network)
                     .map_err(|e| Error::Invalid(e.to_string()))?;
-                let sealed = self.sealer.seal(invoice.as_bytes())?;
-                (
-                    DestinationKind::Bolt11,
+                let sealed = self.sealer.seal(dest.value.as_bytes())?;
+                Some((
+                    *kind,
                     None,
-                    sealed.clone(),
-                    payouts::mask(DestinationKind::Bolt11, &invoice),
-                    Some(sealed),
-                    Some(parsed.payment_hash()),
-                )
+                    sealed,
+                    payouts::mask(*kind, &dest.value),
+                    None,
+                    None,
+                ))
+            }
+            _ => None,
+        };
+        let resolved = if let Some(r) = raw {
+            r
+        } else {
+            match (req.destination_id, req.invoice.as_deref()) {
+                (Some(_), Some(_)) | (None, None) => {
+                    return invalid("give either destination_id or invoice");
+                }
+                (Some(did), None) => {
+                    let d = db::get_destination(&mut *tx, tenant.id, did)
+                        .await?
+                        .ok_or(Error::NotFound)?;
+                    if !d.verified {
+                        return Err(Error::Conflict("destination is not verified yet".into()));
+                    }
+                    if d.usable_from > Utc::now() {
+                        return Err(Error::Conflict(format!(
+                            "destination can be used from {}",
+                            d.usable_from.to_rfc3339()
+                        )));
+                    }
+                    let kind = DestinationKind::parse(&d.kind)
+                        .ok_or_else(|| Error::Invalid("unknown destination kind".into()))?;
+                    (kind, Some(d.id), d.value, d.label, None, None)
+                }
+                (None, Some(inv)) => {
+                    let invoice = inv.trim().trim_start_matches("lightning:").to_string();
+                    let parsed = crate::providers::lightning::parse_invoice(&invoice)
+                        .map_err(|e| Error::Invalid(format!("invalid invoice: {e}")))?;
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default();
+                    if parsed.parsed_invoice.expires_at().is_none_or(|e| e <= now) {
+                        return invalid("invoice has expired");
+                    }
+                    payouts::check_invoice_amount(&invoice, req.amount)
+                        .map_err(|e| Error::Invalid(e.to_string()))?;
+                    let sealed = self.sealer.seal(invoice.as_bytes())?;
+                    (
+                        DestinationKind::Bolt11,
+                        None,
+                        sealed.clone(),
+                        payouts::mask(DestinationKind::Bolt11, &invoice),
+                        Some(sealed),
+                        Some(parsed.payment_hash()),
+                    )
+                }
             }
         };
         let (kind, destination_id, sealed_destination, label, sealed_invoice, payment_hash) =
             resolved;
-        let auto = tenant.trusted && req.amount <= threshold;
+        let auto = from_wallet || (tenant.trusted && req.amount <= threshold);
         let w = self
             .insert_reserved(
                 &mut tx,
@@ -308,6 +336,9 @@ impl Service {
                     status: if auto { "approved" } else { "requested" },
                     requested_by: req.requested_by,
                     auto,
+                    idempotency_key: req.idempotency_key.clone(),
+                    request_hash: req.request_hash.clone(),
+                    provider_config_id: req.wallet_provider_id,
                 },
             )
             .await?;
@@ -332,6 +363,9 @@ impl Service {
             &mut **tx,
             &NewWithdrawal {
                 tenant_id: tenant.id,
+                idempotency_key: r.idempotency_key.as_deref(),
+                request_hash: r.request_hash.as_deref(),
+                provider_config_id: r.provider_config_id,
                 amount: r.amount,
                 currency: CURRENCY,
                 purpose: r.purpose,
@@ -349,6 +383,11 @@ impl Service {
             },
         )
         .await?;
+        if r.provider_config_id.is_some() {
+            return db::lock_withdrawal(&mut **tx, id)
+                .await?
+                .ok_or(Error::NotFound);
+        }
         let reserve = (r.amount + max_fee) as i64;
         let posting = Posting::new(
             TxKind::PayoutRequested,
@@ -436,16 +475,18 @@ impl Service {
         if !from.contains(&w.status.as_str()) {
             return Err(Error::Conflict(format!("withdrawal is {}", w.status)));
         }
-        let reserve = (w.amount + w.max_fee) as i64;
-        let posting = Posting::new(
-            TxKind::PayoutCancelled,
-            vec![
-                Entry::new(pending(w.tenant_id), -reserve),
-                Entry::new(owed(w.tenant_id), reserve),
-            ],
-        )
-        .reference("withdrawal", id);
-        ledger::post(&mut tx, &posting, &format!("withdrawal:{id}:released")).await?;
+        if w.provider_config_id.is_none() {
+            let reserve = (w.amount + w.max_fee) as i64;
+            let posting = Posting::new(
+                TxKind::PayoutCancelled,
+                vec![
+                    Entry::new(pending(w.tenant_id), -reserve),
+                    Entry::new(owed(w.tenant_id), reserve),
+                ],
+            )
+            .reference("withdrawal", id);
+            ledger::post(&mut tx, &posting, &format!("withdrawal:{id}:released")).await?;
+        }
         db::finish_withdrawal(&mut *tx, id, status, None, None, Some(error), Utc::now()).await?;
         if announce && w.purpose == "payout" {
             self.emit_withdrawal(&mut tx, tenant, "withdrawal.failed", id)
@@ -499,6 +540,9 @@ struct ReservedWithdrawal {
     status: &'static str,
     requested_by: Option<u64>,
     auto: bool,
+    idempotency_key: Option<String>,
+    request_hash: Option<String>,
+    provider_config_id: Option<u64>,
 }
 
 async fn lock_tenant(tx: &mut Transaction<'_, MySql>, id: u64) -> Result<()> {

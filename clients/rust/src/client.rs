@@ -1,7 +1,7 @@
 use crate::types::*;
 use reqwest::{Method, StatusCode};
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -288,6 +288,14 @@ impl Gateway {
         .await
     }
 
+    pub async fn import_saved_method(
+        &self,
+        input: &ImportSavedMethod,
+    ) -> Result<SavedMethod, Error> {
+        self.call(Method::POST, "/v1/saved-methods", Some(input), None)
+            .await
+    }
+
     pub async fn delete_saved_method(&self, id: u64) -> Result<(), Error> {
         self.send(
             Method::DELETE,
@@ -326,6 +334,34 @@ impl Gateway {
 
     pub fn list_payments(&self, filter: &ListPayments) -> Pager<Payment> {
         Pager::new(self.clone(), "/v1/payments", filter.query())
+    }
+
+    pub async fn create_withdrawal(&self, input: &CreateWithdrawal) -> Result<Withdrawal, Error> {
+        self.create_withdrawal_with_key(input, &new_idempotency_key())
+            .await
+    }
+
+    pub async fn create_withdrawal_with_key(
+        &self,
+        input: &CreateWithdrawal,
+        key: &str,
+    ) -> Result<Withdrawal, Error> {
+        self.call(Method::POST, "/v1/withdrawals", Some(input), Some(key))
+            .await
+    }
+
+    pub async fn get_withdrawal(&self, id: u64) -> Result<Withdrawal, Error> {
+        self.call(
+            Method::GET,
+            &format!("/v1/withdrawals/{id}"),
+            None::<&()>,
+            None,
+        )
+        .await
+    }
+
+    pub fn list_withdrawals(&self) -> Pager<Withdrawal> {
+        Pager::new(self.clone(), "/v1/withdrawals", vec![])
     }
 
     pub fn list_refunds(&self) -> Pager<Refund> {

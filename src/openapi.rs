@@ -13,6 +13,15 @@ struct Op {
 const OPS: &[Op] = &[
     Op {
         method: "get",
+        path: "/project",
+        summary: "Get the project this key belongs to",
+        scope: "payments:read",
+        list: false,
+        body: None,
+        params: &[],
+    },
+    Op {
+        method: "get",
         path: "/methods",
         summary: "List enabled payment methods",
         scope: "payments:read",
@@ -99,6 +108,33 @@ const OPS: &[Op] = &[
         params: &["payment_id", "status"],
     },
     Op {
+        method: "post",
+        path: "/withdrawals",
+        summary: "Create a withdrawal (payout)",
+        scope: "withdrawals:write",
+        list: false,
+        body: Some("CreateWithdrawal"),
+        params: &[],
+    },
+    Op {
+        method: "get",
+        path: "/withdrawals",
+        summary: "List withdrawals",
+        scope: "withdrawals:read",
+        list: true,
+        body: None,
+        params: &["status"],
+    },
+    Op {
+        method: "get",
+        path: "/withdrawals/{id}",
+        summary: "Get a withdrawal",
+        scope: "withdrawals:read",
+        list: false,
+        body: None,
+        params: &[],
+    },
+    Op {
         method: "get",
         path: "/events",
         summary: "Pull the event feed, oldest first",
@@ -115,6 +151,15 @@ const OPS: &[Op] = &[
         list: true,
         body: None,
         params: &["customer_ref"],
+    },
+    Op {
+        method: "post",
+        path: "/saved-methods",
+        summary: "Import an existing provider saved card",
+        scope: "saved:write",
+        list: false,
+        body: Some("ImportSavedMethod"),
+        params: &[],
     },
     Op {
         method: "delete",
@@ -266,8 +311,15 @@ fn operation(op: &Op) -> Value {
         o.insert("requestBody".into(), json!({"required": true, "content": {"application/json": {"schema": {"$ref": format!("#/components/schemas/{schema}")}}}}));
     }
     let payment_op = op.path.starts_with("/payments") && !op.path.ends_with("/refund");
-    let item = if payment_op {
+    let withdrawal_op = op.path.starts_with("/withdrawals");
+    let item = if withdrawal_op {
+        json!({"$ref": "#/components/schemas/Withdrawal"})
+    } else if payment_op {
         json!({"$ref": "#/components/schemas/Payment"})
+    } else if op.path == "/saved-methods" {
+        json!({"$ref": "#/components/schemas/SavedMethod"})
+    } else if op.path == "/project" {
+        json!({"$ref": "#/components/schemas/Project"})
     } else if op.path == "/methods" {
         json!({"$ref": "#/components/schemas/Method"})
     } else {
@@ -298,6 +350,7 @@ pub const EVENT_TYPES: &[&str] = &[
     "payment.cancelled",
     "payment.late_payment",
     "attempt.failed",
+    "attempt.received",
     "refund.completed",
     "refund.failed",
     "payment.disputed",
@@ -305,6 +358,7 @@ pub const EVENT_TYPES: &[&str] = &[
     "withdrawal.requested",
     "withdrawal.completed",
     "withdrawal.failed",
+    "withdrawal.paid",
 ];
 
 pub const PROVIDER_TYPES: &[&str] = &[
@@ -341,8 +395,13 @@ pub fn spec() -> Value {
         "paths": Value::Object(paths),
         "x-console": {"POST /console/api/projects/{id}/providers/{pid}/test": {"summary": "Test a provider's credentials without creating a payment", "auth": "console session, project admin", "response": {"$ref": "#/components/schemas/ProviderTestResult"}}},
         "components": {
-            "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "description": "Project API key. Keys carry scopes: payments:write, payments:read, refunds:write, saved:write, admin."}},
+            "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "description": "Project API key. Keys carry scopes: payments:write, payments:read, refunds:write, saved:write, withdrawals:read, withdrawals:write, admin."}},
             "schemas": {
+                "Project": {"type": "object", "properties": {
+                    "id": {"type": "integer"},
+                    "name": {"type": "string"},
+                    "customer_receipts": {"type": "boolean", "description": "When false the gateway sends no email to customers for this project (receipts, payment failed or refund notices). Project owners are still notified of operational events. Set in the console project settings. Defaults to true."}
+                }},
                 "Error": {
                     "type": "object",
                     "required": ["error"],
@@ -371,7 +430,22 @@ pub fn spec() -> Value {
                     "amount": {"type": "integer", "description": "Charged amount in minor units (msats for BTC)."},
                     "platform_managed": {"type": "boolean"},
                     "platform_fee": {"type": ["integer", "null"], "description": "Platform fee in msats, set when a platform managed attempt is paid. Rounded up."},
-                    "net_credited": {"type": ["integer", "null"], "description": "Msats credited to the project balance, set when a platform managed attempt is paid. Never more than was received."}
+                    "net_credited": {"type": ["integer", "null"], "description": "Msats credited to the project balance, set when a platform managed attempt is paid. Never more than was received."},
+                    "details": {"type": "object", "description": "Everything an API only integrator needs to collect this attempt; the hosted pay page is optional. lightning: bolt11. onchain: address, amount_sats, uri. stripe: session_id and checkout_url (Stripe Checkout, returns to the success_url and cancel_url you supplied). revolut: widget {provider, token, mode, email} to open Revolut's embedded card widget, and checkout_url for Revolut's hosted page. paypal: checkout_url. Fields are only ever added.", "properties": {
+                        "bolt11": {"type": "string"},
+                        "address": {"type": "string"},
+                        "amount_sats": {"type": "integer"},
+                        "uri": {"type": "string"},
+                        "checkout_url": {"type": "string"},
+                        "session_id": {"type": "string", "description": "Stripe Checkout session id."},
+                        "widget": {"type": "object", "description": "Revolut embedded card widget.", "properties": {
+                            "provider": {"type": "string", "enum": ["revolut"]},
+                            "token": {"type": "string", "description": "Public order token for the widget."},
+                            "mode": {"type": "string", "enum": ["prod", "sandbox"]},
+                            "email": {"type": ["string", "null"]},
+                            "save_method": {"type": "boolean", "description": "True when the attempt asked to save the card for the payment's customer_ref."}
+                        }}
+                    }}
                 }},
                 "LineItemInput": {"type": "object", "required": ["name", "unit_amount"], "properties": {
                     "name": {"type": "string", "maxLength": 127},
@@ -381,6 +455,21 @@ pub fn spec() -> Value {
                     "tax_rate": {"type": "number", "description": "Percent, 0 to 100, at most 2 decimals. Exclusive with tax_amount."},
                     "tax_amount": {"type": "integer", "description": "Minor units. Exclusive with tax_rate."},
                     "sku": {"type": "string", "maxLength": 64}
+                }},
+                "ImportSavedMethod": {"type": "object", "required": ["customer_ref", "provider_id", "external_customer_id", "external_id"], "description": "Registers a card that already exists at the provider. Idempotent on provider_id and external_id: repeating the call returns the same saved method. The external ids are never returned.", "properties": {
+                    "customer_ref": {"type": "string", "maxLength": 128},
+                    "provider_id": {"type": "integer", "description": "One of your enabled card providers"},
+                    "external_customer_id": {"type": "string", "maxLength": 255, "description": "The provider's customer id"},
+                    "external_id": {"type": "string", "maxLength": 255, "description": "The provider's payment method id"},
+                    "brand": {"type": "string", "maxLength": 32},
+                    "last4": {"type": "string", "maxLength": 8},
+                    "exp_month": {"type": "integer", "minimum": 1, "maximum": 12},
+                    "exp_year": {"type": "integer"}
+                }},
+                "SavedMethod": {"type": "object", "properties": {
+                    "id": {"type": "integer"}, "customer_ref": {"type": "string"}, "provider_id": {"type": "integer"},
+                    "brand": {"type": ["string", "null"]}, "last4": {"type": ["string", "null"]},
+                    "exp_month": {"type": ["integer", "null"]}, "exp_year": {"type": ["integer", "null"]}
                 }},
                 "DiscountInput": {"type": "object", "description": "Exactly one of amount or percent.", "properties": {
                     "amount": {"type": "integer", "description": "Minor units"},
@@ -425,7 +514,7 @@ pub fn spec() -> Value {
                 }},
                 "ProviderType": {"type": "string", "enum": PROVIDER_TYPES, "description": "method/provider_type pairs a project can configure in the console. Config fields per type are in the README."},
                 "ProviderTestResult": {"type": "object", "required": ["ok", "message"], "properties": {"ok": {"type": "boolean"}, "message": {"type": "string", "description": "Fixed success text or a sanitized error. Never contains credentials."}}},
-                "EventType": {"type": "string", "enum": EVENT_TYPES, "description": "Webhook and /v1/events types. Endpoint filters accept these, a prefix wildcard such as withdrawal.*, or *. withdrawal.* events carry data.withdrawal instead of data.payment."},
+                "EventType": {"type": "string", "enum": EVENT_TYPES, "description": "Webhook and /v1/events types. Endpoint filters accept these, a prefix wildcard such as withdrawal.*, or *. withdrawal.* events carry data.withdrawal instead of data.payment. attempt.received carries data.detail with attempt_id, method, txid, reference (txid:vout) and amount in msats, sent once per on-chain output that is seen before it confirms."},
                 "CreateAttempt": {"type": "object", "properties": {"method": {"type": "string"}, "option": {"type": "string"}, "save_method": {"type": "boolean"}}},
                 "CreatePlan": {"type": "object", "required": ["name", "amount", "currency"], "properties": {
                     "name": {"type": "string"}, "description": {"type": "string"},
@@ -442,6 +531,25 @@ pub fn spec() -> Value {
                 }},
                 "CancelSubscription": {"type": "object", "properties": {"at_period_end": {"type": "boolean", "default": false}}},
                 "ChangePlan": {"type": "object", "required": ["plan_id"], "properties": {"plan_id": {"type": "integer"}, "proration": {"type": "string", "enum": ["none", "prorate"], "default": "none"}}},
+                "CreateWithdrawal": {"type": "object", "required": ["amount"], "description": "Send the Idempotency-Key header (required). With provider_id the payout is paid from that project LND wallet to destination (bolt11 invoice, lightning address, lnurl or on-chain address) and does not touch the custody balance. Without it the payout is paid from the custody balance under the payout limits and approval rules, and destination must be a bolt11 invoice (or send destination_id of a verified saved destination).", "properties": {
+                    "amount": {"type": "integer", "description": "Msats, a whole number of sats."},
+                    "currency": {"type": "string", "enum": ["BTC"], "default": "BTC"},
+                    "destination": {"type": "string"},
+                    "destination_id": {"type": "integer", "description": "Custody only: a verified saved destination."},
+                    "provider_id": {"type": "integer", "description": "One of the project's own LND providers, from GET /methods."}
+                }},
+                "Withdrawal": {"type": "object", "description": "Withdrawal view, also the webhook data.withdrawal object.", "properties": {
+                    "id": {"type": "integer"},
+                    "amount": {"type": "integer"}, "currency": {"type": "string"},
+                    "status": {"type": "string", "enum": ["requested", "approved", "sending", "completed", "failed", "rejected", "cancelled"]},
+                    "destination_kind": {"type": "string"}, "destination_label": {"type": "string", "description": "Masked destination."},
+                    "fee": {"type": ["integer", "null"]}, "max_fee": {"type": "integer"},
+                    "external_id": {"type": ["string", "null"], "description": "Payment hash or txid once paid."},
+                    "error": {"type": ["string", "null"]},
+                    "idempotency_key": {"type": ["string", "null"]},
+                    "provider_id": {"type": ["integer", "null"]},
+                    "created": {"type": "string"}, "finished_at": {"type": ["string", "null"]}
+                }},
                 "RefundInput": {"type": "object", "properties": {"amount": {"type": "integer", "description": "Minor units. Omit for the full remaining amount."}, "destination": {"type": "string"}}}
             }
         }
@@ -468,6 +576,34 @@ mod tests {
         for field in ["platform_managed", "platform_fee", "net_credited"] {
             assert!(attempt[field].is_object(), "{field}");
         }
+    }
+
+    #[test]
+    fn attempt_details_list_the_api_only_integrator_contract() {
+        let s = spec();
+        let details = &s["components"]["schemas"]["Attempt"]["properties"]["details"]["properties"];
+        for field in [
+            "bolt11",
+            "address",
+            "amount_sats",
+            "uri",
+            "checkout_url",
+            "session_id",
+            "widget",
+        ] {
+            assert!(details[field].is_object(), "{field}");
+        }
+        for field in ["provider", "token", "mode", "email", "save_method"] {
+            assert!(
+                details["widget"]["properties"][field].is_object(),
+                "{field}"
+            );
+        }
+    }
+
+    #[test]
+    fn payment_schema_links_the_method_and_payment() {
+        let s = spec();
         assert!(s["components"]["schemas"]["Method"]["properties"]["platform_managed"].is_object());
         assert_eq!(
             s["paths"]["/payments/{id}"]["get"]["responses"]["200"]["content"]["application/json"]

@@ -65,6 +65,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/openapi.json", get(super::docs::openapi_json))
         .route("/methods", get(list_methods))
+        .route("/project", get(get_project))
         .route("/rates", get(rates))
         .route("/payments", post(create_payment).get(find_payments))
         .route("/payments/{id}", get(get_payment))
@@ -72,8 +73,17 @@ pub fn router() -> Router<AppState> {
         .route("/payments/{id}/cancel", post(cancel_payment))
         .route("/payments/{id}/refund", post(refund_payment))
         .route("/refunds", get(list_refunds))
+        .route(
+            "/withdrawals",
+            post(super::tenant_withdrawals::create_withdrawal)
+                .get(super::tenant_withdrawals::list_withdrawals),
+        )
+        .route(
+            "/withdrawals/{id}",
+            get(super::tenant_withdrawals::get_withdrawal),
+        )
         .route("/events", get(list_events))
-        .route("/saved-methods", get(list_saved))
+        .route("/saved-methods", get(list_saved).post(import_saved))
         .route("/saved-methods/{id}", delete(delete_saved))
         .route("/saved-methods/{id}/charge", post(charge_saved))
         .route(
@@ -144,6 +154,22 @@ async fn list_methods(
         .take(limit as usize + 1)
         .collect();
     Ok(Page::cut(rows, limit, |m| m.id.to_string()))
+}
+
+#[derive(Serialize)]
+struct ProjectObject {
+    id: u64,
+    name: String,
+    customer_receipts: bool,
+}
+
+async fn get_project(auth: TenantAuth) -> ApiResult<ProjectObject> {
+    let t = auth.require(SCOPE_PAYMENTS_READ)?;
+    Ok(Json(ProjectObject {
+        id: t.id,
+        name: t.name,
+        customer_receipts: t.customer_receipts,
+    }))
 }
 
 async fn rates(auth: TenantAuth, State(s): State<AppState>) -> ApiResult<Value> {
@@ -405,6 +431,27 @@ async fn list_saved(
     })
     .collect();
     Ok(Page::cut(rows, limit, |m| m.id.to_string()))
+}
+
+async fn import_saved(
+    auth: TenantAuth,
+    State(s): State<AppState>,
+    Json(input): Json<crate::service::ImportSaved>,
+) -> Result<(StatusCode, Json<SavedView>), ApiError> {
+    let t = auth.require(SCOPE_SAVED_WRITE)?;
+    let m = s.service.import_saved(&t, input).await?;
+    Ok((
+        StatusCode::OK,
+        Json(SavedView {
+            id: m.id,
+            customer_ref: m.customer_ref,
+            provider_id: m.provider_config_id,
+            brand: m.brand,
+            last4: m.last4,
+            exp_month: m.exp_month,
+            exp_year: m.exp_year,
+        }),
+    ))
 }
 
 async fn delete_saved(

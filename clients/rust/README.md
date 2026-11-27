@@ -28,7 +28,7 @@ async fn main() -> Result<(), Error> {
 
 Amounts are integer minor units. `create_payment` generates an idempotency key, `create_payment_with_key` takes yours. The key is reused across retries.
 
-Saved methods: `list_saved_methods`, `delete_saved_method`, `charge_saved_method`.
+Saved methods: `list_saved_methods`, `import_saved_method`, `delete_saved_method`, `charge_saved_method`.
 
 ## Retries
 

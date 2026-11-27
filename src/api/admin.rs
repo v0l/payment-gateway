@@ -77,6 +77,7 @@ struct TenantView {
     address: Option<String>,
     tax_id: Option<String>,
     support_email: Option<String>,
+    customer_receipts: bool,
 }
 
 impl From<db::Tenant> for TenantView {
@@ -97,6 +98,7 @@ impl From<db::Tenant> for TenantView {
             address: t.address,
             tax_id: t.tax_id,
             support_email: t.support_email,
+            customer_receipts: t.customer_receipts,
         }
     }
 }
@@ -124,6 +126,7 @@ async fn create_tenant(
     _: AdminAuth,
     State(s): State<AppState>,
     headers: HeaderMap,
+    Query(q): Query<HashMap<String, String>>,
     Json(req): Json<CreateTenant>,
 ) -> ApiResult<CreatedTenant> {
     if req.name.trim().is_empty() {
@@ -143,6 +146,9 @@ async fn create_tenant(
         &sealed,
     )
     .await?;
+    if q.get("receipts").is_some_and(|v| v == "off") {
+        db::set_tenant_customer_receipts(s.pool(), id, false).await?;
+    }
     Event::new(Action::ProjectCreated, Actor::AdminToken)
         .tenant(id)
         .target("project", id)

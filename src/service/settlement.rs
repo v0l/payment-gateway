@@ -214,6 +214,11 @@ impl Service {
             return Ok(());
         }
         let required = required_receipt(&attempt);
+        let first_sighting = !confirmed
+            && !db::receipts_for_attempt(&mut *tx, attempt.id)
+                .await?
+                .iter()
+                .any(|r| r.r#ref == reference);
         db::upsert_receipt(
             &mut *tx,
             attempt.id,
@@ -223,6 +228,23 @@ impl Service {
             self.clock.now(),
         )
         .await?;
+        if first_sighting {
+            let txid = reference.split(':').next().unwrap_or(reference);
+            self.emit(
+                &mut tx,
+                &tenant,
+                &p,
+                "attempt.received",
+                json!({
+                    "attempt_id": attempt.id,
+                    "method": attempt.method,
+                    "txid": txid,
+                    "reference": reference,
+                    "amount": amount.unwrap_or(required),
+                }),
+            )
+            .await?;
+        }
         let received: u64 = db::receipts_for_attempt(&mut *tx, attempt.id)
             .await?
             .iter()
