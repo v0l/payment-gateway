@@ -134,6 +134,35 @@ async function embedChecks(browser: Browser, tenant: Tenant): Promise<void> {
   await ctx.close();
 }
 
+async function saveCardChecks(browser: Browser): Promise<void> {
+  const shop = await admin<Tenant>('POST', '/admin/tenants', { name: 'E2E Card Shop', webhook_url: 'http://127.0.0.1:9/hook' });
+  await admin('POST', `/admin/tenants/${shop.id}/providers`, { method: 'revolut', provider_type: 'mock', name: 'card', config: {} });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, locale: 'en-IE' });
+  const page = await ctx.newPage();
+  const sent: unknown[] = [];
+  page.on('request', r => {
+    if (r.method() === 'POST' && r.url().endsWith('/attempts')) sent.push(r.postDataJSON());
+  });
+
+  const anon = await newPayment(shop, 'card-anon', { customer_email: 'buyer@example.com' });
+  await page.goto(`${gateway}/pay/${anon.id}`);
+  await page.waitForSelector('button.method');
+  check('no save card box without a customer_ref', (await page.locator('.save-card input').count()) === 0);
+
+  const known = await newPayment(shop, 'card-known', { customer_ref: 'cust-e2e', customer_email: 'buyer@example.com' });
+  await page.goto(`${gateway}/pay/${known.id}`);
+  await page.waitForSelector('.save-card input');
+  await noHorizontalScroll(page, 'save card box');
+  await page.check('.save-card input');
+  await page.click('button.method');
+  await page.waitForFunction(() => !document.querySelector('button.method'));
+  const body = sent.at(-1) as { save_method?: boolean } | undefined;
+  check('ticked save card box reaches the attempt', body?.save_method === true, JSON.stringify(body));
+  const view = await call<{ attempts: { id: number }[] }>(shop.api_key, 'GET', `/v1/payments/${known.id}`);
+  check('attempt created from the pay page', view.attempts.length === 1);
+  await ctx.close();
+}
+
 const child = await startGateway();
 const host = await hostServer();
 const browser = await chromium.launch({ executablePath: process.env.CHROME || undefined, args: ['--no-sandbox'] });
@@ -189,6 +218,7 @@ try {
   await ctx.close();
 
   await embedChecks(browser, tenant);
+  await saveCardChecks(browser);
 } finally {
   await browser.close();
   host.close();
