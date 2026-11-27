@@ -68,6 +68,29 @@ async fn revolut_origins_are_allowed_on_the_pay_page_and_embed_only() {
             "{path} {csp}"
         );
     }
+    let ln = provider(&h, &t, "lightning", json!({}), None).await;
+    let (s, r) = attempt(&h, &t, id, json!({"method": "lightning"})).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let hash = r["attempts"][0]["details"]["payment_hash"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    ProviderSink {
+        service: h.service.clone(),
+        provider_id: ln,
+    }
+    .event(
+        ProviderEvent::Paid {
+            lookup: hash.clone(),
+            reference: hash,
+            amount: None,
+            confirmed: true,
+            saved: None,
+        },
+        None,
+    )
+    .await
+    .unwrap();
     let r = send(
         &h.app,
         "GET",
@@ -77,12 +100,22 @@ async fn revolut_origins_are_allowed_on_the_pay_page_and_embed_only() {
         Value::Null,
     )
     .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.text);
     let csp = r
         .headers
         .get("content-security-policy")
-        .map(|v| v.to_str().unwrap().to_string())
-        .unwrap_or_default();
-    assert!(!csp.contains("revolut"), "{csp}");
+        .expect("receipt sends a CSP")
+        .to_str()
+        .unwrap();
+    for directive in ["script-src", "frame-src", "connect-src"] {
+        let value = csp
+            .split(';')
+            .map(str::trim)
+            .find(|d| d.starts_with(directive))
+            .unwrap_or_default();
+        assert!(!value.contains("revolut"), "{directive} in {csp}");
+    }
+    assert!(csp.contains("connect-src 'self'"), "{csp}");
 }
 
 #[tokio::test]
