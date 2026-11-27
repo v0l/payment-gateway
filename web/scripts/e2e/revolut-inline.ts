@@ -89,7 +89,7 @@ try {
       customer_ref: ref,
       customer_email: `${ref}@example.com`,
     });
-    const page = await browser.newPage({ viewport: opts.viewport ?? { width: 1000, height: 900 } });
+    const page = await browser.newPage({ viewport: opts.viewport ?? { width: Number(process.env.DESKTOP_WIDTH ?? 1440), height: 900 } });
     page.on('framenavigated', f => {
       if (f === page.mainFrame()) urls.add(f.url());
     });
